@@ -1,0 +1,63 @@
+{
+  "files": ["README.md"],
+  "shields": [
+    {
+      "id": "header-badges",
+      "badges": [
+        {
+          "url": "https://github.com/denkmitdb/denkmitdb/blob/main/CHANGELOG.md",
+          "color": "lightgray",
+					"label": "version",
+					"message": "v{{version}}",
+					"title": "v{{version}}",
+					"style": "flat",
+					"logo": "",
+					"platform": "shields"
+        },
+				{
+					"url": "https://github.com/ptkdev-boilerplate/node-module-boilerplate/blob/main/LICENSE.md",
+					"color": "brightgreen",
+					"label": "license",
+					"message": "{{license}}",
+					"title": "License: {{license}}",
+					"style": "flat",
+					"logo": "license",
+					"platform": "shields"
+				},
+				{
+					"url": "https://www.typescriptlang.org/",
+					"color": "blue",
+					"label": "language",
+					"message": "typescript",
+					"title": "Language: TypeScript",
+					"style": "flat",
+					"logo": "typescript",
+					"platform": "shields"
+				}
+      ]
+    },
+    {
+      "id": "sponsors-badges",
+			"badges": [
+				{
+					"color": "#E38B29",
+					"label": "BTC",
+					"message": "1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje",
+          "title": "Donate Bitcoin",
+					"style": "flat-square",
+					"logo": "bitcoin",
+					"platform": "shields"
+				},
+				{
+					"color": "#4E8EE9",
+					"label": "ETH",
+					"message": "1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje",
+					"title": "Donate Ethereum",
+					"style": "flat-square",
+					"logo": "ethereum",
+					"platform": "shields"
+				}
+			]
+		}
+  ]
+}

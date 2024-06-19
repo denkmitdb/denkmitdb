@@ -1,0 +1,102 @@
+{
+    "name": "@denkmitdb/denkmitdb",
+    "version": "1.0.0",
+    "description": "Distributed Merkle Tree Database on IPFS",
+    "main": "./dist/functions/index.js",
+    "publishConfig": {
+        "access": "public"
+    },
+    "type": "module",
+    "types": "./dist/types/index.d.ts",
+    "files": [
+        "src",
+        "dist",
+        "!dist/test",
+        "!**/*.tsbuildinfoi"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/types/index.d.ts",
+            "import": "./dist/functions/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "scripts": {
+      "build": "rm -rf dist && tsc"
+    },
+    "keywords": [
+        "denkmitdb",
+        "denkmitdb-typescript"
+    ],
+    "author": "Askar Zhakenov <askar@zhakenov.pro>",
+    "license": "MIT",
+    "homepage": "https://github.com/denkmitdb/denkmitdb",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/denkmitdb/denkmitdb.git"
+    },
+    "bugs": {
+        "url": "https://github.com/denkmitdb/denkmitdb/issues"
+    },
+    "devDependencies": {
+        "@eslint/eslintrc": "^3.1.0",
+        "@eslint/js": "^9.4.0",
+        "@helia/interface": "^4.3.0",
+        "@ptkdev/all-shields-cli": "^2.0.2",
+        "@types/eslint__js": "^8.42.3",
+        "@types/inquirer": "^9.0.7",
+        "@types/node": "^20.14.2",
+        "@typescript-eslint/eslint-plugin": "^7.12.0",
+        "@typescript-eslint/parser": "^7.12.0",
+        "eslint": "^9.4.0",
+        "eslint-config-prettier": "^9.1.0",
+        "eslint-formatter-unix": "^8.40.0",
+        "eslint-plugin-tsdoc": "^0.3.0",
+        "globals": "^15.4.0",
+        "prettier": "^3.3.1",
+        "ts-node": "^10.9.2",
+        "tsx": "^4.12.0",
+        "typedoc": "^0.25.13",
+        "typescript": "^5.4.5",
+        "typescript-eslint": "^7.12.0"
+    },
+    "dependencies": {
+        "@chainsafe/libp2p-gossipsub": "^13.0.0",
+        "@chainsafe/libp2p-noise": "^15.0.0",
+        "@chainsafe/libp2p-yamux": "^6.0.2",
+        "@faker-js/faker": "^8.4.1",
+        "@helia/dag-cbor": "^3.0.4",
+        "@helia/unixfs": "^3.0.6",
+        "@inquirer/confirm": "^3.1.9",
+        "@inquirer/input": "^2.1.9",
+        "@inquirer/prompts": "^5.0.5",
+        "@ipld/dag-cbor": "^9.2.0",
+        "@libp2p/bootstrap": "^10.0.25",
+        "@libp2p/identify": "^2.0.3",
+        "@libp2p/interface": "^1.4.1",
+        "@libp2p/interfaces": "^3.3.2",
+        "@libp2p/keychain": "^4.0.16",
+        "@libp2p/logger": "^4.0.14",
+        "@libp2p/mdns": "^10.0.25",
+        "@libp2p/tcp": "^9.0.27",
+        "@types/json-logic-js": "^2.0.7",
+        "blockstore-fs": "^1.1.10",
+        "datastore-fs": "^9.1.8",
+        "delay": "^6.0.0",
+        "helia": "^4.2.3",
+        "inquirer": "^9.2.23",
+        "interface-datastore": "^8.2.11",
+        "it-drain": "^3.0.7",
+        "jose": "^5.4.0",
+        "js-sdsl": "^4.4.2",
+        "json-logic-js": "^2.0.2",
+        "keyv": "^4.5.4",
+        "libp2p": "^1.6.1",
+        "multiformats": "^13.1.1",
+        "p-queue": "^8.0.1",
+        "timeout-abort-controller": "^3.0.0",
+        "uint8arrays": "^5.1.0",
+        "utility-types": "^3.11.0"
+    },
+    "packageManager": "pnpm@9.4.0+sha512.f549b8a52c9d2b8536762f99c0722205efc5af913e77835dbccc3b0b0b2ca9e7dc8022b78062c17291c48e88749c70ce88eb5a74f1fa8c4bf5e18bb46c8bd83a"
+}
