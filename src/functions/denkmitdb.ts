@@ -1,17 +1,17 @@
+import type { Message } from '@libp2p/interface';
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { createEmptyPollard, createEntry, createIdentity, createLeaf, createPollard, fetchEntry } from ".";
 import {
-    DENKMITDB_PREFIX,
     DenkmitDatabaseInput,
     DenkmitDatabaseInterface,
     DenkmitDatabaseOptions,
     HEAD_VERSION,
-    HeadInput,
+    HeadData,
     HeadInterface, HeliaControllerInterface, IdentityInterface, LeafType,
     LeafTypes,
     MANIFEST_VERSION,
-    ManifestInput,
+    ManifestData,
     ManifestInterface,
     PollardInterface,
     PollardLocation,
@@ -19,12 +19,11 @@ import {
     PollardType,
     SyncControllerInterface
 } from "../types";
-import type { Message } from '@libp2p/interface';
 
 import { createHead, fetchHead } from "./head";
 import { createManifest, fetchManifest } from "./manifest";
-import { HeliaController } from "./utils/helia";
 import { createSyncController } from "./sync";
+import { HeliaController, emptyCID } from "./utils/helia";
 import { SortedItemsStore } from "./utils/sortedItems";
 
 // class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
@@ -32,15 +31,15 @@ import { SortedItemsStore } from "./utils/sortedItems";
 export async function createDenkmitDatabase<T>(name: string, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
     const identity = options.identity ?? await createIdentity({ helia: options.helia });
     const heliaController = new HeliaController(options.helia, identity);
-
-    const manifestInput: ManifestInput = {
+    const empty = await emptyCID();
+    const manifestInput: ManifestData = {
         version: MANIFEST_VERSION,
         name,
         type: "denkmit-database-key-value",
-        pollardOrder: 3,
-        consensusController: "timestamp",
-        accessController: "writeAll",
-        creatorId: identity.id,
+        order: 3,
+        consensus: empty, // TODO: Implement TimestampConsensusController
+        access: empty, // TODO: Implement TimestampConsensusController
+        timestamp: Date.now(),
     };
     const manifest = await createManifest(manifestInput, heliaController);
     const syncController = options.syncController ?? await createSyncController(manifest.name, heliaController);
@@ -58,10 +57,10 @@ export async function createDenkmitDatabase<T>(name: string, options: DenkmitDat
     return dmdb;
 }
 
-export async function openDenkmitDatabase<T>(id: string, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
-    if (!id.startsWith(DENKMITDB_PREFIX)) throw new Error("Invalid id");
+export async function openDenkmitDatabase<T>(cid: CID, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
+    //if (!id.startsWith(DENKMITDB_PREFIX)) throw new Error("Invalid id");
 
-    const cid = id.substring(DENKMITDB_PREFIX.length);
+    //const cid = id.substring(DENKMITDB_PREFIX.length);
     const identity = options.identity ?? await createIdentity({ helia: options.helia });
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
@@ -96,7 +95,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         this.layers = [];
         this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T, Record<string, T>>;
         this.sortedItemsStore = new SortedItemsStore();
-        this.maxPollardLength = 2 ** mdb.manifest.pollardOrder;
+        this.maxPollardLength = 2 ** mdb.manifest.order;
         this.heliaController = mdb.heliaController;
         this.syncController = mdb.syncController;
     }
@@ -105,17 +104,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return this.heliaController.identity;
     }
 
-    get pollardOrder(): number {
-        return this.manifest.pollardOrder;
-    }
-
-    get id(): string {
-        return `${DENKMITDB_PREFIX}${this.manifest.id}`;
+    get order(): number {
+        return this.manifest.order;
     }
 
     async set(key: string, value: T): Promise<void> {
         const entry = await createEntry<T>(key, value, this.heliaController);
-        await this.sortedItemsStore.set(entry.timestamp, key, CID.parse(entry.id));
+        await this.sortedItemsStore.set(entry.timestamp, key, entry.cid);
         await this.keyValueStorage.set(key, value);
         await this.createTaskUpdateLayers(entry.timestamp);
     }
@@ -162,18 +157,16 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     async createOnlyNewHead(): Promise<HeadInterface | undefined> {
         if (this.size === 0) return undefined;
-        const cid = await this.getCID();
-        const root = cid.toString();
+        const root = await this.getCID();
 
-        if (this.head && this.head.root === root) return undefined;
+        if (this.head && this.head.root.equals(root)) return undefined;
 
-        const headInput: HeadInput = {
+        const headInput: HeadData = {
             version: HEAD_VERSION,
-            manifest: this.manifest.id,
+            manifest: this.manifest.cid,
             root,
             timestamp: Date.now(),
-            creatorId: this.identity.id,
-            layersCount: this.layers.length,
+            layers: this.layers.length,
             size: this.size,
         };
 
@@ -195,10 +188,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     async compare(head: HeadInterface): Promise<{ isEqual: boolean; difference: [LeafType[], LeafType[]] }> {
-        const layersCount = Math.max(this.layers.length, head.layersCount);
+        const layersCount = Math.max(this.layers.length, head.layers);
         const order = layersCount - 1;
 
-        const difference = await this.compareNodes(layersCount, CID.parse(head.root), { layerIndex: order, position: 0 });
+        const difference = await this.compareNodes(layersCount, head.root, { layerIndex: order, position: 0 });
 
         difference[0] = difference[0].filter((x) => x[0] !== LeafTypes.Empty);
         difference[1] = difference[1].filter((x) => x[0] !== LeafTypes.Empty);
@@ -233,7 +226,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         if (!thisPollard && !otherPollard) return result;
 
-        thisPollard = thisPollard || (await createEmptyPollard(this.pollardOrder));
+        thisPollard = thisPollard || (await createEmptyPollard(this.order));
 
         const comp = await thisPollard.compare(otherPollard);
         if (comp.isEqual) return result;
@@ -291,7 +284,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const startSortField = startItem.sortField;
         const startPosition = this.calculatePositionInLayer(startIndex);
 
-        let pollard = await createEmptyPollard(this.pollardOrder);
+        let pollard = await createEmptyPollard(this.order);
         let layerIndex = 0;
 
         let position = startPosition;
@@ -304,7 +297,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         await this.handlePollardUpdate(pollard, layerIndex, position);
 
-        pollard = await createEmptyPollard(this.pollardOrder);
+        pollard = await createEmptyPollard(this.order);
         for (layerIndex++; this.layers[layerIndex - 1].length > 1; layerIndex++) {
             if (this.layers.length === layerIndex) this.layers.push([]);
             position = this.calculatePositionInLayer(startPosition, layerIndex);
@@ -325,7 +318,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private async handlePollardCreation(pollard: PollardInterface, layerIndex: number, position: number) {
         if (!pollard.isFree()) {
             await this.handlePollardUpdate(pollard, layerIndex, position);
-            pollard = await createEmptyPollard(this.pollardOrder);
+            pollard = await createEmptyPollard(this.order);
             position++;
         }
         return { pollard, position };
@@ -359,7 +352,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     getPollardTreeNodeLeft(node: PollardNode): PollardNode {
         if (node.position <= 0) throw new Error("No left node");
         if (
-            node.position >= Math.ceil(this.size / 2 ** (this.pollardOrder * (node.layerIndex + 1)))
+            node.position >= Math.ceil(this.size / 2 ** (this.order * (node.layerIndex + 1)))
         )
             throw new Error("No right node");
         node = node.pollard ? node : this.getPollardTreeNode(node);
@@ -404,8 +397,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     async load(head: HeadInterface): Promise<void> {
-        const pollardCid = CID.parse(head.root);
-        let leaves: LeafType[] = [createLeaf(LeafTypes.Pollard, pollardCid.bytes)];
+        let leaves: LeafType[] = [createLeaf(LeafTypes.Pollard, head.root.bytes)];
 
         this.layers.length = 0;
 

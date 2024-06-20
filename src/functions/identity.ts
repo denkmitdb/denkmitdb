@@ -5,11 +5,10 @@ import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 
 import {
-    CidString,
     IDENTITY_VERSION,
     IdentityAlgorithms,
     IdentityConfig,
-    IdentityInput,
+    IdentityData,
     IdentityInterface,
     IdentityJWS,
     IdentityType,
@@ -18,36 +17,40 @@ import {
 } from "../types";
 
 import { Optional } from "utility-types";
-import {  HeliaStorage } from "./utils/helia";
+import { HeliaStorage } from "./utils/helia";
 
 const keyPrefix = "/Denkmit/";
 
 class Identity implements IdentityInterface {
     readonly version = IDENTITY_VERSION;
-    readonly id: CidString;
+    readonly cid: CID;
     readonly name: string;
     readonly type: IdentityTypes;
     readonly alg: IdentityAlgorithms;
     readonly publicKey: string;
+    readonly link: CID;
+    readonly creator: CID;
     private keys: KeyPair;
 
-    constructor(identity: Optional<IdentityType, "version">, keys?: KeyPair) {
-        this.id = identity.id;
+    constructor(identity: Optional<IdentityType, "creator">, keys?: KeyPair) {
+        this.version = identity.version || IDENTITY_VERSION;
+        this.cid = identity.cid;
         this.name = identity.name;
         this.type = identity.type;
         this.alg = identity.alg;
         this.publicKey = identity.publicKey;
         this.keys = keys || {};
+        this.link = identity.link;
+        this.creator = identity.creator || this.cid;
     }
 
-    toJSON(): IdentityType {
+    toJSON(): IdentityData {
         return {
             version: this.version,
             name: this.name,
             type: this.type,
             alg: this.alg,
             publicKey: this.publicKey,
-            id: this.id,
         };
     }
 
@@ -62,12 +65,12 @@ class Identity implements IdentityInterface {
         return this.keys.publicKey;
     }
 
-    async verify(jws: jose.FlattenedJWS): Promise<Uint8Array | undefined> {
+    async verify(jws: jose.FlattenedJWSInput): Promise<Uint8Array | undefined> {
         const protectedHeader = jose.decodeProtectedHeader(jws);
         const kid = protectedHeader.kid;
 
         if (!kid) throw new Error("Key ID not found in JWS header");
-        if (kid !== this.id) throw new Error("Key ID does not match identity ID");
+        if (kid !== this.cid.toString()) throw new Error("Key ID does not match identity ID");
 
         const pk = await this.getPublicKeyLike();
 
@@ -83,14 +86,20 @@ class Identity implements IdentityInterface {
     async sign(data: Uint8Array): Promise<jose.FlattenedJWS> {
         if (!this.keys.privateKey) throw new Error("Private key is not available");
 
-        return await createJWS(data, this.keys, { alg: this.alg, kid: this.id, includeJwk: false });
+        return await createJWS(data, this.keys, { alg: this.alg, kid: this.cid.toString(), includeJwk: false });
+    }
+
+    async signWithoutPayload(data: Uint8Array): Promise<jose.FlattenedJWS> {
+        if (!this.keys.privateKey) throw new Error("Private key is not available");
+
+        return await createJWS(data, this.keys, { alg: this.alg, kid: this.cid.toString(), includeJwk: false, includePayload: false });
     }
 
     async encrypt(data: Uint8Array): Promise<jose.FlattenedJWE> {
         const pk = await this.getPublicKeyLike();
 
         return await new jose.FlattenedEncrypt(data)
-            .setProtectedHeader({ alg: "ECDH-ES+A256KW", kid: this.id, enc: "A256GCM" })
+            .setProtectedHeader({ alg: "ECDH-ES+A256KW", kid: this.cid.toString(), enc: "A256GCM" })
             .encrypt(pk);
     }
 
@@ -139,41 +148,43 @@ type createJWSOptions = {
     alg: string;
     kid?: string;
     includeJwk?: boolean;
+    includePayload?: boolean;
 };
 
-async function createJWS(payload: Uint8Array, keys: KeyPair, options?: createJWSOptions): Promise<jose.FlattenedJWS> {
-    options = options || { alg: "ES384", includeJwk: false };
+async function createJWS(payload: Uint8Array, keys: KeyPair, options?: createJWSOptions ): Promise<jose.FlattenedJWS> {
+    options = options || { alg: "ES384" };
+    const { alg, kid } = options;
+    let { includeJwk, includePayload } = options;
+    includeJwk = includeJwk || false;
+    includePayload = includePayload || true;
 
-    const headers: jose.JWSHeaderParameters = {
-        alg: options.alg,
-        kid: options.kid,
-    };
-    if (!keys.privateKey) {
-        throw new Error("Private key is not available");
-    }
-    if (keys.publicKey && options.includeJwk) {
+    const headers: jose.JWSHeaderParameters = { alg, kid };
+    if (!keys.privateKey) throw new Error("Private key is not available");
+
+    if (keys.publicKey && includeJwk)
         headers.jwk = await jose.exportJWK(keys.publicKey);
+
+    if (!includePayload) {
+        headers.b64 = false;
+        headers.crit = ["b64"];
     }
 
     return await new jose.FlattenedSign(payload).setProtectedHeader(headers).sign(keys.privateKey);
 }
 
-export async function fetchIdentity(cid: CID | CidString, heliaStorage: HeliaStorage, keys?: KeyPair): Promise<IdentityInterface> {
-    cid = cid instanceof CID ? cid : CID.parse(cid);
-
+export async function fetchIdentity(cid: CID, heliaStorage: HeliaStorage, keys?: KeyPair): Promise<IdentityInterface> {
     const identityJWS = await heliaStorage.get<IdentityJWS>(cid);
     if (!identityJWS) throw new Error("Identity not found");
 
     const verifyResult = await jose.flattenedVerify(identityJWS, jose.EmbeddedJWK);
-    const identityInput: IdentityInput = HeliaStorage.decode(verifyResult.payload);
-    const id = cid.toString();
-    const identity: IdentityType = { ...identityInput, id };
+    const identityInput: IdentityData = HeliaStorage.decode(verifyResult.payload);
+    const identity: IdentityType = { ...identityInput, cid, link: cid, creator: cid};
 
     return new Identity(identity, keys);
 }
 
 type IdentityDatastore = {
-    id: CidString;
+    cid: CID;
     encryptedPrivateKey: jose.FlattenedJWE;
 };
 
@@ -187,15 +198,15 @@ export async function createIdentity(config: IdentityConfig): Promise<IdentityIn
 
     if (await heliaStorage.datastore.has(key)) {
         const data = await heliaStorage.datastore.get(key);
-        const { id, encryptedPrivateKey } = HeliaStorage.decode<IdentityDatastore>(data);
+        const { cid, encryptedPrivateKey } = HeliaStorage.decode<IdentityDatastore>(data);
         const keys = await importPrivateKey(encryptedPrivateKey, passphrase);
 
-        return await fetchIdentity(CID.parse(id), heliaStorage, keys);
+        return await fetchIdentity(cid, heliaStorage, keys);
     } else {
         const keys = await jose.generateKeyPair(alg);
         const encryptedPrivateKey = await exportPrivateKey(keys, passphrase);
         const publicKey = await encodePublicKey(keys.publicKey);
-        const identityToSign: IdentityInput = {
+        const identityToSign: IdentityData = {
             version: IDENTITY_VERSION,
             name,
             type: IdentityTypes.publicKey,
@@ -205,10 +216,9 @@ export async function createIdentity(config: IdentityConfig): Promise<IdentityIn
 
         const identityJWS = await createJWS(HeliaStorage.encode(identityToSign), keys, { alg, includeJwk: true });
         const cid = await heliaStorage.add(identityJWS);
-        const id = cid.toString();
-        const identity: IdentityType = { ...identityToSign, id };
+        const identity: IdentityType = { ...identityToSign, cid, link: cid, creator: cid};
         const identityDatastore: IdentityDatastore = {
-            id,
+            cid,
             encryptedPrivateKey,
         };
 

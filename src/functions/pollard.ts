@@ -61,7 +61,6 @@ class Pollard implements PollardInterface {
     readonly version = POLLARD_VERSION;
     readonly order: number;
     readonly maxLength: number;
-    private _id: string;
     readonly codec;
     private readonly _hashFunc: (data: Uint8Array) => Promise<Uint8Array>;
     private _layers: LeafType[][];
@@ -93,14 +92,6 @@ class Pollard implements PollardInterface {
         }
 
         this._cid = options.cid;
-        this._id = pollard.id || this._cid?.toString() || "";
-    }
-
-    get id(): string {
-        if (this._id === "") {
-            throw new Error("Pollard ID is not available");
-        }
-        return this._id;
     }
 
     /**
@@ -184,8 +175,13 @@ class Pollard implements PollardInterface {
         const hash = await sha256.digest(buf);
         this._cid = CID.createV1(codec.code, hash);
 
-        this._id = this._cid.toString();
+        return this._cid;
+    }
 
+    get cid(): CID {
+        if (this._needUpdate || !this._cid) {
+            throw new Error("Pollard is not updated. Please, use getCID() method to get CID.");
+        }
         return this._cid;
     }
 
@@ -265,7 +261,7 @@ class Pollard implements PollardInterface {
      * @returns The JSON representation of the Pollard object.
      * @throws {Error} If the Pollard object is not updated.
      */
-    toJSON(): Omit<PollardType, "id"> {
+    toJSON(): Omit<PollardType, "cid"> {
         if (this._needUpdate) {
             throw new Error("Pollard is not updated");
         }

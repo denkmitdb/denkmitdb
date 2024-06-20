@@ -6,13 +6,12 @@ export const DENKMITDB_PREFIX = "/denkmitdb/";
 
 export type DenkmitDatabaseType<T> = {
 	readonly manifest: ManifestInterface;
-	readonly pollardOrder: number;
+	readonly order: number;
 	readonly maxPollardLength: number;
 	readonly layers: PollardInterface[][];
 	readonly heliaController: HeliaControllerInterface;
 	readonly identity: IdentityInterface;
 	readonly keyValueStorage: Keyv<T, Record<string, T>>;
-	readonly id: string;
 }
 
 export type DenkmitDatabaseInput<T> = {
@@ -43,7 +42,7 @@ export type DenkmitDatabaseOptions<T> = {
 	helia: DenkmitHeliaInterface;
 	identity?: IdentityInterface;
 	keyValueStorage?: Keyv<T, Record<string, T>>;
-	pollardOrder?: number;
+	order?: number;
 	syncController?: SyncControllerInterface;
 	sortedItemsStore?: SortedItemsStoreInterface;
 }

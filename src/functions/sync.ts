@@ -2,7 +2,6 @@ import type { Message } from '@libp2p/interface';
 import delay from "delay";
 import PQueue from "p-queue";
 import { HeadInterface, HeliaControllerInterface } from "src/types";
-import { CID } from 'multiformats/cid';
 import { SyncControllerInterface } from 'src/types';
 
 
@@ -39,8 +38,7 @@ export class SyncController implements SyncControllerInterface {
     }
 
     async sendHead(head: HeadInterface): Promise<void> {
-        const cid = CID.parse(head.id);
-        this.heliaController.libp2p.services.pubsub.publish(this.name, cid.bytes);
+        this.heliaController.libp2p.services.pubsub.publish(this.name, head.cid.bytes);
     }
 
     async addTask(task: () => Promise<void>): Promise<void> {

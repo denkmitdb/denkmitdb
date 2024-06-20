@@ -26,10 +26,10 @@ export type PollardType = {
     readonly maxLength: number;
     readonly length: number;
     readonly layers: LeafType[][];
-    readonly id: string; // encoded CID to string
+    readonly cid: CID;
 };
 
-export type PollardInput = Optional<Omit<PollardType, "version" | "maxLength">, "id">;
+export type PollardInput = Optional<Omit<PollardType, "version" | "maxLength">, "cid">;
 
 export interface PollardInterface extends PollardType {
     append(
@@ -40,7 +40,7 @@ export interface PollardInterface extends PollardType {
 
     getCID(): Promise<CID>;
     getRoot(): Promise<LeafType>;
-    toJSON(): Omit<PollardType, "id">;
+    toJSON(): Omit<PollardType, "cid">;
     iterator(): Generator<LeafType>;
     all(): LeafType[];
     isFree(): boolean;
