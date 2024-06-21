@@ -32,11 +32,6 @@ export interface IdentityInterface extends IdentityType {
     decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | boolean>;
 }
 
-export type IdentityConfig = {
-    helia: DenkmitHeliaInterface;
-    alg?: IdentityAlgorithms;
-    name?: string;
-    passphrase?: string;
-};
-
-export declare function createIdentity(config: IdentityConfig): Promise<IdentityInterface>;
+export declare function createIdentity(name: string, passphrase: string, helia: DenkmitHeliaInterface, alg?: string): Promise<IdentityInterface>;
+export declare function hasIdentity(name: string, helia: DenkmitHeliaInterface): Promise<boolean>;
+export declare function openIdentity(name: string, passphrase: string, helia: DenkmitHeliaInterface): Promise<IdentityInterface>;

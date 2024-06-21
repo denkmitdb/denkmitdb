@@ -1,7 +1,7 @@
 import type { Message } from '@libp2p/interface';
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
-import { createEmptyPollard, createEntry, createIdentity, createLeaf, createPollard, fetchEntry } from ".";
+import { createEmptyPollard, createEntry, createLeaf, createPollard, fetchEntry } from ".";
 import {
     DenkmitDatabaseInput,
     DenkmitDatabaseInterface,
@@ -28,8 +28,16 @@ import { SortedItemsStore } from "./utils/sortedItems";
 
 // class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
 
+/**
+ * Creates a Denkmit database with the specified name and options.
+ * 
+ * @param name - The name of the database.
+ * @param options - The options for configuring the database.
+ * @returns A promise that resolves to the created DenkmitDatabaseInterface.
+ * @typeParam T - The type of data stored in the database.
+ */
 export async function createDenkmitDatabase<T>(name: string, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
-    const identity = options.identity ?? await createIdentity({ helia: options.helia });
+    const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
     const empty = await emptyCID();
     const manifestInput: ManifestData = {
@@ -57,11 +65,16 @@ export async function createDenkmitDatabase<T>(name: string, options: DenkmitDat
     return dmdb;
 }
 
+/**
+ * Opens a Denkmit database.
+ * 
+ * @param cid - The CID (Content Identifier) of the database.
+ * @param options - The options for opening the database.
+ * @returns A promise that resolves to a DenkmitDatabaseInterface instance.
+ * @typeParam T - The type of data stored in the database.
+ */
 export async function openDenkmitDatabase<T>(cid: CID, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
-    //if (!id.startsWith(DENKMITDB_PREFIX)) throw new Error("Invalid id");
-
-    //const cid = id.substring(DENKMITDB_PREFIX.length);
-    const identity = options.identity ?? await createIdentity({ helia: options.helia });
+    const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
     const syncController = await createSyncController(manifest.name, heliaController);
@@ -80,6 +93,10 @@ export async function openDenkmitDatabase<T>(cid: CID, options: DenkmitDatabaseO
     return dmdb;
 }
 
+/**
+ * Represents a Denkmit Database.
+ * @typeParam T - The type of values stored in the database.
+ */
 export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     readonly manifest: ManifestInterface;
     readonly maxPollardLength: number;
@@ -104,10 +121,21 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return this.heliaController.identity;
     }
 
+    /**
+     * Gets the pollard order in the database.
+     * @returns The pollard order.
+     */
     get order(): number {
         return this.manifest.order;
     }
 
+    /**
+     * Sets the value of a key in the database.
+     * 
+     * @param key - The key to set.
+     * @param value - The value to set for the key.
+     * @returns A promise that resolves when the operation is complete.
+     */
     async set(key: string, value: T): Promise<void> {
         const entry = await createEntry<T>(key, value, this.heliaController);
         await this.sortedItemsStore.set(entry.timestamp, key, entry.cid);
@@ -115,6 +143,16 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         await this.createTaskUpdateLayers(entry.timestamp);
     }
 
+    /**
+     * Retrieves the value associated with the specified key.
+     * If the value is found in the key-value storage, it is returned.
+     * Otherwise, it retrieves the item from the sorted items store,
+     * fetches the entry using the CID, and stores the entry in the key-value storage.
+     * Finally, it returns the retrieved value.
+     *
+     * @param key - The key to retrieve the value for.
+     * @returns The value associated with the key, or undefined if not found.
+     */
     async get(key: string): Promise<T | undefined> {
         const value = await this.keyValueStorage.get(key);
         if (value) return value;
@@ -126,6 +164,11 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return entry.value;
     }
 
+    /**
+     * Returns an async iterator that yields key-value pairs from the DenkmitDB instance.
+     * The key-value pairs are retrieved from the sortedItemsStore and filtered based on the availability of the value.
+     * @returns An async generator that yields key-value pairs.
+     */
     async* iterator(): AsyncGenerator<[key: string, value: T]> {
         for await (const { key } of this.sortedItemsStore.iterator()) {
             const value = await this.get(key);
@@ -133,16 +176,28 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         }
     }
 
+    /**
+     * Closes the DenkmitDB instance.
+     * 
+     * @returns A promise that resolves when the DenkmitDB instance is closed.
+     */
     async close(): Promise<void> {
         await this.syncController.close();
         await this.keyValueStorage.clear();
         this.layers.length = 0;
         this.sortedItemsStore.clear();
-        await this.heliaController.close();
     }
 
     async getManifest(): Promise<ManifestInterface> {
         return this.manifest;
+    }
+
+    /**
+     * Gets the address of the denkmitdb.
+     * @returns The CID (Content Identifier) of the denkmitdb.
+     */
+    get address(): CID {
+        return this.manifest.cid;
     }
 
     getLayers(): PollardInterface[][] {
@@ -201,6 +256,16 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return { isEqual, difference };
     }
 
+    /**
+     * Merges the provided `head` with the current state of the database.
+     * If the `head` is equal to the current state, no merge is performed.
+     * Otherwise, the method compares the `head` with the current state,
+     * extracts the smallest timestamp from the differing sorted entries,
+     * and creates a task to update the layers based on the smallest timestamp.
+     * 
+     * @param head - The head to be merged with the current state of the database.
+     * @returns A promise that resolves when the merge operation is completed.
+     */
     async merge(head: HeadInterface): Promise<void> {
         const { isEqual, difference } = await this.compare(head);
         if (isEqual) return;
@@ -396,6 +461,11 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         });
     }
 
+    /**
+     * Loads the data from the given head into the database.
+     * @param head - The head interface containing the root bytes.
+     * @returns A promise that resolves when the loading is complete.
+     */
     async load(head: HeadInterface): Promise<void> {
         let leaves: LeafType[] = [createLeaf(LeafTypes.Pollard, head.root.bytes)];
 
@@ -455,6 +525,11 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             await this.syncController.sendHead(head);
     }
 
+    /**
+     * Sets up the synchronization process.
+     * 
+     * @returns A Promise that resolves when the setup is complete.
+     */
     async setupSync(): Promise<void> {
         await this.syncController.start(async (message: CustomEvent<Message>) => await this.syncNewHead(message));
         await this.syncController.addRepetitiveTask(async () => {

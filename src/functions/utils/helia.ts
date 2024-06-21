@@ -19,8 +19,7 @@ export class HeliaStorage implements HeliaStorageInterface {
 
     /**
      * Creates a new instance of the HeliaStorage class.
-     * @param helia The Helia database interface.
-     * @param identity The identity interface for signing and verifying data.
+     * @param helia - The Helia database interface.
      */
     constructor(helia: DenkmitHeliaInterface) {
         this.helia = helia;
@@ -40,9 +39,9 @@ export class HeliaStorage implements HeliaStorageInterface {
     /**
      * Decodes the given Uint8Array data using the specified codec.
      * 
-     * @template T - The type of the decoded data.
-     * @param {Uint8Array} data - The data to be decoded.
-     * @returns {T} - The decoded data.
+     * @typeParam T - The type of the decoded data.
+     * @param data - The data to be decoded.
+     * @returns The decoded data.
      */
     static decode<T>(data: Uint8Array): T {
         return codec.decode<T>(data);
@@ -78,7 +77,7 @@ export class HeliaStorage implements HeliaStorageInterface {
 
     /**
      * Adds an object to the Helia database.
-     * @param obj The object to add.
+     * @param data - The object to add.
      * @returns A Promise that resolves to the CID of the added object.
      */
     async add(data: unknown): Promise<CID> {
@@ -105,7 +104,7 @@ export class HeliaStorage implements HeliaStorageInterface {
 
     /**
      * Retrieves an object from the Helia database.
-     * @param cid The CID of the object to retrieve.
+     * @param cid - The CID of the object to retrieve.
      * @returns A Promise that resolves to the retrieved object, or undefined if not found.
      */
     async get<T>(cid: CID): Promise<T | undefined> {
@@ -127,11 +126,11 @@ export class HeliaStorage implements HeliaStorageInterface {
     }
 }
 
-type UpdatedJWS = {
-    payload: CID;
-    signature: string;
-    protected: string;
-}
+// type UpdatedJWS = {
+//     payload: CID;
+//     signature: string;
+//     protected: string;
+// }
 
 /**
  * Represents a controller for interacting with the Helia storage, providing methods for adding and retrieving signed data.
@@ -145,15 +144,19 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
     }
 
     async addSignedV2<T>(data: T): Promise<DenkmitData<T>> {
-        const buf = codec.encode(data)
-        const link = await this.addBytes(buf)
-        const signed = await this.identity.signWithoutPayload(buf);
-        if (!signed.protected) throw new Error("Failed to sign data")
-        const updated: UpdatedJWS = { signature: signed.signature, protected: signed.protected, payload: link }
+        // const buf = codec.encode(data)
+        // const link = await this.addBytes(buf)
+        // const signed = await this.identity.signWithoutPayload(buf);
+        // if (!signed.protected) throw new Error("Failed to sign data")
+        // const updated: UpdatedJWS = { signature: signed.signature, protected: signed.protected, payload: link }
+        // 
+        // const cid = await this.add(updated);
+        // 
+        // return { data, cid, link, creator: this.identity.cid }
+        const signed = await this.identity.sign(codec.encode(data));
+        const cid = await this.add(signed);
 
-        const cid = await this.add(updated);
-
-        return { data, cid, link, creator: this.identity.cid }
+        return { data, cid, creator: this.identity.cid }
     }
 
     /**
@@ -172,9 +175,9 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
     /**
      * Retrieves a signed data object of type T from the specified CID.
      * 
-     * @template T - The type of the data object.
-     * @param {CID} cid - The CID of the data object.
-     * @returns {Promise<OwnedDataType<T> | undefined>} - A promise that resolves to the signed data object, or undefined if it doesn't exist or fails verification.
+     * @typeParam T - The type of the data object.
+     * @param cid - The CID of the data object.
+     * @returns A promise that resolves to the signed data object, or undefined if it doesn't exist or fails verification.
      */
     async getSigned<T>(cid: CID): Promise<OwnedDataType<T> | undefined> {
         const signed = await this.get<jose.FlattenedJWS>(cid);
@@ -194,28 +197,46 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
     }
 
     async getSignedV2<T>(cid: CID): Promise<DenkmitData<T> | undefined> {
-        const signed = await this.get<UpdatedJWS>(cid);
-        if (!signed) throw new Error("Signed data not found");
+        // const signed = await this.get<UpdatedJWS>(cid);
+        // if (!signed) throw new Error("Signed data not found");
+        // 
+        // const protectedHeader = jose.decodeProtectedHeader(signed);
+        // const kid = protectedHeader.kid;
+        // if (!kid) throw new Error("Key ID not found in JWS header");
+        // const kidCid = CID.parse(kid);
+        // 
+        // const identity = this.identity.cid.equals(kidCid) ? this.identity : await fetchIdentity(kidCid, this);
+        // if (!identity) throw new Error("Identity not found");
+        // 
+        // const payload = await this.getBytes(signed.payload);
+        // if (!payload) throw new Error("Payload not found");
+        // 
+        // const jws = { payload, signature: signed.signature, protected: signed.protected }
+        // 
+        // const verified = await identity.verify(jws);
+        // 
+        // const data = verified && HeliaStorage.decode(verified) as T;
+        // if (!data) throw new Error("Data not found");
+        // 
+        // return { data, cid, link: signed.payload, creator: identity.cid }
 
-        const protectedHeader = jose.decodeProtectedHeader(signed.protected);
+        const signed = await this.get<jose.FlattenedJWS>(cid);
+        if (!signed) return;
+
+        const protectedHeader = jose.decodeProtectedHeader(signed);
         const kid = protectedHeader.kid;
-        if (!kid) throw new Error("Key ID not found in JWS header");
+        if (!kid) return;
         const kidCid = CID.parse(kid);
 
         const identity = this.identity.cid.equals(kidCid) ? this.identity : await fetchIdentity(kidCid, this);
-        if (!identity) throw new Error("Identity not found");
+        if (!identity) return;
 
-        const payload = await this.getBytes(signed.payload);
-        if (!payload) throw new Error("Payload not found");
-
-        const jws = { payload, signature: signed.signature, protected: signed.protected }
-
-        const verified = await identity.verify(jws);
-
+        const verified = await identity.verify(signed);
         const data = verified && HeliaStorage.decode(verified) as T;
-        if (!data) throw new Error("Data not found");
 
-        return { data, cid, link: signed.payload, creator: identity.cid }
+        if(!data) return;
+        return { data, cid, creator: identity.cid };
+
     }
 }
 

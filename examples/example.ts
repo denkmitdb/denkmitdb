@@ -5,7 +5,7 @@ import { identify } from "@libp2p/identify";
 import { tcp } from "@libp2p/tcp";
 import { createHelia } from "helia";
 import { createLibp2p } from "libp2p";
-import { createDenkmitDatabase, createIdentity } from "../functions";
+import { createDenkmitDatabase, createIdentity } from "../src/functions";
 
 const libp2pOptions = {
     addresses: {
@@ -27,10 +27,11 @@ const helia = await createHelia({ libp2p });
 const identity = await createIdentity({ helia, name: "user" });
 
 const db = await createDenkmitDatabase("test", { helia, identity });
-console.log("Database address: ", db.id);
+console.log("Database address: ", db.address);
 
 await db.set("key1", { value: "value1" });
 await db.set("key2", { value: "value2" });
+await db.set("key3", { value: "value3" });
 
 for await (const e of db.iterator()) {
     console.log(e);
@@ -41,3 +42,4 @@ console.log("Value 1: ", value1);
 
 await db.close();
 await helia.stop();
+await libp2p.stop();

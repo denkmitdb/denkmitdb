@@ -13,8 +13,8 @@ export enum LeafTypes {
 export type LeafType = [type: LeafTypes, data: Uint8Array, sortFields?: number[], key?: string];
 
 export type PollardLocation = {
-		layerIndex: number;
-		position: number;
+    layerIndex: number;
+    position: number;
 };
 
 export const POLLARD_VERSION = 1;
@@ -49,9 +49,9 @@ export interface PollardInterface extends PollardType {
 
     compare(other?: PollardInterface): Promise<{ isEqual: boolean; difference: [LeafType[], LeafType[]] }>;
 
-    addLeaf(leaf: LeafType): Promise<boolean>;
-    getLeaf(index: number): Promise<LeafType>;
-    updateLayers(): Promise<CID>;
+    addLeaf(leaf: LeafType): boolean;
+    getLeaf(index: number): LeafType;
+    updateLayers(startPosition?: number): Promise<CID>;
     getLayers(): Promise<LeafType[][]>;
 }
 
@@ -68,14 +68,6 @@ export type PollardOptions = {
     hashFunc?: (data: Uint8Array) => Promise<Uint8Array>;
 };
 
-export declare function createPollard(
-    pollard: Partial<PollardType>,
-    options?: PollardOptions,
-): Promise<PollardInterface>;
+export declare function createPollard(pollard: Partial<PollardType>, options?: PollardOptions): Promise<PollardInterface>;
 
-export declare function createLeaf(
-    type: LeafTypes,
-    data: Uint8Array,
-    sortFields?: Uint8Array[],
-    key?: string,
-): LeafType;
+export declare function createLeaf(type: LeafTypes, data: Uint8Array, sortFields?: Uint8Array[], key?: string): LeafType;

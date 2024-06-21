@@ -72,11 +72,10 @@ export interface HeliaControllerInterface extends HeliaStorageInterface {
 }
 
 export type DenkmitData<T> = {
-    data: T;
-    link: CID;
     cid: CID;
     creator: CID;
-//    timestamp: number;
+    link?: CID;
+    data: T;
 }
 
 export interface DenkmitDataInterface<T> extends DenkmitData<T> {
@@ -84,7 +83,7 @@ export interface DenkmitDataInterface<T> extends DenkmitData<T> {
 }
 
 export type DenkmitMetadata = {
-    readonly link: CID;     // The CID of the linked raw data
-    readonly creator: CID;  // The CID of the creator
     readonly cid: CID;      // The CID of signed data
+    readonly creator: CID;  // The CID of the creator
+    readonly link?: CID;     // The CID of the linked raw data
 }

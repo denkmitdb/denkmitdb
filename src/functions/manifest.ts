@@ -1,9 +1,9 @@
 import { CID } from "multiformats/cid";
-import { HeliaControllerInterface } from "src/types";
-import { MANIFEST_VERSION, ManifestData, ManifestInterface, ManifestType } from "../types/manifest";
+import { DenkmitData, HeliaControllerInterface } from "src/types";
+import { MANIFEST_VERSION, ManifestData, ManifestInterface, ManifestVersionType } from "../types/manifest";
 
 export class Manifest implements ManifestInterface {
-    readonly version = MANIFEST_VERSION;
+    readonly version: ManifestVersionType;
     readonly timestamp: number;
     readonly name: string;
     readonly type: string;
@@ -11,23 +11,23 @@ export class Manifest implements ManifestInterface {
     readonly consensus: CID;
     readonly access: CID;
     readonly meta?: Record<string, unknown>;
-    readonly cid: CID;
-    readonly link: CID;
-    readonly creator: CID
 
-    constructor(manifest: ManifestType) {
-        this.version = manifest.version;
-        this.timestamp = manifest.timestamp;
-        this.name = manifest.name;
-        this.type = manifest.type;
-        this.order = manifest.order;
-        this.consensus = manifest.consensus;
-        this.access = manifest.access;
-        this.creator = manifest.creator;
-        this.meta = manifest.meta;
+    readonly cid: CID;
+    readonly creator: CID
+    readonly link?: CID;
+
+    constructor(manifest: DenkmitData<ManifestData>) {
+        this.version = manifest.data.version ?? MANIFEST_VERSION;
+        this.timestamp = manifest.data.timestamp;
+        this.name = manifest.data.name;
+        this.type = manifest.data.type;
+        this.order = manifest.data.order;
+        this.consensus = manifest.data.consensus;
+        this.access = manifest.data.access;
+        this.meta = manifest.data.meta;
         this.cid = manifest.cid;
-        this.link = manifest.link;
         this.creator = manifest.creator;
+        this.link = manifest.link;
     }
 
     async verify(): Promise<boolean> {
@@ -50,13 +50,11 @@ export class Manifest implements ManifestInterface {
 
 export async function createManifest(manifest: ManifestData, heliaController: HeliaControllerInterface): Promise<ManifestInterface> {
     const result = await heliaController.addSignedV2<ManifestData>(manifest);
-
-    return new Manifest({ ...manifest, ...result });
+    return new Manifest(result);
 }
 
 export async function fetchManifest(cid: CID, heliaController: HeliaControllerInterface): Promise<ManifestInterface> {
     const result = await heliaController.getSignedV2<ManifestData>(cid);
     if (!result || !result.data) throw new Error(`Manifest not found.`);
-
-    return new Manifest({ ...result.data, ...result });
+    return new Manifest(result);
 }
