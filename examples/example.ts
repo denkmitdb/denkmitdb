@@ -24,7 +24,7 @@ const libp2p = await createLibp2p(libp2pOptions);
 const helia = await createHelia({ libp2p });
 
 //  Create a new identity for Database
-const identity = await createIdentity({ helia, name: "user" });
+const identity = await createIdentity( "user", "password", helia);
 
 const db = await createDenkmitDatabase("test", { helia, identity });
 console.log("Database address: ", db.address);
