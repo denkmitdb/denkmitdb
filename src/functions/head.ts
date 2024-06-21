@@ -1,49 +1,39 @@
 import { CID } from "multiformats/cid";
-import { HEAD_VERSION, HeadInput, HeadInterface, HeadType, HeadVersionType, HeliaControllerInterface, OwnedDataType } from "src/types";
+import { DenkmitData, HEAD_VERSION, HeadData, HeadInterface, HeadVersionType, HeliaControllerInterface } from "../types";
 
 export class Head implements HeadInterface {
-    version: HeadVersionType;
-    manifest: string;
-    root: string;
-    timestamp: number;
-    layersCount: number;
-    size: number;
-    creatorId: string;
-    id: string;
+    readonly version: HeadVersionType;
+    readonly manifest: CID;
+    readonly root: CID;
+    readonly timestamp: number;
+    readonly layers: number;
+    readonly size: number;
 
-    constructor(head: HeadType) {
-        this.version = HEAD_VERSION;
-        this.manifest = head.manifest;
-        this.root = head.root;
-        this.timestamp = head.timestamp;
-        this.layersCount = head.layersCount;
-        this.size = head.size;
-        this.creatorId = head.creatorId;
-        this.id = head.id;
+    readonly cid: CID;
+    readonly creator: CID;
+    readonly link?: CID;
+
+    constructor(head: DenkmitData<HeadData>) {
+        this.version = head.data.version || HEAD_VERSION;
+        this.manifest = head.data.manifest;
+        this.root = head.data.root;
+        this.timestamp = head.data.timestamp;
+        this.layers = head.data.layers;
+        this.size = head.data.size;
+
+        this.cid = head.cid;
+        this.creator = head.creator;
+        this.link = head.link;
     }
 }
 
-export async function createHead(head: HeadInput, heliaController: HeliaControllerInterface): Promise<HeadInterface> {
-    const identity = heliaController.identity;
-    const data: HeadInput = {
-        version: HEAD_VERSION,
-        manifest: head.manifest,
-        root: head.root,
-        timestamp: head.timestamp,
-        creatorId: head.creatorId,
-        layersCount: head.layersCount,
-        size: head.size,
-    };
-
-    const dataToSign: OwnedDataType<HeadInput> = { data, identity }
-    const cid = await heliaController.addSigned(dataToSign);
-
-    return new Head({ ...data, id: cid.toString() });
+export async function createHead(head: HeadData, heliaController: HeliaControllerInterface): Promise<HeadInterface> {
+    const result = await heliaController.addSignedV2(head);
+    return new Head(result);
 }
 
 export async function fetchHead(cid: CID, heliaController: HeliaControllerInterface): Promise<HeadInterface> {
-    const result = await heliaController.getSigned<HeadInput>(cid);
+    const result = await heliaController.getSignedV2<HeadData>(cid);
     if (!result || !result.data) throw new Error("Head not found");
-    const head: HeadType = { ...result.data, id: cid.toString() };
-    return new Head(head);
+    return new Head(result);
 }

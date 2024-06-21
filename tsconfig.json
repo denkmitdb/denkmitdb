@@ -18,6 +18,7 @@
         "strictNullChecks": true,
         "strictFunctionTypes": true,
         "forceConsistentCasingInFileNames": true,
+        "removeComments": false,
         "typeRoots": ["src/**/types", "node_modules/@types"]
     },
     "ts-node": {

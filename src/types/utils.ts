@@ -18,7 +18,6 @@ export type DataType = {
 	dataType: DataTypes;
 };
 
-export type CidString = string;
 
 export type DenkmitLibp2pType = Libp2p<{
 	identify: Identify;
@@ -29,15 +28,15 @@ export type DenkmitHeliaInterface = HeliaLibp2p<DenkmitLibp2pType>
 
 
 export type OwnedDataType<T> = {
-    data?: T;
-    identity?: IdentityInterface;
+	data?: Omit<T, "cid">;
+	identity?: IdentityInterface;
 };
 
 export type SortedItemType = {
-    readonly sortField: number;
-    readonly cid: CID;
-    readonly key: string;
-    readonly index: number;
+	readonly sortField: number;
+	readonly cid: CID;
+	readonly key: string;
+	readonly index: number;
 };
 
 export interface SortedItemsStoreInterface {
@@ -67,5 +66,24 @@ export interface HeliaControllerInterface extends HeliaStorageInterface {
 	identity: IdentityInterface;
 
 	addSigned<T>(data: OwnedDataType<T>): Promise<CID>;
-	getSigned<T>(cid: CID): Promise<OwnedDataType<T> | undefined>
+    addSignedV2<T>(data: T): Promise<DenkmitData<T>>;
+	getSigned<T>(cid: CID): Promise<OwnedDataType<T> | undefined>;
+    getSignedV2<T>(cid: CID): Promise<DenkmitData<T> | undefined>;
+}
+
+export type DenkmitData<T> = {
+    cid: CID;
+    creator: CID;
+    link?: CID;
+    data: T;
+}
+
+export interface DenkmitDataInterface<T> extends DenkmitData<T> {
+    toJSON(): T;
+}
+
+export type DenkmitMetadata = {
+    readonly cid: CID;      // The CID of signed data
+    readonly creator: CID;  // The CID of the creator
+    readonly link?: CID;     // The CID of the linked raw data
 }

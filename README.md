@@ -29,10 +29,9 @@ DenkMitDB is a distributed key-value database built heavily on IPFS, using a Mer
 
 To set up DenkMitDB, follow these steps:
 
-1. **Clone the repository**:
+1. **Install module**:
     ```bash
-    git clone https://github.com/denkmitdb/denkmitdb.git
-    cd denkmitdb
+    npm install --save @denkmitdb/denkmitdb
     ```
 
 2. **Install dependencies**:
@@ -53,7 +52,7 @@ After installation, you can start using DenkMitDB by following these steps:
     import { tcp } from "@libp2p/tcp";
     import { createHelia } from "helia";
     import { createLibp2p } from "libp2p";
-    import { createDenkmitDatabase, createIdentity } from "../functions";
+    import { createDenkmitDatabase, createIdentity } from "@denkmitdb/denkmitdb";
     ```
 
 2. **Initialize libp2p & Helia**:
@@ -75,7 +74,7 @@ After installation, you can start using DenkMitDB by following these steps:
 
 3. **Create new Database Identity and new Database**:
     ```typescript
-    const identity = await createIdentity({ helia, name: "user" });
+    const identity = await createIdentity( "user", "password", helia );
 
     const db = await createDenkmitDatabase("test", { helia, identity });
     console.log("Database address: ", db.id);

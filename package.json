@@ -22,7 +22,8 @@
         "./package.json": "./package.json"
     },
     "scripts": {
-      "build": "rm -rf dist && tsc"
+        "build": "rm -rf dist && tsc && tsc --declaration --emitDeclarationOnly",
+        "docs": "typedoc"
     },
     "keywords": [
         "denkmitdb",
@@ -42,11 +43,12 @@
         "@eslint/eslintrc": "^3.1.0",
         "@eslint/js": "^9.4.0",
         "@helia/interface": "^4.3.0",
+        "@microsoft/tsdoc": "^0.15.0",
         "@ptkdev/all-shields-cli": "^2.0.2",
         "@types/eslint__js": "^8.42.3",
         "@types/inquirer": "^9.0.7",
         "@types/node": "^20.14.2",
-        "@typescript-eslint/eslint-plugin": "^7.12.0",
+        "@typescript-eslint/eslint-plugin": "^7.13.0",
         "@typescript-eslint/parser": "^7.12.0",
         "eslint": "^9.4.0",
         "eslint-config-prettier": "^9.1.0",
@@ -57,6 +59,8 @@
         "ts-node": "^10.9.2",
         "tsx": "^4.12.0",
         "typedoc": "^0.25.13",
+        "typedoc-plugin-markdown": "^4.0.3",
+        "typedoc-plugin-mdn-links": "^3.1.30",
         "typescript": "^5.4.5",
         "typescript-eslint": "^7.12.0"
     },

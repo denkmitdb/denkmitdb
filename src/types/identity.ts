@@ -1,5 +1,5 @@
 import * as jose from "jose";
-import { CidString, DenkmitHeliaInterface } from "./utils";
+import { DenkmitHeliaInterface, DenkmitMetadata } from "./utils";
 
 export type KeyPair = Partial<jose.GenerateKeyPairResult>;
 
@@ -12,31 +12,26 @@ export enum IdentityTypes {
 
 export type IdentityAlgorithms = "ES256" | "ES384" | "ES512" | "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512" | "EdDSA" | "RS1";
 
-export type IdentityType = {
+export type IdentityData = {
     readonly version: IdentityVersionType;
     readonly name: string;
     readonly type: IdentityTypes;
-    readonly alg:  IdentityAlgorithms;
+    readonly alg: IdentityAlgorithms;
     readonly publicKey: string;
-    id: CidString;
 };
 
-export type IdentityInput = Omit<IdentityType, "id">;
+export type IdentityType = IdentityData & DenkmitMetadata;
 
 export type IdentityJWS = jose.FlattenedJWS;
 
 export interface IdentityInterface extends IdentityType {
-    verify(jws: jose.FlattenedJWS): Promise<Uint8Array | undefined>;
+    verify(jws: jose.FlattenedJWSInput): Promise<Uint8Array | undefined>;
     sign(data: Uint8Array): Promise<jose.FlattenedJWS>;
+    signWithoutPayload(data: Uint8Array): Promise<jose.FlattenedJWS>;
     encrypt(data: Uint8Array): Promise<jose.FlattenedJWE>;
     decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | boolean>;
 }
 
-export type IdentityConfig = {
-    helia: DenkmitHeliaInterface;
-    alg?: IdentityAlgorithms;
-    name?: string;
-    passphrase?: string;
-};
-
-export declare function createIdentity(config: IdentityConfig): Promise<IdentityInterface>;
+export declare function createIdentity(name: string, passphrase: string, helia: DenkmitHeliaInterface, alg?: string): Promise<IdentityInterface>;
+export declare function hasIdentity(name: string, helia: DenkmitHeliaInterface): Promise<boolean>;
+export declare function openIdentity(name: string, passphrase: string, helia: DenkmitHeliaInterface): Promise<IdentityInterface>;

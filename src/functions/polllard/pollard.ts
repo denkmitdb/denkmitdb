@@ -3,54 +3,8 @@ import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 
-import { LeafType, LeafTypes, POLLARD_VERSION, PollardInput, PollardInterface, PollardOptions, PollardType } from "../types";
-
-/**
- * Creates a leaf node for the denkmitdb database.
- *
- * @param type - The type of the leaf node.
- * @param data - The data associated with the leaf node.
- * @param sortFields - An optional array of sort fields for SortedEntry type.
- * @param key - An optional key for the leaf node.
- * @returns The created leaf node.
- * @throws Error if sortFields are required for SortedEntry type but not provided.
- */
-export function createLeaf(type?: LeafTypes, data?: Uint8Array, sortFields?: number[], key?: string): LeafType {
-    const leaf: LeafType = [type || LeafTypes.Empty, data || new Uint8Array(0)];
-    if (type === LeafTypes.SortedEntry && !sortFields) throw new Error("Sort fields are required for SortedEntry");
-    if (sortFields) leaf.push(sortFields);
-    if (key) leaf.push(key);
-
-    return leaf;
-}
-
-/**
- * Checks if two leaves are equal.
- * @param leaf1 - The first leaf to compare.
- * @param leaf2 - The second leaf to compare.
- * @returns Returns `true` if the leaves are equal, `false` otherwise.
- */
-function isLeavesEqual(leaf1: LeafType, leaf2: LeafType): boolean {
-    if (leaf1[0] !== leaf2[0]) {
-        return false;
-    }
-
-    if (leaf1[0] == LeafTypes.Empty) {
-        return true;
-    }
-
-    if (leaf1[1].length !== leaf2[1].length) {
-        return false;
-    }
-
-    for (let i = 0; i < leaf1[1].length; i++) {
-        if (leaf1[1][i] !== leaf2[1][i]) {
-            return false;
-        }
-    }
-
-    return true;
-}
+import { LeafType, LeafTypes, POLLARD_VERSION, PollardInput, PollardInterface, PollardOptions, PollardType } from "../../types";
+import { createLeaf, isLeavesEqual } from "./leaf";
 
 /**
  * Represents a Pollard data structure.
@@ -61,7 +15,6 @@ class Pollard implements PollardInterface {
     readonly version = POLLARD_VERSION;
     readonly order: number;
     readonly maxLength: number;
-    private _id: string;
     readonly codec;
     private readonly _hashFunc: (data: Uint8Array) => Promise<Uint8Array>;
     private _layers: LeafType[][];
@@ -85,22 +38,15 @@ class Pollard implements PollardInterface {
         if (pollard.layers && pollard.length) {
             this._layers = Object.assign(pollard.layers);
             this._length = pollard.length;
-            this._needUpdate = false;
         } else {
             this._layers = Array.from({ length: this.order }, (_, i) =>
                 Array.from({ length: 2 ** (this.order - i) }, () => createLeaf()),
             );
         }
 
-        this._cid = options.cid;
-        this._id = pollard.id || this._cid?.toString() || "";
-    }
+        this._needUpdate = options.noUpdate ?? false;
 
-    get id(): string {
-        if (this._id === "") {
-            throw new Error("Pollard ID is not available");
-        }
-        return this._id;
+        this._cid = options.cid;
     }
 
     /**
@@ -109,10 +55,8 @@ class Pollard implements PollardInterface {
      * @param type - The type of the leaf.
      * @param data - The data to be appended. It can be a CID, Uint8Array, or a string.
      * @param options - Additional options for appending the leaf (optional).
-     * @param options.sortFields - An array of field indices to sort the leaf by (optional).
-     * @param options.key - The key associated with the leaf (optional).
      * @returns A promise that resolves to a boolean indicating whether the leaf was successfully appended.
-     * @throws {Error} If the data type is not supported.
+     * @throws If the data type is not supported.
      */
     async append(
         type: LeafTypes,
@@ -132,17 +76,18 @@ class Pollard implements PollardInterface {
         }
 
         const leaf = createLeaf(type, bytes, options?.sortFields, options?.key);
-        return this.addLeaf(leaf);
+        const res = this.addLeaf(leaf);
+        if (res) await this.updateLayersOneLeaf(this._length - 1);
+        return res;
     }
 
     isFree(): boolean {
         return this._length < this.maxLength;
     }
 
-    async addLeaf(leaf: LeafType): Promise<boolean> {
-        if (this._length >= this.maxLength) {
-            return false;
-        }
+    addLeaf(leaf: LeafType): boolean {
+        if (!this.isFree()) return false;
+
         this._layers[0][this._length] = Object.assign(leaf);
         this._length++;
 
@@ -151,7 +96,7 @@ class Pollard implements PollardInterface {
         return true;
     }
 
-    async getLeaf(index: number): Promise<LeafType> {
+    getLeaf(index: number): LeafType {
         return this._layers[0][index];
     }
 
@@ -159,33 +104,65 @@ class Pollard implements PollardInterface {
         return this._length;
     }
 
+    async updateLayersOneLeaf(index: number): Promise<CID> {
+        if (!this._needUpdate && this._cid) return this._cid;
+
+        let startIndex = index >> 1 << 1;
+
+        for (let i = 0; i < (this.order - 1); i++) {
+            const hash1 = this._layers[i][startIndex][1];
+            const hash2 = this._layers[i][startIndex + 1][1];
+            const combined = new Uint8Array(hash1.length + hash2.length);
+            combined.set(hash1);
+            combined.set(hash2, hash1.length);
+            const hash = await this._hashFunc(combined);
+            const nexLayerIndex = startIndex >> 1;
+            this._layers[i + 1][nexLayerIndex] = createLeaf(LeafTypes.Hash, hash);
+            startIndex = nexLayerIndex >> 1 << 1;
+        }
+        
+        this._needUpdate = false;
+        const buf = this.encode();
+        const hash = await sha256.digest(buf);
+        this._cid = CID.createV1(codec.code, hash);
+
+        return this._cid;
+    }
+
     /**
      * Updates the layers of the Pollard object.
      * 
      * @returns A Promise that resolves to the CID (Content Identifier) of the updated object.
      */
-    async updateLayers(): Promise<CID> {
+    async updateLayers(startPosition: number = 0): Promise<CID> {
+        let startIndex = startPosition >> 1 << 1;
 
         for (let i = 0; i < this.order - 1; i++) {
-            for (let j = 0; j < 2 ** (this.order - i); j += 2) {
+            for (let j = startIndex; j < 2 ** (this.order - i); j += 2) {
                 const hash1 = this._layers[i][j][1];
                 const hash2 = this._layers[i][j + 1][1];
                 const combined = new Uint8Array(hash1.length + hash2.length);
                 combined.set(hash1);
                 combined.set(hash2, hash1.length);
                 const hash = await this._hashFunc(combined);
-                this._layers[i + 1][j / 2] = createLeaf(LeafTypes.Hash, hash);
+                const nextLayerIndex = j >> 1;
+                this._layers[i + 1][nextLayerIndex] = createLeaf(LeafTypes.Hash, hash);
             }
+            startIndex = startIndex >> 1 >> 1 << 1;
         }
 
         this._needUpdate = false;
-
         const buf = this.encode();
         const hash = await sha256.digest(buf);
         this._cid = CID.createV1(codec.code, hash);
+        
+        return this._cid;
+    }
 
-        this._id = this._cid.toString();
-
+    get cid(): CID {
+        if (this._needUpdate || !this._cid) {
+            throw new Error("Pollard is not updated. Please, use getCID() method to get CID.");
+        }
         return this._cid;
     }
 
@@ -263,9 +240,9 @@ class Pollard implements PollardInterface {
     /**
      * Converts the Pollard object to a JSON representation.
      * @returns The JSON representation of the Pollard object.
-     * @throws {Error} If the Pollard object is not updated.
+     * @throws If the Pollard object is not updated.
      */
-    toJSON(): Omit<PollardType, "id"> {
+    toJSON(): Omit<PollardType, "cid"> {
         if (this._needUpdate) {
             throw new Error("Pollard is not updated");
         }
@@ -348,83 +325,6 @@ class Pollard implements PollardInterface {
     }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function isEqualBytes(bytes1: Uint8Array, bytes2: Uint8Array): boolean {
-    if (!bytes1 && !bytes2) {
-        return true;
-    }
-
-    if (!bytes1 || !bytes2) {
-        return false;
-    }
-
-    if (bytes1.length !== bytes2.length) {
-        return false;
-    }
-
-    for (let i = 0; i < bytes1.length; i++) {
-        if (bytes1[i] !== bytes2[i]) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-/**
- * Compares two Pollard nodes recursively and returns the differing leaves at each level.
- * @param first - The first Pollard node to compare.
- * @param second - The second Pollard node to compare.
- * @param layerIndex - The index of the current layer being compared.
- * @param position - The position of the current node within the layer.
- * @returns A promise that resolves to an array containing the differing leaves at each level.
- */
-async function comparePollardNodes(
-    first: PollardInterface,
-    second: PollardInterface,
-    layerIndex: number,
-    position: number,
-): Promise<[LeafType[], LeafType[]]> {
-    const result: [LeafType[], LeafType[]] = [[], []];
-    const leaf1 = await first.getNode(layerIndex, position);
-    const leaf2 = await second.getNode(layerIndex, position);
-    let next;
-
-    if (!isLeavesEqual(leaf1, leaf2)) {
-        if (layerIndex === 0) {
-            if (leaf1) {
-                result[0].push(leaf1);
-            }
-            if (leaf2) {
-                result[1].push(leaf2);
-            }
-        } else {
-            next = await comparePollardNodes(first, second, layerIndex - 1, position * 2);
-
-            result[0] = result[0].concat(next[0]);
-            result[1] = result[1].concat(next[1]);
-
-            next = await comparePollardNodes(first, second, layerIndex - 1, position * 2 + 1);
-
-            result[0] = result[0].concat(next[0]);
-            result[1] = result[1].concat(next[1]);
-        }
-    }
-
-    return result;
-}
-
-export async function comparePollards(
-    first: PollardInterface,
-    second: PollardInterface,
-): Promise<[LeafType[], LeafType[]]> {
-    if (first.order !== second.order) {
-        throw new Error("Pollards' orders are different");
-    }
-
-    return await comparePollardNodes(first, second, first.order, 0);
-}
-
 /**
  * Creates a new Pollard instance with the provided configuration and options.
  *
@@ -432,15 +332,18 @@ export async function comparePollards(
  * @param options - The options for the Pollard instance.
  * @returns A Promise that resolves to the created Pollard instance.
  */
-export async function createPollard(
-    pollard: PollardInput,
-    options: PollardOptions = {},
-): Promise<PollardInterface> {
+export async function createPollard(pollard: PollardInput, options: PollardOptions = {}): Promise<PollardInterface> {
     const res = new Pollard(pollard, options);
+    if(options.noUpdate) return res;
     await res.updateLayers();
     return res;
 }
 
+/**
+ * Creates an empty Pollard with the specified order.
+ * @param order - The order of the Pollard.
+ * @returns A Promise that resolves to a PollardInterface representing the empty Pollard.
+ */
 export async function createEmptyPollard(order: number): Promise<PollardInterface> {
     const pollard: PollardInput = {
         order,
@@ -451,61 +354,3 @@ export async function createEmptyPollard(order: number): Promise<PollardInterfac
     return await createPollard(pollard);
 }
 
-/*
-function byteArray2d2Str(
-  byteArrays: Array<Array<Uint8Array>>
-): Array<Array<string>> {
-  return byteArrays.map((r) =>
-    r.map((x) => (x ? uint8ArrayToString(x, "hex") : "null"))
-  );
-}
-
-function byteArray1d2Str(byteArrays: Array<Uint8Array>): Array<string> {
-  return byteArrays.map((x) => (x ? uint8ArrayToString(x, "hex") : "null"));
-}
-
-
-const pollard1 = await createPollard(3);
-
-const NL1 = 4;
-
-const elements1 = Array.from({ length: NL1 }, () => faker.hacker.phrase());
-
-for (const e of elements1) {
-  const leaf = await cidV1sha256Hash(uint8ArrayFromString(e));
-  await pollard1.addLeaf(leaf);
-}
-
-const pollard2 = await createPollard(3);
-
-const NL2 = 4;
-
-const elements2 = Array.from({ length: NL2 }, () => faker.hacker.phrase());
-
-for (const e of elements1) {
-  const leaf = await cidV1sha256Hash(uint8ArrayFromString(e));
-  await pollard2.addLeaf(leaf);
-}
-
-for (const e of elements2) {
-  const leaf = await cidV1sha256Hash(uint8ArrayFromString(e));
-  await pollard2.addLeaf(leaf);
-}
-
-const NL3 = 1;
-const elements3 = Array.from({ length: NL3 }, () => faker.hacker.phrase());
-for (const e of elements3) {
-  const leaf = await cidV1sha256Hash(uint8ArrayFromString(e));
-  await pollard1.addLeaf(leaf);
-}
-
-console.log("Pollard 1 Layers: \n", byteArray2d2Str(await pollard1.getLayers()));
-
-console.log("Pollard 2 Layers: \n", byteArray2d2Str(await pollard2.getLayers()));
-
-const { isEqual, difference: [firstLeaves, secondLeaves] } = await comparePollardsOrdered(pollard1, pollard2);
-
-console.log("Pollards are equal: ", isEqual);
-console.log("First Leaves: ", byteArray1d2Str(firstLeaves));
-console.log("Second Leaves: ", byteArray1d2Str(secondLeaves));
-*/
