@@ -13,7 +13,7 @@ export class Manifest implements ManifestInterface {
     readonly meta?: Record<string, unknown>;
 
     readonly cid: CID;
-    readonly creator: CID
+    readonly creator: CID;
     readonly link?: CID;
 
     constructor(manifest: DenkmitData<ManifestData>) {
@@ -48,7 +48,10 @@ export class Manifest implements ManifestInterface {
     }
 }
 
-export async function createManifest(manifest: ManifestData, heliaController: HeliaControllerInterface): Promise<ManifestInterface> {
+export async function createManifest(
+    manifest: ManifestData,
+    heliaController: HeliaControllerInterface,
+): Promise<ManifestInterface> {
     const result = await heliaController.addSignedV2<ManifestData>(manifest);
     return new Manifest(result);
 }

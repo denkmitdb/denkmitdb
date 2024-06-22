@@ -20,16 +20,17 @@ DenkMitDB is a distributed key-value database built heavily on IPFS, using a Mer
 
 ## 💡 Features
 
-- **Distributed Storage**: Utilizes IPFS for decentralized data storage.
-- **Consistency Control**: Employs Merkle Tree structures to maintain data consistency.
-- **Consensus Mechanism**: Ensures all nodes agree on the current state of the database.
-- **Access Control**: Manages permissions and security for database access.
+-   **Distributed Storage**: Utilizes IPFS for decentralized data storage.
+-   **Consistency Control**: Employs Merkle Tree structures to maintain data consistency.
+-   **Consensus Mechanism**: Ensures all nodes agree on the current state of the database.
+-   **Access Control**: Manages permissions and security for database access.
 
 ## 💾 Installation
 
 To set up DenkMitDB, follow these steps:
 
 1. **Install module**:
+
     ```bash
     npm install --save @denkmitdb/denkmitdb
     ```
@@ -44,6 +45,7 @@ To set up DenkMitDB, follow these steps:
 After installation, you can start using DenkMitDB by following these steps:
 
 1. **Import modules**:
+
     ```typescript
     import { gossipsub } from "@chainsafe/libp2p-gossipsub";
     import { noise } from "@chainsafe/libp2p-noise";
@@ -56,6 +58,7 @@ After installation, you can start using DenkMitDB by following these steps:
     ```
 
 2. **Initialize libp2p & Helia**:
+
     ```typescript
     const libp2pOptions = {
         addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
@@ -73,14 +76,16 @@ After installation, you can start using DenkMitDB by following these steps:
     ```
 
 3. **Create new Database Identity and new Database**:
+
     ```typescript
-    const identity = await createIdentity( "user", "password", helia );
+    const identity = await createIdentity("user", "password", helia);
 
     const db = await createDenkmitDatabase("test", { helia, identity });
     console.log("Database address: ", db.id);
     ```
 
 4. **Add new data to Database**:
+
     ```typescript
     await db.set("key1", { value: "value1" });
     await db.set("key2", { value: "value2" });
@@ -89,6 +94,7 @@ After installation, you can start using DenkMitDB by following these steps:
         console.log(e);
     }
     ```
+
 5. **Retrieve data from Database**:
     ```typescript
     const value1 = await db.get("key1");

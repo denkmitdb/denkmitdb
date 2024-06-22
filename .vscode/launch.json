@@ -8,9 +8,7 @@
             "name": "tsx",
             "type": "node",
             "request": "launch",
-            "args": [
-                "${relativeFile}"
-            ],
+            "args": ["${relativeFile}"],
             "runtimeExecutable": "tsx",
             "cwd": "${workspaceRoot}",
             "internalConsoleOptions": "openOnSessionStart"

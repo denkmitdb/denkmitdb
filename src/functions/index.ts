@@ -7,3 +7,4 @@ export * from "./head";
 export * from "./sync";
 export * from "./utils/helia";
 export * from "./utils/sortedItems";
+export * from "./consensus";

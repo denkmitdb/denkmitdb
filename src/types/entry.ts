@@ -1,6 +1,6 @@
 import { HeliaController } from "src/functions";
 import { CID } from "multiformats/cid";
-import {  DenkmitMetadata } from "./utils";
+import { DenkmitMetadata } from "./utils";
 
 export const ENTRY_VERSION = 1;
 
@@ -20,4 +20,4 @@ export interface EntryInterface<T> extends EntryType<T> {
 }
 
 export declare function addEntry<T>(key: string, value: T, heliaController: HeliaController): Promise<EntryType<T>>;
-export declare function getEntry<T>(cid:CID, heliaController: HeliaController): Promise<EntryType<T>>;
+export declare function getEntry<T>(cid: CID, heliaController: HeliaController): Promise<EntryType<T>>;

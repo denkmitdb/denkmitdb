@@ -1,14 +1,19 @@
-import type { Message } from '@libp2p/interface';
+import type { Logger, Message } from "@libp2p/interface";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { createEmptyPollard, createEntry, createLeaf, createPollard, fetchEntry } from ".";
 import {
+    ConsensusControllerInterface,
+    ConsensusData,
     DenkmitDatabaseInput,
     DenkmitDatabaseInterface,
     DenkmitDatabaseOptions,
     HEAD_VERSION,
     HeadData,
-    HeadInterface, HeliaControllerInterface, IdentityInterface, LeafType,
+    HeadInterface,
+    HeliaControllerInterface,
+    IdentityInterface,
+    LeafType,
     LeafTypes,
     MANIFEST_VERSION,
     ManifestData,
@@ -17,9 +22,10 @@ import {
     PollardLocation,
     PollardNode,
     PollardType,
-    SyncControllerInterface
+    SyncControllerInterface,
 } from "../types";
 
+import { createConsensus, fetchConsensus } from "./consensus";
 import { createHead, fetchHead } from "./head";
 import { createManifest, fetchManifest } from "./manifest";
 import { createSyncController } from "./sync";
@@ -30,27 +36,40 @@ import { SortedItemsStore } from "./utils/sortedItems";
 
 /**
  * Creates a Denkmit database with the specified name and options.
- * 
+ *
  * @param name - The name of the database.
  * @param options - The options for configuring the database.
  * @returns A promise that resolves to the created DenkmitDatabaseInterface.
  * @typeParam T - The type of data stored in the database.
  */
-export async function createDenkmitDatabase<T>(name: string, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
+export async function createDenkmitDatabase<T>(
+    name: string,
+    options: DenkmitDatabaseOptions<T>,
+): Promise<DenkmitDatabaseInterface<T>> {
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
+
+    const consensus: ConsensusData = {
+        version: 1,
+        name: "denkmit-timestamp",
+        description: "Consensus for denkmit database timestamp",
+        logic: true,
+    };
+
+    const consensusController = await createConsensus(consensus, heliaController);
+
     const empty = await emptyCID();
     const manifestInput: ManifestData = {
         version: MANIFEST_VERSION,
         name,
         type: "denkmit-database-key-value",
         order: 3,
-        consensus: empty, // TODO: Implement TimestampConsensusController
+        consensus: consensusController.cid,
         access: empty, // TODO: Implement TimestampConsensusController
         timestamp: Date.now(),
     };
     const manifest = await createManifest(manifestInput, heliaController);
-    const syncController = options.syncController ?? await createSyncController(manifest.name, heliaController);
+    const syncController = options.syncController ?? (await createSyncController(manifest.name, heliaController));
 
     const mdb: DenkmitDatabaseInput<T> = {
         manifest,
@@ -58,6 +77,7 @@ export async function createDenkmitDatabase<T>(name: string, options: DenkmitDat
         identity,
         keyValueStorage: options.keyValueStorage,
         syncController,
+        consensusController,
     };
     const dmdb = new DenkmitDatabase<T>(mdb);
     dmdb.setupSync();
@@ -67,17 +87,21 @@ export async function createDenkmitDatabase<T>(name: string, options: DenkmitDat
 
 /**
  * Opens a Denkmit database.
- * 
+ *
  * @param cid - The CID (Content Identifier) of the database.
  * @param options - The options for opening the database.
  * @returns A promise that resolves to a DenkmitDatabaseInterface instance.
  * @typeParam T - The type of data stored in the database.
  */
-export async function openDenkmitDatabase<T>(cid: CID, options: DenkmitDatabaseOptions<T>): Promise<DenkmitDatabaseInterface<T>> {
+export async function openDenkmitDatabase<T>(
+    cid: CID,
+    options: DenkmitDatabaseOptions<T>,
+): Promise<DenkmitDatabaseInterface<T>> {
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
     const syncController = await createSyncController(manifest.name, heliaController);
+    const consensusController = await fetchConsensus(manifest.consensus, heliaController);
 
     const mdb: DenkmitDatabaseInput<T> = {
         manifest,
@@ -85,6 +109,7 @@ export async function openDenkmitDatabase<T>(cid: CID, options: DenkmitDatabaseO
         identity,
         keyValueStorage: options.keyValueStorage,
         syncController,
+        consensusController,
     };
 
     const dmdb = new DenkmitDatabase<T>(mdb);
@@ -106,15 +131,19 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private sortedItemsStore: SortedItemsStore;
     private readonly syncController: SyncControllerInterface;
     private head?: HeadInterface;
+    private consensusController: ConsensusControllerInterface;
+    private log: Logger;
 
     constructor(mdb: DenkmitDatabaseInput<T>) {
         this.manifest = mdb.manifest;
         this.layers = [];
-        this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T, Record<string, T>>;
+        this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T, Record<string, T>>();
         this.sortedItemsStore = new SortedItemsStore();
         this.maxPollardLength = 2 ** mdb.manifest.order;
         this.heliaController = mdb.heliaController;
         this.syncController = mdb.syncController;
+        this.consensusController = mdb.consensusController;
+        this.log = this.heliaController.helia.logger.forComponent("denkmitdb:denkmitdb");
     }
 
     get identity(): IdentityInterface {
@@ -131,13 +160,21 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     /**
      * Sets the value of a key in the database.
-     * 
+     *
      * @param key - The key to set.
      * @param value - The value to set for the key.
      * @returns A promise that resolves when the operation is complete.
      */
     async set(key: string, value: T): Promise<void> {
         const entry = await createEntry<T>(key, value, this.heliaController);
+        const check = {
+            currentTimestamp: Date.now(),
+            databaseCreator: this.manifest.creator.toString(),
+            currentIdentity: this.identity.cid.toString(),
+            entryTimestamp: entry.timestamp,
+            entryCreator: entry.creator.toString(),
+        };
+        if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
         await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
         await this.keyValueStorage.set(key, value);
         await this.createTaskUpdateLayers(entry.timestamp);
@@ -169,7 +206,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * The key-value pairs are retrieved from the sortedItemsStore and filtered based on the availability of the value.
      * @returns An async generator that yields key-value pairs.
      */
-    async* iterator(): AsyncGenerator<[key: string, value: T]> {
+    async *iterator(): AsyncGenerator<[key: string, value: T]> {
         for await (const { key } of this.sortedItemsStore.iterator()) {
             const value = await this.get(key);
             if (value) yield [key, value];
@@ -178,7 +215,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     /**
      * Closes the DenkmitDB instance.
-     * 
+     *
      * @returns A promise that resolves when the DenkmitDB instance is closed.
      */
     async close(): Promise<void> {
@@ -231,7 +268,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     async createHead(): Promise<HeadInterface> {
-        return await this.createOnlyNewHead() || this.head!;
+        return (await this.createOnlyNewHead()) || this.head!;
     }
 
     async fetchHead(cid: CID): Promise<HeadInterface> {
@@ -262,7 +299,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * Otherwise, the method compares the `head` with the current state,
      * extracts the smallest timestamp from the differing sorted entries,
      * and creates a task to update the layers based on the smallest timestamp.
-     * 
+     *
      * @param head - The head to be merged with the current state of the database.
      * @returns A promise that resolves when the merge operation is completed.
      */
@@ -274,7 +311,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         for (const leaf of difference[1]) {
             if (leaf.type !== LeafTypes.SortedEntry) continue;
-            const timestamp = await this.extracted(leaf);
+            const timestamp = await this.processLeafMerging(leaf);
             if (!timestamp) throw new Error("Invalid timestamp");
             if (timestamp < smallestTimestamp) smallestTimestamp = timestamp;
         }
@@ -324,12 +361,22 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return result;
     }
 
-    private async extracted(leaf: LeafType): Promise<number | undefined> {
+    private async processLeafMerging(leaf: LeafType): Promise<number | undefined> {
         if (leaf.type !== LeafTypes.SortedEntry) return;
         const cid = leaf.link;
         const timestamp = leaf.sort[0];
         const key = leaf.key;
         const creator = leaf.creator;
+
+        const check = {
+            currentTimestamp: Date.now(),
+            databaseCreator: this.manifest.creator.toString(),
+            currentIdentity: this.identity.cid.toString(),
+            entryTimestamp: timestamp,
+            entryCreator: creator.toString(),
+        };
+        if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
+
         await this.sortedItemsStore.set(timestamp, key, cid, creator);
         return timestamp;
     }
@@ -418,9 +465,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     getPollardTreeNodeLeft(node: PollardNode): PollardNode {
         if (node.position <= 0) throw new Error("No left node");
-        if (
-            node.position >= Math.ceil(this.size / 2 ** (this.order * (node.layerIndex + 1)))
-        )
+        if (node.position >= Math.ceil(this.size / 2 ** (this.order * (node.layerIndex + 1))))
             throw new Error("No right node");
         node = node.pollard ? node : this.getPollardTreeNode(node);
         if (!node.pollard || node.layerIndex === 0) {
@@ -490,7 +535,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
                             break;
 
                         case LeafTypes.SortedEntry:
-                            await this.extracted(leaf);
+                            await this.processLeafMerging(leaf);
                             break;
                     }
                 }
@@ -507,9 +552,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     async syncNewHead(message: CustomEvent<Message>): Promise<void> {
-        console.log("syncNewHead", message);
+        this.log("syncNewHead", message);
         const cid = CID.decode(message.detail.data);
-        console.log({ cid })
+        this.log("Head cid is", cid);
         this.syncController.addTask(async () => {
             const head = await this.fetchHead(cid);
 
@@ -523,22 +568,20 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     async sendHead(): Promise<void> {
         const head = await this.createOnlyNewHead();
-        if (head)
-            await this.syncController.sendHead(head);
+        if (head) await this.syncController.sendHead(head);
     }
 
     /**
      * Sets up the synchronization process.
-     * 
+     *
      * @returns A Promise that resolves when the setup is complete.
      */
     async setupSync(): Promise<void> {
         await this.syncController.start(async (message: CustomEvent<Message>) => await this.syncNewHead(message));
         await this.syncController.addRepetitiveTask(async () => {
             const head = await this.createOnlyNewHead();
-            console.log({ head })
-            if (head)
-                await this.syncController.sendHead(head);
+            this.log("New head: ", head);
+            if (head) await this.syncController.sendHead(head);
         }, 30000);
     }
 }

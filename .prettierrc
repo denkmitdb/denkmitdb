@@ -5,5 +5,5 @@
     "singleQuote": false,
     "tabWidth": 4,
     "trailingComma": "all",
-    "useSpaces": true
+    "useTabs": false
 }

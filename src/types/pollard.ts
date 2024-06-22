@@ -29,7 +29,7 @@ export interface PollardInterface extends PollardType {
     append(type: LeafTypes.Identity, data: CID): Promise<boolean>;
     append(type: LeafTypes.Entry, data: CID, creator: CID): Promise<boolean>;
     append(type: LeafTypes.SortedEntry, data: CID, creator: CID, sort: number[], key: string): Promise<boolean>;
-    
+
     getCID(): Promise<CID>;
     getRoot(): Promise<LeafType>;
     toJSON(): Omit<PollardType, "cid">;
@@ -53,11 +53,13 @@ export type PollardNode = PollardLocation & {
 
 export declare function createEmptyPollard(order: number): Promise<PollardInterface>;
 
-
 export type PollardOptions = {
     cid?: CID;
     noUpdate?: boolean;
     hashFunc?: (data: Uint8Array) => Promise<Uint8Array>;
 };
 
-export declare function createPollard(pollard: Partial<PollardType>, options?: PollardOptions): Promise<PollardInterface>;
+export declare function createPollard(
+    pollard: Partial<PollardType>,
+    options?: PollardOptions,
+): Promise<PollardInterface>;

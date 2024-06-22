@@ -2,7 +2,6 @@ import { OrderedMap } from "js-sdsl";
 import { CID } from "multiformats/cid";
 import { SortedItemsStoreInterface, SortedItemType } from "src/types";
 
-
 export class SortedItemsStore implements SortedItemsStoreInterface {
     private sortedMap: OrderedMap<number, Omit<SortedItemType, "sortField" | "index">>;
     private keyMap: Map<string, Omit<SortedItemType, "key" | "index">>;
@@ -47,7 +46,6 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
         return { ...entry[1], sortField: entry[0], index };
     }
 
-
     async *iteratorFrom(sortField: number): AsyncGenerator<SortedItemType> {
         const it = this.sortedMap.find(sortField);
         const end = this.sortedMap.end();
@@ -55,7 +53,7 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
             yield {
                 ...it.pointer[1],
                 sortField: it.pointer[0],
-                index: it.index
+                index: it.index,
             };
             it.next();
         }

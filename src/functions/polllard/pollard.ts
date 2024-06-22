@@ -2,7 +2,15 @@ import * as codec from "@ipld/dag-cbor";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 
-import { LeafType, LeafTypes, POLLARD_VERSION, PollardInput, PollardInterface, PollardOptions, PollardType } from "../../types";
+import {
+    LeafType,
+    LeafTypes,
+    POLLARD_VERSION,
+    PollardInput,
+    PollardInterface,
+    PollardOptions,
+    PollardType,
+} from "../../types";
 import { createLeaf, isLeavesEqual } from "./leaf";
 
 /**
@@ -48,7 +56,6 @@ class Pollard implements PollardInterface {
         this._cid = options.cid;
     }
 
-
     async append(): Promise<boolean>;
     async append(type: LeafTypes.Empty): Promise<boolean>;
     async append(type: LeafTypes.Hash, data: Uint8Array): Promise<boolean>;
@@ -56,7 +63,13 @@ class Pollard implements PollardInterface {
     async append(type: LeafTypes.Identity, data: CID): Promise<boolean>;
     async append(type: LeafTypes.Entry, data: CID, creator: CID): Promise<boolean>;
     async append(type: LeafTypes.SortedEntry, data: CID, creator: CID, sort: number[], key: string): Promise<boolean>;
-    async append(type?: LeafTypes, data?: CID | Uint8Array, creator?: CID, sort?: number[], key?: string): Promise<boolean> {
+    async append(
+        type?: LeafTypes,
+        data?: CID | Uint8Array,
+        creator?: CID,
+        sort?: number[],
+        key?: string,
+    ): Promise<boolean> {
         let leaf;
 
         switch (type) {
@@ -114,9 +127,9 @@ class Pollard implements PollardInterface {
     async updateLayersOneLeaf(index: number): Promise<CID> {
         if (!this._needUpdate && this._cid) return this._cid;
 
-        let startIndex = index >> 1 << 1;
+        let startIndex = (index >> 1) << 1;
 
-        for (let i = 0; i < (this.order - 1); i++) {
+        for (let i = 0; i < this.order - 1; i++) {
             const { hash1, hash2 } = this.getHashes(this._layers[i][startIndex], this._layers[i][startIndex + 1]);
 
             const combined = new Uint8Array(hash1.length + hash2.length);
@@ -125,7 +138,7 @@ class Pollard implements PollardInterface {
             const hash = await this._hashFunc(combined);
             const nexLayerIndex = startIndex >> 1;
             this._layers[i + 1][nexLayerIndex] = createLeaf(LeafTypes.Hash, hash);
-            startIndex = nexLayerIndex >> 1 << 1;
+            startIndex = (nexLayerIndex >> 1) << 1;
         }
 
         this._needUpdate = false;
@@ -173,11 +186,11 @@ class Pollard implements PollardInterface {
 
     /**
      * Updates the layers of the Pollard object.
-     * 
+     *
      * @returns A Promise that resolves to the CID (Content Identifier) of the updated object.
      */
     async updateLayers(startPosition: number = 0): Promise<CID> {
-        let startIndex = startPosition >> 1 << 1;
+        let startIndex = (startPosition >> 1) << 1;
 
         for (let i = 0; i < this.order - 1; i++) {
             for (let j = startIndex; j < 2 ** (this.order - i); j += 2) {
@@ -189,7 +202,7 @@ class Pollard implements PollardInterface {
                 const nextLayerIndex = j >> 1;
                 this._layers[i + 1][nextLayerIndex] = createLeaf(LeafTypes.Hash, hash);
             }
-            startIndex = startIndex >> 1 >> 1 << 1;
+            startIndex = ((startIndex >> 1) >> 1) << 1;
         }
 
         this._needUpdate = false;
@@ -225,7 +238,7 @@ class Pollard implements PollardInterface {
 
     /**
      * Retrieves all the elements in the first layer of the Pollard object.
-     * 
+     *
      * @returns An array of LeafType elements representing all the elements in the first layer.
      */
     all(): LeafType[] {
@@ -267,7 +280,7 @@ class Pollard implements PollardInterface {
     /**
      * Retrieves the CID (Content Identifier) associated with this instance.
      * If the CID is not available or needs to be updated, it will be fetched by calling the `updateLayers` method.
-     * 
+     *
      * @returns A Promise that resolves to the CID.
      */
     async getCID(): Promise<CID> {
@@ -304,7 +317,7 @@ class Pollard implements PollardInterface {
         if (this._needUpdate) {
             return 0;
         }
-        return this.layers.reduce((acc, layer) => acc + layer.reduce((acc, u) => acc + (codec.encode(u)).length, 0), 0);
+        return this.layers.reduce((acc, layer) => acc + layer.reduce((acc, u) => acc + codec.encode(u).length, 0), 0);
     }
 
     /**
@@ -356,7 +369,7 @@ class Pollard implements PollardInterface {
             throw new Error("Orders are different");
         }
 
-        other = other || await createEmptyPollard(this.order);
+        other = other || (await createEmptyPollard(this.order));
 
         const difference = await this.comparePollardNodesOrdered(other, this.order, 0);
 
@@ -389,9 +402,7 @@ export async function createEmptyPollard(order: number): Promise<PollardInterfac
     const pollard: PollardInput = {
         order,
         length: 0,
-        layers: Array.from({ length: order }, (_, i) =>
-            Array.from({ length: 2 ** (order - i) }, () => createLeaf())),
+        layers: Array.from({ length: order }, (_, i) => Array.from({ length: 2 ** (order - i) }, () => createLeaf())),
     };
     return await createPollard(pollard);
 }
-

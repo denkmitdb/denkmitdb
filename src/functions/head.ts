@@ -1,5 +1,12 @@
 import { CID } from "multiformats/cid";
-import { DenkmitData, HEAD_VERSION, HeadData, HeadInterface, HeadVersionType, HeliaControllerInterface } from "../types";
+import {
+    DenkmitData,
+    HEAD_VERSION,
+    HeadData,
+    HeadInterface,
+    HeadVersionType,
+    HeliaControllerInterface,
+} from "../types";
 
 export class Head implements HeadInterface {
     readonly version: HeadVersionType;

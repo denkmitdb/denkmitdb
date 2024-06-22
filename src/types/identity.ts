@@ -10,7 +10,18 @@ export enum IdentityTypes {
     publicKey = 0,
 }
 
-export type IdentityAlgorithms = "ES256" | "ES384" | "ES512" | "RS256" | "RS384" | "RS512" | "PS256" | "PS384" | "PS512" | "EdDSA" | "RS1";
+export type IdentityAlgorithms =
+    | "ES256"
+    | "ES384"
+    | "ES512"
+    | "RS256"
+    | "RS384"
+    | "RS512"
+    | "PS256"
+    | "PS384"
+    | "PS512"
+    | "EdDSA"
+    | "RS1";
 
 export type IdentityData = {
     readonly version: IdentityVersionType;
@@ -32,6 +43,15 @@ export interface IdentityInterface extends IdentityType {
     decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | boolean>;
 }
 
-export declare function createIdentity(name: string, passphrase: string, helia: DenkmitHeliaInterface, alg?: string): Promise<IdentityInterface>;
+export declare function createIdentity(
+    name: string,
+    passphrase: string,
+    helia: DenkmitHeliaInterface,
+    alg?: string,
+): Promise<IdentityInterface>;
 export declare function hasIdentity(name: string, helia: DenkmitHeliaInterface): Promise<boolean>;
-export declare function openIdentity(name: string, passphrase: string, helia: DenkmitHeliaInterface): Promise<IdentityInterface>;
+export declare function openIdentity(
+    name: string,
+    passphrase: string,
+    helia: DenkmitHeliaInterface,
+): Promise<IdentityInterface>;
