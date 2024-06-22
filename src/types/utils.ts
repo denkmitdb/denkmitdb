@@ -36,13 +36,14 @@ export type SortedItemType = {
 	readonly sortField: number;
 	readonly cid: CID;
 	readonly key: string;
+	readonly creator: CID;
 	readonly index: number;
 };
 
 export interface SortedItemsStoreInterface {
 	readonly size: number;
 
-	set(sortField: number, key: string, cid: CID): Promise<void>;
+	set(sortField: number, key: string, cid: CID, creator: CID): Promise<void>;
 	getByKey(key: string): Promise<SortedItemType | undefined>;
 	getByIndex(index: number): Promise<SortedItemType>;
 	iterator(): AsyncGenerator<SortedItemType>;
@@ -66,24 +67,24 @@ export interface HeliaControllerInterface extends HeliaStorageInterface {
 	identity: IdentityInterface;
 
 	addSigned<T>(data: OwnedDataType<T>): Promise<CID>;
-    addSignedV2<T>(data: T): Promise<DenkmitData<T>>;
+	addSignedV2<T>(data: T): Promise<DenkmitData<T>>;
 	getSigned<T>(cid: CID): Promise<OwnedDataType<T> | undefined>;
-    getSignedV2<T>(cid: CID): Promise<DenkmitData<T> | undefined>;
+	getSignedV2<T>(cid: CID): Promise<DenkmitData<T> | undefined>;
 }
 
 export type DenkmitData<T> = {
-    cid: CID;
-    creator: CID;
-    link?: CID;
-    data: T;
+	cid: CID;
+	creator: CID;
+	link?: CID;
+	data: T;
 }
 
 export interface DenkmitDataInterface<T> extends DenkmitData<T> {
-    toJSON(): T;
+	toJSON(): T;
 }
 
 export type DenkmitMetadata = {
-    readonly cid: CID;      // The CID of signed data
-    readonly creator: CID;  // The CID of the creator
-    readonly link?: CID;     // The CID of the linked raw data
+	readonly cid: CID;      // The CID of signed data
+	readonly creator: CID;  // The CID of the creator
+	readonly link?: CID;     // The CID of the linked raw data
 }

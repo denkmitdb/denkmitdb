@@ -138,7 +138,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      */
     async set(key: string, value: T): Promise<void> {
         const entry = await createEntry<T>(key, value, this.heliaController);
-        await this.sortedItemsStore.set(entry.timestamp, key, entry.cid);
+        await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
         await this.keyValueStorage.set(key, value);
         await this.createTaskUpdateLayers(entry.timestamp);
     }
@@ -248,8 +248,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         const difference = await this.compareNodes(layersCount, head.root, { layerIndex: order, position: 0 });
 
-        difference[0] = difference[0].filter((x) => x[0] !== LeafTypes.Empty);
-        difference[1] = difference[1].filter((x) => x[0] !== LeafTypes.Empty);
+        difference[0] = difference[0].filter((x) => x.type !== LeafTypes.Empty);
+        difference[1] = difference[1].filter((x) => x.type !== LeafTypes.Empty);
 
         const isEqual = difference[0].length === 0 && difference[1].length === 0;
 
@@ -273,13 +273,15 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         let smallestTimestamp = Number.MAX_SAFE_INTEGER;
 
         for (const leaf of difference[1]) {
-            if (leaf[0] !== LeafTypes.SortedEntry) continue;
+            if (leaf.type !== LeafTypes.SortedEntry) continue;
             const timestamp = await this.extracted(leaf);
+            if (!timestamp) throw new Error("Invalid timestamp");
             if (timestamp < smallestTimestamp) smallestTimestamp = timestamp;
         }
 
         await this.createTaskUpdateLayers(smallestTimestamp);
     }
+
     private async compareNodes(
         layersCount: number,
         root: CID | undefined,
@@ -308,7 +310,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             let cid = root;
             if (otherPollard) {
                 const leaf = await otherPollard.getLeaf(i);
-                if (leaf[0] !== LeafTypes.Empty) cid = CID.decode(leaf[1]);
+                if (leaf.type !== LeafTypes.Empty && leaf.type !== LeafTypes.Hash) cid = leaf.link;
             }
 
             const next = await this.compareNodes(layersCount, cid, {
@@ -322,13 +324,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return result;
     }
 
-    private async extracted(leaf: LeafType) {
-        const cid = CID.decode(leaf[1]);
-        if (!leaf[2]) throw new Error("Missing sort fields");
-        if (!leaf[3]) throw new Error("Missing key");
-        const timestamp = leaf[2][0];
-        const key = leaf[3];
-        await this.sortedItemsStore.set(timestamp, key, cid);
+    private async extracted(leaf: LeafType): Promise<number | undefined> {
+        if (leaf.type !== LeafTypes.SortedEntry) return;
+        const cid = leaf.link;
+        const timestamp = leaf.sort[0];
+        const key = leaf.key;
+        const creator = leaf.creator;
+        await this.sortedItemsStore.set(timestamp, key, cid, creator);
         return timestamp;
     }
 
@@ -355,9 +357,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         let position = startPosition;
 
         for await (const item of this.sortedItemsStore.iteratorFrom(startSortField)) {
-            const { cid, key } = item;
+            const { cid, key, creator } = item;
             ({ pollard, position } = await this.handlePollardCreation(pollard, layerIndex, position));
-            pollard.append(LeafTypes.SortedEntry, cid, { sortFields: [item.sortField], key });
+            pollard.append(LeafTypes.SortedEntry, cid, creator, [item.sortField], key);
         }
 
         await this.handlePollardUpdate(pollard, layerIndex, position);
@@ -467,7 +469,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A promise that resolves when the loading is complete.
      */
     async load(head: HeadInterface): Promise<void> {
-        let leaves: LeafType[] = [createLeaf(LeafTypes.Pollard, head.root.bytes)];
+        let leaves: LeafType[] = [createLeaf(LeafTypes.Pollard, head.root)];
 
         this.layers.length = 0;
 
@@ -477,12 +479,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             this.layers.unshift([]);
 
             for (const leaf of leaves) {
-                const cid = CID.decode(leaf[1]);
-                const pollard = await this.getPollard(cid);
+                if (leaf.type !== LeafTypes.Pollard) throw new Error("Invalid leaf type");
+                const pollard = await this.getPollard(leaf.link);
                 if (!pollard) throw new Error("Invalid pollard");
                 this.layers[0].push(pollard);
                 for (const leaf of pollard.iterator()) {
-                    switch (leaf[0]) {
+                    switch (leaf.type) {
                         case LeafTypes.Pollard:
                             leavesNext.push(leaf);
                             break;

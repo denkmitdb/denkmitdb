@@ -1,16 +1,6 @@
 import { CID } from "multiformats/cid";
 import { Optional } from "utility-types";
-
-export enum LeafTypes {
-    Empty = 0,
-    Hash = 1,
-    Pollard = 2,
-    Entry = 3,
-    Identity = 4,
-    SortedEntry = 5,
-}
-
-export type LeafType = [type: LeafTypes, data: Uint8Array, sortFields?: number[], key?: string];
+import { LeafType, LeafTypes } from "./leaf";
 
 export type PollardLocation = {
     layerIndex: number;
@@ -32,12 +22,14 @@ export type PollardType = {
 export type PollardInput = Optional<Omit<PollardType, "version" | "maxLength">, "cid">;
 
 export interface PollardInterface extends PollardType {
-    append(
-        type: LeafTypes,
-        data: CID | Uint8Array | string,
-        options?: { sortFields?: number[]; key?: string },
-    ): Promise<boolean>;
-
+    append(): Promise<boolean>;
+    append(type: LeafTypes.Empty): Promise<boolean>;
+    append(type: LeafTypes.Hash, data: Uint8Array): Promise<boolean>;
+    append(type: LeafTypes.Pollard, data: CID): Promise<boolean>;
+    append(type: LeafTypes.Identity, data: CID): Promise<boolean>;
+    append(type: LeafTypes.Entry, data: CID, creator: CID): Promise<boolean>;
+    append(type: LeafTypes.SortedEntry, data: CID, creator: CID, sort: number[], key: string): Promise<boolean>;
+    
     getCID(): Promise<CID>;
     getRoot(): Promise<LeafType>;
     toJSON(): Omit<PollardType, "cid">;
@@ -69,5 +61,3 @@ export type PollardOptions = {
 };
 
 export declare function createPollard(pollard: Partial<PollardType>, options?: PollardOptions): Promise<PollardInterface>;
-
-export declare function createLeaf(type: LeafTypes, data: Uint8Array, sortFields?: Uint8Array[], key?: string): LeafType;

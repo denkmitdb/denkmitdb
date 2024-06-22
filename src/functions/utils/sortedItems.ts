@@ -12,9 +12,9 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
         this.keyMap = new Map();
     }
 
-    async set(sortField: number, key: string, cid: CID): Promise<void> {
-        this.keyMap.set(key, { sortField, cid });
-        this.sortedMap.setElement(sortField, { cid, key });
+    async set(sortField: number, key: string, cid: CID, creator: CID): Promise<void> {
+        this.keyMap.set(key, { sortField, cid, creator });
+        this.sortedMap.setElement(sortField, { cid, key, creator });
     }
 
     async getByKey(key: string): Promise<SortedItemType | undefined> {
