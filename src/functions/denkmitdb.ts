@@ -1,4 +1,4 @@
-import type { Logger, Message } from "@libp2p/interface";
+import type { Logger } from "@libp2p/interface";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { createEmptyPollard, createEntry, createLeaf, createPollard, fetchEntry } from ".";
@@ -551,9 +551,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return await createPollard(pollardInput, { cid, noUpdate: true });
     }
 
-    async syncNewHead(message: CustomEvent<Message>): Promise<void> {
-        this.log("syncNewHead", message);
-        const cid = CID.decode(message.detail.data);
+    async syncNewHead(data: Uint8Array): Promise<void> {
+        const cid = CID.decode(data);
+        this.log("syncNewHead", cid);
         this.log("Head cid is", cid);
         this.syncController.addTask(async () => {
             const head = await this.fetchHead(cid);
@@ -577,7 +577,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A Promise that resolves when the setup is complete.
      */
     async setupSync(): Promise<void> {
-        await this.syncController.start(async (message: CustomEvent<Message>) => await this.syncNewHead(message));
+        this.log("Setup sync");
+        await this.syncController.start(async (data: Uint8Array) => await this.syncNewHead(data));
         await this.syncController.addRepetitiveTask(async () => {
             const head = await this.createOnlyNewHead();
             this.log("New head: ", head);

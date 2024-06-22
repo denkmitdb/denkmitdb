@@ -18,20 +18,25 @@ export class SyncController implements SyncControllerInterface {
     constructor(heliaController: HeliaControllerInterface, name: string) {
         this.heliaController = heliaController;
         this.name = name;
-        this.log = heliaController.libp2p.logger.forComponent("denmkitdb:sync");
+        this.log = heliaController.helia.logger.forComponent("denkmitdb:sync");
     }
 
     newMessage(message: CustomEvent<Message>): void {
+        this.log("newMessage %o", message);
         const data = message.detail.data;
+        this.log("newMessage data %o", data);
         if (this.newHead) this.newHead(data);
     }
 
-    async start(newHead: (message: CustomEvent<Message>) => Promise<void>): Promise<void> {
-        // this.newHead = newHead;
+    async start(newHead: (data: Uint8Array) => Promise<void>): Promise<void> {
+        this.log("Start sync controller");
+        this.newHead = newHead;
+        this.log("Subscribe to %s", this.name);
+        this.log("Function", { newHead: this.newHead });
 
-        this.heliaController.libp2p.services.pubsub.addEventListener("message", newHead);
+        this.heliaController.libp2p.services.pubsub.addEventListener("message", (message) => this.newMessage(message));
         this.heliaController.libp2p.services.pubsub.addEventListener("subscription-change", async (data) => {
-            console.log("subscription-change", { data });
+            this.log("subscription-change", { data });
         });
         this.heliaController.libp2p.services.pubsub.subscribe(this.name);
     }
