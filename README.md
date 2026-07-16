@@ -143,7 +143,7 @@ pnpm test:package      # packs the tarball and smoke-imports the packed code
 Notes:
 
 -   Tests marked `it.fails` document known bugs (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)); when you fix one, flip its test to a normal `it`.
--   CI runs lint, typecheck, build, tests, and the package smoke test on Node 20 and 22 for every push and pull request.
+-   Requires **Node 22+** (helia 5 uses `Promise.withResolvers`). CI runs lint, typecheck, build, tests, and the package smoke test on Node 22 and 24 for every push and pull request.
 
 ## 👨‍💻 Contributing
 

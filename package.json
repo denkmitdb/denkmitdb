@@ -34,6 +34,9 @@
         "denkmitdb",
         "denkmitdb-typescript"
     ],
+    "engines": {
+        "node": ">=22"
+    },
     "author": "Askar Zhakenov <askar@zhakenov.pro>",
     "license": "MIT",
     "homepage": "https://github.com/denkmitdb/denkmitdb",

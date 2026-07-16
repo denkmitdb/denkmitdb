@@ -23,6 +23,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
 - **Removed the `node-datachannel` stub and override entirely.** helia 5 uses
   `@ipshipyard/node-datachannel` (prebuilt binaries), so `import("helia")` and
   consumer installs work with no workaround — the Phase 0.5 stub is gone.
+- **Node 22+ now required** (helia 5 uses `Promise.withResolvers`, added in Node
+  22). `engines.node` set to `>=22`; CI matrix moved from Node 20/22 to 22/24.
 
 ### Phase 2 — replication correctness (behavioral; wire format → v2)
 
