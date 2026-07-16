@@ -96,25 +96,31 @@ export class HeliaStorage implements HeliaStorageInterface {
      * @returns A Promise that resolves to the CID of the added object.
      */
     async add(data: unknown): Promise<CID> {
-        const { signal } = new TimeoutController(DefaultTimeout);
-        const cid = await this.heliaDagCbor.add(data, { signal });
-        if (!(await this.helia.pins.isPinned(cid))) {
-            await drain(this.helia.pins.add(cid));
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            const cid = await this.heliaDagCbor.add(data, { signal: controller.signal });
+            if (!(await this.helia.pins.isPinned(cid))) {
+                await drain(this.helia.pins.add(cid));
+            }
+            return cid;
+        } finally {
+            controller.clear();
         }
-
-        return cid;
     }
 
     async addBytes(buf: Uint8Array): Promise<CID> {
         const hash = await sha256.digest(buf);
         const cid = CID.createV1(codec.code, hash);
-        const { signal } = new TimeoutController(DefaultTimeout);
-        await this.helia.blockstore.put(cid, buf, { signal });
-        if (!(await this.helia.pins.isPinned(cid))) {
-            await drain(this.helia.pins.add(cid));
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            await this.helia.blockstore.put(cid, buf, { signal: controller.signal });
+            if (!(await this.helia.pins.isPinned(cid))) {
+                await drain(this.helia.pins.add(cid));
+            }
+            return cid;
+        } finally {
+            controller.clear();
         }
-
-        return cid;
     }
 
     /**
@@ -123,13 +129,21 @@ export class HeliaStorage implements HeliaStorageInterface {
      * @returns A Promise that resolves to the retrieved object, or undefined if not found.
      */
     async get<T>(cid: CID): Promise<T | undefined> {
-        const { signal } = new TimeoutController(DefaultTimeout);
-        return await this.heliaDagCbor.get<T>(cid, { signal });
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            return await this.heliaDagCbor.get<T>(cid, { signal: controller.signal });
+        } finally {
+            controller.clear();
+        }
     }
 
     async getBytes(cid: CID): Promise<Uint8Array | undefined> {
-        const { signal } = new TimeoutController(DefaultTimeout);
-        return await this.helia.blockstore.get(cid, { signal });
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            return await this.helia.blockstore.get(cid, { signal: controller.signal });
+        } finally {
+            controller.clear();
+        }
     }
 
     /**
@@ -137,7 +151,7 @@ export class HeliaStorage implements HeliaStorageInterface {
      * @returns A Promise that resolves when the controller is closed.
      */
     async close(): Promise<void> {
-        this.helia.stop();
+        await this.helia.stop();
     }
 }
 

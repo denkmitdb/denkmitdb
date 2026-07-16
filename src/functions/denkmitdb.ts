@@ -1,7 +1,7 @@
 import type { Logger } from "@libp2p/interface";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
-import { createEmptyPollard, createEntry, createLeaf, createPollard, fetchEntry } from "./index.js";
+import { createEmptyPollard, createEntry, createPollard, fetchEntry } from "./index.js";
 import {
     ConsensusControllerInterface,
     ConsensusData,
@@ -18,6 +18,7 @@ import {
     MANIFEST_VERSION,
     ManifestData,
     ManifestInterface,
+    POLLARD_VERSION,
     PollardInterface,
     PollardLocation,
     PollardNode,
@@ -80,7 +81,7 @@ export async function createDenkmitDatabase<T>(
         consensusController,
     };
     const dmdb = new DenkmitDatabase<T>(mdb);
-    dmdb.setupSync();
+    await dmdb.setupSync();
 
     return dmdb;
 }
@@ -113,7 +114,7 @@ export async function openDenkmitDatabase<T>(
     };
 
     const dmdb = new DenkmitDatabase<T>(mdb);
-    dmdb.setupSync();
+    await dmdb.setupSync();
 
     return dmdb;
 }
@@ -175,9 +176,14 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             entryCreator: entry.creator.toString(),
         };
         if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
-        await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
+
+        const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
+        // A concurrently-known entry with a greater composite key already wins.
+        if (!result.applied) return;
+
         await this.keyValueStorage.set(key, value);
-        await this.createTaskUpdateLayers(entry.timestamp);
+        const rebuildFrom = Math.min(entry.timestamp, result.previousTimestamp ?? entry.timestamp);
+        await this.createTaskUpdateLayers(rebuildFrom);
     }
 
     /**
@@ -191,8 +197,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns The value associated with the key, or undefined if not found.
      */
     async get(key: string): Promise<T | undefined> {
+        // Falsy values (0, "", false, null) are valid — distinguish them from a
+        // cache miss with an explicit undefined check (KNOWN_ISSUES.md #18).
         const value = await this.keyValueStorage.get(key);
-        if (value) return value;
+        if (value !== undefined) return value;
         const item = await this.sortedItemsStore.getByKey(key);
         if (!item) return;
         const entry = await fetchEntry<T>(item.cid, this.heliaController);
@@ -209,7 +217,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     async *iterator(): AsyncGenerator<[key: string, value: T]> {
         for await (const { key } of this.sortedItemsStore.iterator()) {
             const value = await this.get(key);
-            if (value) yield [key, value];
+            if (value !== undefined) yield [key, value];
         }
     }
 
@@ -268,7 +276,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     async createHead(): Promise<HeadInterface> {
-        return (await this.createOnlyNewHead()) || this.head!;
+        const head = (await this.createOnlyNewHead()) ?? this.head;
+        if (!head) throw new Error("Cannot create head: database is empty");
+        return head;
     }
 
     async fetchHead(cid: CID): Promise<HeadInterface> {
@@ -307,16 +317,20 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const { isEqual, difference } = await this.compare(head);
         if (isEqual) return;
 
-        let smallestTimestamp = Number.MAX_SAFE_INTEGER;
+        let rebuildFrom = Number.MAX_SAFE_INTEGER;
+        let mergedAny = false;
 
         for (const leaf of difference[1]) {
             if (leaf.type !== LeafTypes.SortedEntry) continue;
             const timestamp = await this.processLeafMerging(leaf);
-            if (!timestamp) throw new Error("Invalid timestamp");
-            if (timestamp < smallestTimestamp) smallestTimestamp = timestamp;
+            if (timestamp === undefined) continue; // unverifiable, forged, or lost the conflict
+            mergedAny = true;
+            if (timestamp < rebuildFrom) rebuildFrom = timestamp;
         }
 
-        await this.createTaskUpdateLayers(smallestTimestamp);
+        // Nothing to apply — don't schedule a rebuild against a bogus timestamp
+        // (KNOWN_ISSUES.md #5).
+        if (mergedAny) await this.createTaskUpdateLayers(rebuildFrom);
     }
 
     private async compareNodes(
@@ -361,12 +375,31 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return result;
     }
 
+    /**
+     * Ingests one `SortedEntry` leaf from a peer's tree. The leaf's metadata is
+     * untrusted (pollards are unsigned): the entry block is fetched and its
+     * signature verified, and indexing uses the SIGNED key/timestamp/creator —
+     * never the leaf's claims (KNOWN_ISSUES.md #10). Returns the timestamp to
+     * rebuild the tree from if this entry became the live record for its key, or
+     * `undefined` if it was unverifiable, rejected by consensus, or lost the
+     * last-write-wins conflict.
+     */
     private async processLeafMerging(leaf: LeafType): Promise<number | undefined> {
         if (leaf.type !== LeafTypes.SortedEntry) return;
         const cid = leaf.link;
-        const timestamp = leaf.sort[0];
-        const key = leaf.key;
-        const creator = leaf.creator;
+
+        let entry;
+        try {
+            // fetchEntry verifies the JWS signature; throws if missing/invalid.
+            entry = await fetchEntry(cid, this.heliaController);
+        } catch {
+            this.log("Rejected leaf %s: entry missing or signature invalid", cid.toString());
+            return;
+        }
+
+        const timestamp = entry.timestamp;
+        const key = entry.key;
+        const creator = entry.creator;
 
         const check = {
             currentTimestamp: Date.now(),
@@ -375,10 +408,18 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             entryTimestamp: timestamp,
             entryCreator: creator.toString(),
         };
-        if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
+        if (!(await this.consensusController.execute(check))) {
+            this.log("Rejected leaf %s: consensus check failed", cid.toString());
+            return;
+        }
 
-        await this.sortedItemsStore.set(timestamp, key, cid, creator);
-        return timestamp;
+        const result = await this.sortedItemsStore.set(timestamp, key, cid, creator);
+        if (!result.applied) return;
+
+        // The winning value differs from anything cached under this key; drop the
+        // stale cache entry so the next read refetches (KNOWN_ISSUES.md #1).
+        await this.keyValueStorage.delete(key);
+        return Math.min(timestamp, result.previousTimestamp ?? timestamp);
     }
 
     async createTaskUpdateLayers(sortKey: number): Promise<void> {
@@ -388,14 +429,20 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     async updateLayers(sortKey: number): Promise<void> {
+        // An empty index has no tree; drop any stale layers and stop.
+        if (this.sortedItemsStore.size === 0) {
+            this.layers.length = 0;
+            return;
+        }
+
         let index = 0;
         if (sortKey > 0) {
             const it = await this.sortedItemsStore.find(sortKey);
             index = it.index;
         }
+        // Rebuild from the start of the pollard containing the earliest change, so
+        // position bookkeeping stays aligned to pollard boundaries.
         const startIndex = Math.floor(index / this.maxPollardLength) * this.maxPollardLength;
-        const startItem = await this.sortedItemsStore.getByIndex(startIndex);
-        const startSortField = startItem.sortField;
         const startPosition = this.calculatePositionInLayer(startIndex);
 
         let pollard = await createEmptyPollard(this.order);
@@ -403,10 +450,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         let position = startPosition;
 
-        for await (const item of this.sortedItemsStore.iteratorFrom(startSortField)) {
+        for await (const item of this.sortedItemsStore.iteratorFromIndex(startIndex)) {
             const { cid, key, creator } = item;
             ({ pollard, position } = await this.handlePollardCreation(pollard, layerIndex, position));
-            pollard.append(LeafTypes.SortedEntry, cid, creator, [item.sortField], key);
+            await pollard.append(LeafTypes.SortedEntry, cid, creator, [item.sortField], key);
         }
 
         await this.handlePollardUpdate(pollard, layerIndex, position);
@@ -419,7 +466,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             const slicedLayer = this.layers[layerIndex - 1].slice(startIndexInLowerLayer);
             for (const pollardNode of slicedLayer) {
                 ({ pollard, position } = await this.handlePollardCreation(pollard, layerIndex, position));
-                pollard.append(LeafTypes.Pollard, await pollardNode.getCID());
+                await pollard.append(LeafTypes.Pollard, await pollardNode.getCID());
             }
             await this.handlePollardUpdate(pollard, layerIndex, position);
         }
@@ -514,33 +561,29 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A promise that resolves when the loading is complete.
      */
     async load(head: HeadInterface): Promise<void> {
-        let leaves: LeafType[] = [createLeaf(LeafTypes.Pollard, head.root)];
-
+        // load() fully replaces local state with the authenticated contents of the
+        // remote tree (KNOWN_ISSUES.md #17). The remote pollards are only walked to
+        // discover entries; the honest tree is rebuilt from the verified index, so
+        // forged leaf structure/metadata cannot survive.
         this.layers.length = 0;
+        await this.sortedItemsStore.clear();
+        await this.keyValueStorage.clear();
+        this.head = undefined;
 
-        while (leaves.length > 0) {
-            const leavesNext: LeafType[] = [];
+        let links: CID[] = [head.root];
 
-            this.layers.unshift([]);
+        while (links.length > 0) {
+            const next: CID[] = [];
 
-            for (const leaf of leaves) {
-                if (leaf.type !== LeafTypes.Pollard) throw new Error("Invalid leaf type");
-                const pollard = await this.getPollard(leaf.link);
-                if (!pollard) throw new Error("Invalid pollard");
-                this.layers[0].push(pollard);
+            for (const link of links) {
+                const pollard = await this.getPollard(link);
+                if (!pollard) continue; // missing or wrong version — skip
                 for (const leaf of pollard.iterator()) {
-                    switch (leaf.type) {
-                        case LeafTypes.Pollard:
-                            leavesNext.push(leaf);
-                            break;
-
-                        case LeafTypes.SortedEntry:
-                            await this.processLeafMerging(leaf);
-                            break;
-                    }
+                    if (leaf.type === LeafTypes.Pollard) next.push(leaf.link);
+                    else if (leaf.type === LeafTypes.SortedEntry) await this.processLeafMerging(leaf);
                 }
             }
-            leaves = leavesNext;
+            links = next;
         }
         await this.createTaskUpdateLayers(0);
     }
@@ -548,15 +591,35 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private async getPollard(cid: CID): Promise<PollardInterface | undefined> {
         const pollardInput = await this.heliaController.get<PollardType>(cid);
         if (!pollardInput) return;
+        if (pollardInput.version !== POLLARD_VERSION) {
+            this.log("Rejected pollard %s: version %d", cid.toString(), pollardInput.version);
+            return;
+        }
         return await createPollard(pollardInput, { cid, noUpdate: true });
     }
 
     async syncNewHead(data: Uint8Array): Promise<void> {
         const cid = CID.decode(data);
-        this.log("syncNewHead", cid);
-        this.log("Head cid is", cid);
-        this.syncController.addTask(async () => {
-            const head = await this.fetchHead(cid);
+        this.log("syncNewHead %s", cid.toString());
+        await this.syncController.addTask(async () => {
+            let head: HeadInterface;
+            try {
+                head = await this.fetchHead(cid);
+            } catch {
+                this.log("Rejected head %s: not found or signature invalid", cid.toString());
+                return;
+            }
+
+            // Only ingest heads that belong to THIS database and speak our format
+            // version (KNOWN_ISSUES.md #11, specs/ordering.md §5).
+            if (!head.manifest.equals(this.manifest.cid)) {
+                this.log("Rejected head %s: foreign manifest %s", cid.toString(), head.manifest.toString());
+                return;
+            }
+            if (head.version !== HEAD_VERSION) {
+                this.log("Rejected head %s: unsupported version %d", cid.toString(), head.version);
+                return;
+            }
 
             if (this.size === 0) {
                 await this.load(head);

@@ -47,11 +47,22 @@ export function isLeavesEqual(leaf1: LeafType, leaf2: LeafType): boolean {
 
     if (leaf1.type == LeafTypes.Hash && leaf2.type == LeafTypes.Hash) return bytesEqual(leaf1.hash, leaf2.hash);
 
+    // SortedEntry leaves must match on all metadata, not just the link — otherwise
+    // tree comparison hides differing/forged key/sort/creator (KNOWN_ISSUES.md #12).
+    if (leaf1.type == LeafTypes.SortedEntry && leaf2.type == LeafTypes.SortedEntry) {
+        return (
+            bytesEqual(leaf1.link.bytes, leaf2.link.bytes) &&
+            bytesEqual(leaf1.creator.bytes, leaf2.creator.bytes) &&
+            leaf1.key === leaf2.key &&
+            leaf1.sort.length === leaf2.sort.length &&
+            leaf1.sort.every((value, index) => value === leaf2.sort[index])
+        );
+    }
+
     if (
         (leaf1.type == LeafTypes.Pollard && leaf2.type == LeafTypes.Pollard) ||
         (leaf1.type == LeafTypes.Entry && leaf2.type == LeafTypes.Entry) ||
-        (leaf1.type == LeafTypes.Identity && leaf2.type == LeafTypes.Identity) ||
-        (leaf1.type == LeafTypes.SortedEntry && leaf2.type == LeafTypes.SortedEntry)
+        (leaf1.type == LeafTypes.Identity && leaf2.type == LeafTypes.Identity)
     )
         return bytesEqual(leaf1.link.bytes, leaf2.link.bytes);
 

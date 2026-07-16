@@ -33,7 +33,7 @@ class Pollard implements PollardInterface {
      * Represents a Pollard object.
      */
     constructor(pollard: PollardInput, options: PollardOptions = {}) {
-        if (pollard.order <= 0 || pollard.order >= 8) {
+        if (pollard.order <= 0 || pollard.order > 8) {
             throw new Error("Order must be greater than 0 or less than or equal 8");
         }
         this.order = pollard.order;
@@ -43,7 +43,9 @@ class Pollard implements PollardInterface {
         this._hashFunc = options.hashFunc || this._hashFunc;
 
         if (pollard.layers && pollard.length) {
-            this._layers = Object.assign(pollard.layers);
+            // Copy, don't alias: a single-argument Object.assign returns the same
+            // reference, letting the caller mutate our internals (KNOWN_ISSUES.md #8).
+            this._layers = pollard.layers.map((layer) => layer.map((leaf) => ({ ...leaf })));
             this._length = pollard.length;
         } else {
             this._layers = Array.from({ length: this.order }, (_, i) =>
@@ -108,7 +110,7 @@ class Pollard implements PollardInterface {
     addLeaf(leaf: LeafType): boolean {
         if (!this.isFree()) return false;
 
-        this._layers[0][this._length] = Object.assign(leaf);
+        this._layers[0][this._length] = { ...leaf };
         this._length++;
 
         this._needUpdate = true;
@@ -365,11 +367,11 @@ class Pollard implements PollardInterface {
     }
 
     async compare(other?: PollardInterface): Promise<{ isEqual: boolean; difference: [LeafType[], LeafType[]] }> {
-        if (this.order !== other?.order) {
+        other = other || (await createEmptyPollard(this.order));
+
+        if (this.order !== other.order) {
             throw new Error("Orders are different");
         }
-
-        other = other || (await createEmptyPollard(this.order));
 
         const difference = await this.comparePollardNodesOrdered(other, this.order, 0);
 

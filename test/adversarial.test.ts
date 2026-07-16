@@ -11,10 +11,9 @@ import { buildHead, createTestNode, putSignedEntry, TestNode } from "./helpers";
 
 /**
  * These tests encode the Phase 1 spec (specs/ordering.md) and the replication
- * trust requirements (KNOWN_ISSUES.md #1, #2, #10, #11) as executable
- * expectations. Every case here is currently pinned with `it.fails`: it asserts
- * the CORRECT behavior, which today's code does not provide. As each Phase 2 fix
- * lands, its pin flips to a normal `it` — that flip is the acceptance test.
+ * trust requirements (KNOWN_ISSUES.md #1, #2, #10, #11). They were written as
+ * `it.fails` acceptance pins in Phase 1 and flipped to normal tests in Phase 2 as
+ * the fixes landed; they now guard against regressions.
  *
  * Each case builds its own database so failures are independent.
  */
@@ -51,7 +50,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
 
     // KNOWN_ISSUES.md #11 — a head bound to a different manifest must not mutate
     // this database's state. syncNewHead currently loads it unconditionally.
-    it.fails("rejects a head bound to a foreign manifest", async () => {
+    it("rejects a head bound to a foreign manifest", async () => {
         const { db, drain } = await createDb("foreign-head");
         const foreignManifest = await emptyCID();
         const entry = await putSignedEntry(heliaController, "intruder", { value: "x" }, Date.now());
@@ -70,7 +69,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
     // it against the signed entry. Here the leaf claims key "forged" while the
     // signed entry's key is "legit"; an authenticated merge must index under the
     // signed key (or reject), never under the attacker's claim.
-    it.fails("does not index an entry under a key the signed entry does not carry", async () => {
+    it("does not index an entry under a key the signed entry does not carry", async () => {
         const { db, drain } = await createDb("forged-key");
         const manifest = (await db.getManifest()).cid;
         const entry = await putSignedEntry(heliaController, "legit", { value: "real" }, Date.now());
@@ -92,7 +91,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
     // KNOWN_ISSUES.md #1 + #2 — a merged entry with a strictly newer composite key
     // must win and become visible, despite a value already cached locally for that
     // key. Today get() returns the stale cached value and the old record lingers.
-    it.fails("a newer merged entry wins and invalidates the cached value", async () => {
+    it("a newer merged entry wins and invalidates the cached value", async () => {
         const { db, drain } = await createDb("lww-newer");
         const manifest = (await db.getManifest()).cid;
 
@@ -115,7 +114,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
 
     // KNOWN_ISSUES.md #2 — an OLDER merged entry must lose to the value already
     // present for the key (last-write-wins by composite key, not by merge order).
-    it.fails("an older merged entry loses to the newer local value", async () => {
+    it("an older merged entry loses to the newer local value", async () => {
         const { db, drain } = await createDb("lww-older");
         const manifest = (await db.getManifest()).cid;
 

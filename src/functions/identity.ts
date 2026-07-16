@@ -211,8 +211,8 @@ async function createJWS(payload: Uint8Array, keys: KeyPair, options?: createJWS
     options = options || { alg: "ES384" };
     const { alg, kid } = options;
     let { includeJwk, includePayload } = options;
-    includeJwk = includeJwk || false;
-    includePayload = includePayload || true;
+    includeJwk = includeJwk ?? false;
+    includePayload = includePayload ?? true;
 
     const headers: jose.JWSHeaderParameters = { alg, kid };
     if (!keys.privateKey) throw new Error("Private key is not available");

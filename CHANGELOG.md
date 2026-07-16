@@ -6,6 +6,36 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 2 — replication correctness (behavioral; wire format → v2)
+
+Makes the replication path trustworthy. All Phase 1 acceptance pins now pass as
+normal tests. **Breaking:** `HEAD_VERSION` and `POLLARD_VERSION` are 2; v2 nodes
+reject v1 heads/pollards. There is no v1 data to migrate (v1 was never installable).
+
+- **Authenticated merge (#10, #11):** merging fetches and signature-verifies each
+  entry and indexes the *signed* key/timestamp/creator — forged leaf metadata can
+  no longer poison the index. Heads are ingested only when bound to this database's
+  manifest and format version; pollards are version-checked.
+- **Deterministic ordering & conflict resolution (#2, #3, #12):** the sorted index
+  is keyed by the composite key `(timestamp, entry CID)` (per `specs/ordering.md`),
+  giving a total order; per-key last-write-wins removes superseded records; leaf
+  equality compares all metadata. Same entry set ⇒ same Merkle root regardless of
+  delivery order or timestamp collisions.
+- **Async discipline (#5, #13, #14, #15):** pollard appends are awaited; queue,
+  publish and message-callback promises are propagated and error-handled; empty
+  merges no longer schedule a bogus rebuild; `setupSync` is awaited by the factories.
+- **Cache & API (#1, #16, #17, #18):** the value cache is invalidated when a merged
+  entry wins; `createHead()` throws on an empty database; `load()` fully replaces
+  local state; falsy values survive `get()`/`iterator()`.
+- **Lifecycle & smaller fixes (#4, #6, #7, #8, #9):** topic-filtered pubsub,
+  removable listeners, cancelable repetitive timer, cleared timeout controllers,
+  awaited `helia.stop()`; `createJWS` honours `includePayload: false`;
+  `Pollard.compare(undefined)` and order-8 fixed; pollard construction copies
+  instead of aliasing.
+- Added `syncNewHead` to `DenkmitDatabaseInterface`; `SortedItemsStore.set` returns
+  a last-write-wins `SetResult`; replaced `iteratorFrom(sortField)` with
+  `iteratorFromIndex(startIndex)` and removed the unused `findPrevious`.
+
 ### Phase 1 — ordering spec & acceptance pins
 
 - **`specs/ordering.md`**: accepted the v2 ordering model — composite sort key

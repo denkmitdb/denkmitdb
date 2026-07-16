@@ -21,7 +21,7 @@ describe("Pollard", () => {
     // KNOWN_ISSUES.md (housekeeping): the guard is `order >= 8` but the error
     // message (and this contract) says "less than or equal 8" — order 8 should
     // be accepted per the message, or the message should say "less than 8".
-    it.fails("order 8 should be accepted per the documented contract (known discrepancy)", async () => {
+    it("accepts order 8 per the documented contract", async () => {
         const pollard = await createEmptyPollard(8);
         expect(pollard.maxLength).toBe(256);
     });
@@ -109,7 +109,7 @@ describe("Pollard", () => {
     // KNOWN_ISSUES.md #7: the signature accepts `other?: PollardInterface` and the body
     // contains an `other || createEmptyPollard(...)` fallback, but the order check on the
     // line above dereferences `other?.order` first and throws, making the fallback dead code.
-    it.fails("compare(undefined) should fall back to comparing against an empty pollard (known bug)", async () => {
+    it("compare(undefined) falls back to comparing against an empty pollard", async () => {
         const a = await createEmptyPollard(2);
         await a.append(LeafTypes.Pollard, await cidOf("solo"));
         const { isEqual } = await a.compare();

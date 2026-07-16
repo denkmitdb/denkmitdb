@@ -55,10 +55,10 @@ building blocks:
 
 ### In-memory state (not persisted)
 
-- **`SortedItemsStore`** (`src/functions/utils/sortedItems.ts`) — the working index:
-  an ordered map keyed by entry timestamp plus a key→record map. Determines
-  iteration order and feeds tree building. (It is *intended* to be canonical;
-  KNOWN_ISSUES.md #2/#3 describe states where its two internal maps disagree.)
+- **`SortedItemsStore`** (`src/functions/utils/sortedItems.ts`) — the canonical
+  index: an ordered map keyed by the composite key `(timestamp, entry CID)` plus a
+  key→record map holding the last-write-wins winner for each key. Determines
+  iteration order and feeds tree building.
 - **Pollard layers** (`DenkmitDatabase.layers`) — layer 0 holds pollards whose leaves
   are `SortedEntry` records; each higher layer holds pollards whose leaves link to the
   pollards below; the top layer has a single pollard, whose CID is the **root**.
@@ -97,13 +97,12 @@ Because entries are timestamp-sorted, an insert at timestamp *t* only invalidate
 pollard containing *t* and everything to its right (`updateLayers` starts rebuilding
 from the affected pollard, not from scratch), plus the spine above.
 
-The *design goal* is that two replicas holding the same entry set produce the same
-root CID regardless of the order in which they learned the entries — that is what
-makes head comparison meaningful. The current implementation does not fully deliver
-this: same-millisecond writes collide by insertion order (KNOWN_ISSUES.md #3), per-key
-conflict resolution is merge-order-dependent (#2), and tree comparison ignores
-`SortedEntry` metadata (#12). Fixing those — with a composite `[timestamp, entryCID]`
-sort key — is what makes the guarantee real.
+Two replicas holding the same entry set produce the same root CID regardless of the
+order in which they learned the entries — that is what makes head comparison
+meaningful. This holds because entries are ordered by the composite key
+`(timestamp, entryCID)` (`specs/ordering.md`): a total order with no collisions,
+per-key last-write-wins that is independent of merge order, and full-metadata leaf
+equality so the diff can't hide a difference.
 
 ## Write path (`db.set`)
 
@@ -133,8 +132,9 @@ sequenceDiagram
     A->>B: gossipsub: head CID
     B->>A: bitswap: fetch head + differing pollards
     B->>B: compare(head): walk both trees top-down,<br/>descend only into differing branches
-    B->>B: consensus-check + index each new leaf's metadata,<br/>rebuild layers from smallest new timestamp
-    Note over B: signed entry blocks are NOT fetched here —<br/>they are fetched lazily on get() (KNOWN_ISSUES.md #10)
+    B->>A: bitswap: fetch each differing entry block
+    B->>B: verify signature, index the SIGNED key/timestamp/creator,<br/>rebuild layers from the earliest change
+    Note over B: leaf metadata is untrusted; a leaf whose entry fails<br/>verification or whose claims are forged is ignored
     Note over A,B: roots now equal → future compares stop at the root
 ```
 
@@ -145,12 +145,14 @@ spine of the layer tree and fetches each differing pollard block over the networ
 so the realistic bound is O(diff · order · tree-height) plus those block fetches —
 still independent of total database size, which is the core idea of the design.
 
-`merge` consensus-checks each incoming `SortedEntry` **using the leaf's own
-metadata** — the signed entry is not fetched or verified at merge time; that
-happens lazily when the value is first read. This is the trust gap tracked as
-KNOWN_ISSUES.md #10. Merge inserts the leaf into the index and rebuilds layers once
-from the smallest merged timestamp. A node whose database is empty takes the `load`
-path instead: it walks the remote tree and ingests every leaf.
+`merge` fetches and **signature-verifies** each incoming `SortedEntry`'s entry
+block, then indexes the *signed* key/timestamp/creator — the leaf's own claims are
+untrusted (pollards are unsigned) and are never used for indexing. A leaf whose
+entry is missing, fails verification, or is rejected by the consensus rule is
+skipped. Records are resolved by last-write-wins on the composite key, and layers
+are rebuilt once from the earliest change. A node whose database is empty takes the
+`load` path: it walks the remote tree, authenticates every entry the same way, then
+rebuilds its own honest tree from the verified index.
 
 ## Trust model
 
@@ -159,17 +161,18 @@ path instead: it walks the remote tree and ingests every leaf.
   content-addressed block. Verification fetches the identity (over bitswap if
   needed) and checks the signature. Tampering with any *fetched-and-verified* block
   is detectable.
-- **Authentication — the index is currently NOT covered**: pollards are unsigned,
-  and merge indexes leaf metadata (`key`, timestamp, creator) without fetching the
-  signed entry to cross-check it. Content addressing guarantees you got the bytes
-  the *sender* meant — not that those bytes tell the truth. A malicious peer can
-  therefore forge index metadata wholesale (KNOWN_ISSUES.md #10), and heads are not
-  even checked to belong to this database (#11). Closing this gap — verify entries
-  at merge time, bind heads to the manifest — is the first correctness item in
-  [ROADMAP.md](ROADMAP.md).
-- **Authorization**: *currently none* — the default consensus rule is the constant
-  `true` and the manifest's `access` field is a placeholder. Any peer that knows the
-  database address can write (KNOWN_ISSUES.md D1).
+- **Authentication — the index is covered too**: pollards are unsigned, but merge
+  never trusts them. Every incoming leaf's entry block is fetched and its signature
+  verified, and indexing uses the *signed* key/timestamp/creator, not the leaf's
+  claims. Forged leaf metadata is ignored, and heads are accepted only when bound to
+  this database's manifest and format version (KNOWN_ISSUES.md #10, #11). Content
+  addressing guarantees you got the bytes the sender meant; the signature check adds
+  that an honest identity actually authored them.
+- **Authorization**: *currently none* — writes are authenticated (every indexed
+  entry is signed by a known identity) but not authorized: the default consensus
+  rule is the constant `true` and the manifest's `access` field is a placeholder, so
+  any identity may write (KNOWN_ISSUES.md D1). Access control is [ROADMAP.md](ROADMAP.md)
+  Phase 4.
 - **Conflict resolution**: intended to be last-write-wins by entry timestamp; the
   current implementation deviates from this in important ways
   ([KNOWN_ISSUES.md](KNOWN_ISSUES.md) #2, #3).
@@ -205,9 +208,10 @@ test/                     # vitest suites; *.integration.* spin up real libp2p n
   storage/transfer units: a diff transfers only the pollards on the changed spine, and
   append-heavy workloads only rewrite the rightmost pollard per layer.
 - **Why is the tree built asynchronously?** Hashing the tree spine on every `set`
-  would serialize writes. Instead each write enqueues a rebuild on a
-  single-concurrency queue: the index and cache are updated synchronously, the tree
-  catches up. Note the queue *serializes*, it does not coalesce — under sustained
-  writes the head lags by the whole backlog, and because queue promises are
-  currently detached (KNOWN_ISSUES.md #14), `set()` resolving does not mean the
-  tree is current.
+  would serialize writes. Instead each write updates the index and cache
+  synchronously and enqueues the tree rebuild on a single-concurrency queue; `set()`
+  returns once the entry is durably indexed, and the head catches up when the queue
+  drains (await `queue.onIdle()` to observe it). The queue *serializes*, it does not
+  coalesce — under sustained writes the head lags by the backlog. Rebuild failures
+  are caught and logged rather than left as unhandled rejections (KNOWN_ISSUES.md
+  #14).

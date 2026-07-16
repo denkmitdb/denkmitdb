@@ -61,7 +61,7 @@ describe("isLeavesEqual", () => {
     // ignores sort/key/creator, so tree comparison can hide differing (or forged)
     // index metadata. Two SortedEntry leaves with the same link but a different
     // key must be considered different.
-    it.fails("distinguishes SortedEntry leaves that differ only in metadata (known bug)", () => {
+    it("distinguishes SortedEntry leaves that differ only in metadata", () => {
         const a = createLeaf(LeafTypes.SortedEntry, cidA, cidB, [1], "key-a");
         const b = createLeaf(LeafTypes.SortedEntry, cidA, cidB, [1], "key-b");
         expect(isLeavesEqual(a, b)).toBe(false);

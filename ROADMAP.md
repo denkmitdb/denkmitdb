@@ -63,23 +63,29 @@ coverage rather than an `it.fails` pin: without the Phase 2 winner rule its
 outcome is timing-dependent, and a flaky pin would falsely "pass". The
 deterministic single-node conflict pins above cover the same invariant.
 
-## Phase 2 — Correctness on the current stack
+## ✅ Phase 2 — Correctness on the current stack (July 2026)
 
-In dependency order:
+All acceptance pins flipped to normal tests. Delivered:
 
-1. **Authenticate replicated state (#10, #11):** fetch + verify signed entries at
-   merge time, require leaf metadata to match the signed entry, bind heads to the
-   manifest. The trust model in ARCHITECTURE.md becomes true here.
-2. **Index integrity (#2, #3, #12):** composite key from Phase 1, true
-   timestamp-LWW with CID tie-break, removal of superseded records (rebuild from
-   `min(old, new)`, truncate shrunk suffixes), full-metadata leaf equality.
-3. **Async discipline (#13, #14, #15, #5):** await pollard appends, propagate
-   queue/publish/callback promises, awaited `setupSync`, guard empty merges.
-4. **Cache & API correctness (#1, #16, #17, #18, #19):** invalidate on merge (only
-   when the incoming record wins), honest `createHead` on empty, replacement `load`,
-   falsy-value handling, honour or remove the ignored options.
-5. **Lifecycle (#9) + smaller defects (#6, #7, #8, #20).**
-6. Flip each `it.fails` pin as its fix lands.
+1. **Authenticated replicated state (#10, #11):** merge fetches + signature-verifies
+   the entry and indexes the *signed* key/timestamp/creator (leaf claims ignored);
+   heads are bound to the manifest and format version, pollards version-checked.
+   The trust model in ARCHITECTURE.md is now accurate.
+2. **Index integrity (#2, #3, #12):** composite key `(timestamp, entryCID)`, true
+   last-write-wins with removal of superseded records, full-metadata leaf equality.
+3. **Async discipline (#13, #14, #15, #5):** awaited pollard appends, propagated +
+   error-handled queue/publish/callback promises, awaited `setupSync`, empty-merge
+   guard.
+4. **Cache & API correctness (#1, #16, #17, #18):** cache invalidation on merge win,
+   `createHead` throws on empty, replacement `load()`, falsy-value handling.
+5. **Lifecycle (#9)** and smaller defects (#4 topic filter, #6, #7, #8) — plus
+   `HEAD_VERSION`/`POLLARD_VERSION` bumped to 2 per `specs/ordering.md`.
+
+**Carried forward:** #19 (ignored `order`/`sortedItemsStore`/`consensusController`
+options — interacts with access-control wiring, moved to Phase 4), the residual
+low-severity items in #20/8b, and the future-skew *enforcement* of D3 (the bound is
+specified; the default constant-true rule doesn't apply it yet — lands with access
+control).
 
 Tooling-only upgrades (TypeScript, eslint, typedoc, prettier) can happen at any
 convenient point — they don't change runtime behavior.

@@ -7,7 +7,7 @@ export type PollardLocation = {
     position: number;
 };
 
-export const POLLARD_VERSION = 1;
+export const POLLARD_VERSION = 2;
 export type PollardVersionType = typeof POLLARD_VERSION;
 
 export type PollardType = {

@@ -38,16 +38,26 @@ export type SortedItemType = {
     readonly index: number;
 };
 
+/**
+ * Outcome of {@link SortedItemsStoreInterface.set}. `applied` is true when the
+ * record became the live record for its key (last-write-wins). When it displaced
+ * an earlier record, `previousTimestamp` is that record's timestamp, so the tree
+ * can be rebuilt from the earlier of the two positions.
+ */
+export type SetResult = {
+    readonly applied: boolean;
+    readonly previousTimestamp?: number;
+};
+
 export interface SortedItemsStoreInterface {
     readonly size: number;
 
-    set(sortField: number, key: string, cid: CID, creator: CID): Promise<void>;
+    set(sortField: number, key: string, cid: CID, creator: CID): Promise<SetResult>;
     getByKey(key: string): Promise<SortedItemType | undefined>;
     getByIndex(index: number): Promise<SortedItemType>;
     iterator(): AsyncGenerator<SortedItemType>;
-    iteratorFrom(sortField: number): AsyncGenerator<SortedItemType>;
+    iteratorFromIndex(startIndex: number): AsyncGenerator<SortedItemType>;
     find(sortField: number): Promise<SortedItemType>;
-    findPrevious(sortField: number): Promise<SortedItemType>;
     clear(): Promise<void>;
 }
 

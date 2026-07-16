@@ -1,7 +1,7 @@
 import { CID } from "multiformats/cid";
 import { DenkmitMetadata } from "./utils.js";
 
-export const HEAD_VERSION = 1;
+export const HEAD_VERSION = 2;
 export type HeadVersionType = typeof HEAD_VERSION;
 
 export type HeadData = {
