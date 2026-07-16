@@ -186,11 +186,11 @@ Sequence (each builds on the previous):
    local override). Covered by `test/access.test.ts`. **Still to do:** immutable
    allow-list ACLs (a rule over a set of creator CIDs baked into the manifest), and
    the D2 rename (`ConsensusController` → validation/access policy) in the API freeze.
-3. **D6 identity cache + verification budgets (M, medium).** Bounded CID-keyed LRU of
-   verified identities, in-flight promise coalescing, limited negative caching, fetch
-   concurrency limits, and a repeated-writer merge benchmark + unique-identity abuse
-   test. Access control enables cheap `kid` prefiltering; caching is still needed.
-   Never an unbounded map (that trades crypto pressure for memory pressure).
+3. **D6 identity cache (✅ core done).** Bounded (1024) CID-keyed LRU of resolved
+   identities with in-flight promise coalescing; failures not cached; a repeated
+   foreign writer resolves once (`test/identity-cache.test.ts`). **Still to do:** a
+   global fetch-concurrency limit and a cheap `kid` prefilter (reject a non-member
+   *before* fetching its identity) for the unique-CID DoS — follow-ups, not blockers.
 4. **Head-discovery seam + minimal persistence (D4, D8) (L, high).** Extract a
    head-source/head-sink strategy interface; ship two strategies — **pubsub**
    (current) and **local persisted head** — selectable by config. Minimal durable

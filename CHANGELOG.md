@@ -6,7 +6,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Phase 4 — access control (D1) + step-1 fixes
+### Phase 4 — access control, identity cache, step-1 fixes
+
+- **Identity cache (D6).** `HeliaController` caches resolved identities in a bounded
+  LRU (1024) with in-flight coalescing (failures not cached), so a repeated foreign
+  writer's identity is fetched+verified once instead of per entry — the merge
+  hot-path. Adds an observability `identityFetchCount`. Covered by
+  `test/identity-cache.test.ts`.
+
 
 - **Access control, creator-only by default (D1).** The manifest `access` field now
   holds a deterministic json-logic authorization policy. Default: only the database

@@ -193,15 +193,18 @@ name-based `syncController` injection from the integration tests (see #19): the
 database derives its own topic and exposes `idle()` to await queued sync work, so
 tests no longer inject a controller with an arbitrary topic.
 
-### D6. ◻️ Unbounded identity fetches — now a release concern + DoS vector
-Verifying a foreign entry fetches its identity, verifies its self-signature, decodes
-it, constructs an `Identity`, and imports its key — **per entry, serially, in merge
-and load** — with no cache. Authenticated merge (#10) made this a hot path, and it's
-a DoS multiplier: an attacker can advertise many entries or many unique identity
-CIDs and force network/crypto work before rejection. The 53-test suite uses tiny
-datasets and never measures it. Bounded LRU + in-flight coalescing + fetch
-concurrency limits, before v2 (ROADMAP.md Phase 4 step 3). Access control enables a
-cheap `kid` prefilter but does not remove the need for caching.
+### D6. ✅ (mostly) Identity fetches are cached
+`HeliaController` now caches resolved identities in a bounded (1024-entry)
+insertion-ordered LRU keyed by CID, storing the in-flight promise so concurrent
+lookups of the same identity coalesce onto one fetch; failures are not cached.
+So many entries from the same writer trigger a single fetch+verify instead of one
+per entry — the merge hot-path (`getSigned`/`getSignedV2` → `resolveIdentity`).
+Covered by `test/identity-cache.test.ts` (a head + N entries from one foreign writer
+resolve that identity exactly once; `identityFetchCount` observes it).
+**Remaining:** a global fetch-concurrency limit, and a cheap `kid` prefilter that
+rejects a non-member writer *before* fetching its identity (needs a peek-at-`kid`
+step in the entry-fetch path) to blunt the unique-CID DoS — follow-ups, not v2
+blockers.
 
 ### D7. ◻️ Delete is unimplemented
 No delete/tombstone support. Scheduled in ROADMAP.md Phase 4 step 5 — after access

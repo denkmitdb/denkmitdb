@@ -143,9 +143,55 @@ export class HeliaStorage implements HeliaStorageInterface {
 export class HeliaController extends HeliaStorage implements HeliaControllerInterface {
     readonly identity: IdentityInterface;
 
+    // Bounded, insertion-ordered LRU of resolved identities keyed by CID string.
+    // Stores the in-flight promise so concurrent lookups of the same identity
+    // coalesce onto one fetch (KNOWN_ISSUES.md D6).
+    private static readonly IDENTITY_CACHE_MAX = 1024;
+    private readonly identityCache = new Map<string, Promise<IdentityInterface>>();
+    // Number of actual fetchIdentity() calls (cache misses) — observability for the
+    // merge hot-path and tests.
+    private identityFetches = 0;
+
     constructor(helia: DenkmitHeliaInterface, identity: IdentityInterface) {
         super(helia);
         this.identity = identity;
+    }
+
+    /** Count of identities actually fetched+verified (cache misses). */
+    get identityFetchCount(): number {
+        return this.identityFetches;
+    }
+
+    /**
+     * Resolves the identity for a signer CID, caching successful results. The local
+     * identity short-circuits (no fetch). Failures are not cached — a transient miss
+     * must not become permanent (KNOWN_ISSUES.md D6).
+     */
+    private async resolveIdentity(cid: CID): Promise<IdentityInterface> {
+        const key = cid.toString();
+        if (this.identity.cid.toString() === key) return this.identity;
+
+        const cached = this.identityCache.get(key);
+        if (cached) {
+            // Refresh LRU recency.
+            this.identityCache.delete(key);
+            this.identityCache.set(key, cached);
+            return cached;
+        }
+
+        this.identityFetches++;
+        const promise = fetchIdentity(cid, this).catch((error) => {
+            this.identityCache.delete(key);
+            throw error;
+        });
+        this.identityCache.set(key, promise);
+
+        if (this.identityCache.size > HeliaController.IDENTITY_CACHE_MAX) {
+            const oldest = this.identityCache.keys().next().value;
+            if (oldest !== undefined) this.identityCache.delete(oldest);
+        }
+
+        return promise;
     }
 
     async addSignedV2<T>(data: T): Promise<DenkmitData<T>> {
@@ -193,8 +239,7 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
         if (!kid) return;
         const kidCid = CID.parse(kid);
 
-        const identity = this.identity.cid.equals(kidCid) ? this.identity : await fetchIdentity(kidCid, this);
-        if (!identity) return;
+        const identity = await this.resolveIdentity(kidCid);
 
         const verified = await identity.verify(signed);
         const data = verified && (HeliaStorage.decode(verified) as T);
@@ -233,8 +278,7 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
         if (!kid) return;
         const kidCid = CID.parse(kid);
 
-        const identity = this.identity.cid.equals(kidCid) ? this.identity : await fetchIdentity(kidCid, this);
-        if (!identity) return;
+        const identity = await this.resolveIdentity(kidCid);
 
         const verified = await identity.verify(signed);
         const data = verified && (HeliaStorage.decode(verified) as T);
