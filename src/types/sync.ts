@@ -1,5 +1,4 @@
-import { HeadInterface } from "./head";
-import { HeliaControllerInterface } from "./utils";
+import { HeadInterface } from "./head.js";
 
 export interface SyncControllerInterface {
     start(newHead: (data: Uint8Array) => Promise<void>): Promise<void>;
@@ -9,7 +8,3 @@ export interface SyncControllerInterface {
     close(): Promise<void>;
 }
 
-export declare function createSyncController(
-    name: string,
-    heliaController: HeliaControllerInterface,
-): Promise<SyncControllerInterface>;

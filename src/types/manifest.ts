@@ -1,6 +1,5 @@
 import { CID } from "multiformats/cid";
-import { HeliaStorage } from "src/functions";
-import { DenkmitMetadata } from "./utils";
+import { DenkmitMetadata } from "./utils.js";
 
 export const MANIFEST_VERSION = 1;
 export type ManifestVersionType = typeof MANIFEST_VERSION;
@@ -53,5 +52,3 @@ export interface ManifestInterface extends ManifestType {
     toJSON(): ManifestData;
 }
 
-export declare function createManifest(manifest: ManifestData, heliaStorage: HeliaStorage): Promise<ManifestInterface>;
-export declare function fetchManifest(cid: CID, heliaStorage: HeliaStorage): Promise<ManifestInterface>;

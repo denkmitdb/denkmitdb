@@ -10,8 +10,8 @@ import {
     PollardInterface,
     PollardOptions,
     PollardType,
-} from "../../types";
-import { createLeaf, isLeavesEqual } from "./leaf";
+} from "../../types/index.js";
+import { createLeaf, isLeavesEqual } from "./leaf.js";
 
 /**
  * Represents a Pollard data structure.

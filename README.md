@@ -124,6 +124,7 @@ After installation, you can start using DenkMitDB by following these steps:
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Verified bugs (several pinned by failing tests) and open design concerns |
 | [ROADMAP.md](ROADMAP.md) | Where the project is going: upgrades → correctness → features → v2.0.0 |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [CODEX_REVIEW.md](CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
 | [docs/](docs/README.md) | Generated API reference (typedoc) |
 
 ## 🛠️ Development
@@ -132,15 +133,17 @@ After installation, you can start using DenkMitDB by following these steps:
 corepack enable        # provides the pinned pnpm version
 pnpm install
 pnpm test              # vitest: unit + integration (real libp2p nodes over TCP)
-pnpm lint
+pnpm lint              # eslint over src, test, examples and configs
+pnpm typecheck         # tsc over tests/configs (tsconfig.test.json)
 pnpm build
+pnpm test:package      # packs the tarball and smoke-imports the packed code
 ```
 
 Notes:
 
 -   Tests marked `it.fails` document known bugs (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)); when you fix one, flip its test to a normal `it`.
--   The native `node-datachannel` build is intentionally skipped (`pnpm.neverBuiltDependencies`) — the WebRTC transport is unused, and tests stub it (`test/stubs/`).
--   CI runs lint, build, and tests on Node 20 and 22 for every push and pull request.
+-   `node-datachannel` (a native WebRTC module helia pulls in transitively; its build fails on modern Node) is replaced repo-wide by a stub via `pnpm.overrides` — see `stubs/node-datachannel`. WebRTC transports are therefore unavailable in this repo; DenkMitDB never uses them. This override does **not** protect consumers of the published package (tracked in [ROADMAP.md](ROADMAP.md) Phase 3).
+-   CI runs lint, typecheck, build, tests, and the package smoke test on Node 20 and 22 for every push and pull request.
 
 ## 👨‍💻 Contributing
 

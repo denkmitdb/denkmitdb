@@ -1,6 +1,5 @@
 import { RulesLogic } from "json-logic-js";
-import { CID } from "multiformats/cid";
-import { DenkmitMetadata, HeliaControllerInterface } from "./utils";
+import { DenkmitMetadata } from "./utils.js";
 
 export const CONSENSUS_VERSION = 1;
 export type ConsensusVersionType = typeof CONSENSUS_VERSION;
@@ -40,11 +39,3 @@ export interface ConsensusControllerInterface extends ConsensusType {
     execute(data: unknown): Promise<boolean>;
 }
 
-export declare function createConsensus(
-    consensus: ConsensusData,
-    heliaController: HeliaControllerInterface,
-): Promise<ConsensusControllerInterface>;
-export declare function fetchConsensus(
-    cid: CID,
-    heliaController: HeliaControllerInterface,
-): Promise<ConsensusControllerInterface>;

@@ -6,6 +6,40 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 0.5 — honest safety net (after independent adversarial review)
+
+An independent Codex review (`CODEX_REVIEW.md`) of Phase 0 found the published
+package unloadable and several guarantees overstated. Fixed:
+
+- **ESM output now loads**: switched to `NodeNext` module resolution with explicit
+  `.js` specifiers and relative (instead of bare `src/…`) imports. The v1.0.0
+  package entry point could never be imported (`ERR_MODULE_NOT_FOUND`).
+- **Types entry fixed**: `types` now points at `dist/functions/index.d.ts` (the
+  runtime entry). Removed 16 phantom `export declare function` statements from
+  `src/types/*` — including `addEntry`/`getEntry`, which never existed — and with
+  them a `types → functions` circular dependency. Added missing `size` and
+  `sendHead` to `DenkmitDatabaseInterface` (caught by the new typecheck).
+- **Runtime works outside vitest**: `node-datachannel` (native, unused WebRTC
+  transitive dep) is now stubbed repo-wide via `pnpm.overrides` instead of a
+  test-only vitest alias, so `import("helia")`, the README quickstart and the
+  examples work under plain `node`. Consumers of the published package remain
+  exposed until the helia upgrade (see ROADMAP.md Phase 3).
+- **CI now proves packagability**: new `pnpm test:package` packs the tarball,
+  verifies entry points, imports the packed code and exercises it; new
+  `pnpm typecheck` covers tests/configs; lint extended beyond `src/`; actions
+  bumped to v5 with minimal token permissions and PR concurrency cancellation.
+- **Tests hardened**: `database.test.ts` no longer order-dependent (each case owns
+  its database), iteration order asserted as ordered tuples, the LWW pin now checks
+  timestamp + CID + creator, the pollard order-8 contract discrepancy is pinned,
+  and the factory-installed consensus rule is tested (not a hand-built copy).
+- **Docs corrected**: ARCHITECTURE.md no longer claims pollards are signed or that
+  merge verifies entries — the trust model now documents the real gap
+  (KNOWN_ISSUES.md #10/#11); KNOWN_ISSUES.md gained ten review-found issues;
+  ROADMAP.md reordered — correctness before runtime-major upgrades, access control
+  before delete.
+
+### Phase 0 — safety net
+
 Phase 0 of [ROADMAP.md](ROADMAP.md): safety net. No runtime behaviour changes.
 
 ### Added

@@ -1,7 +1,7 @@
 import type { Logger } from "@libp2p/interface";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
-import { createEmptyPollard, createEntry, createLeaf, createPollard, fetchEntry } from ".";
+import { createEmptyPollard, createEntry, createLeaf, createPollard, fetchEntry } from "./index.js";
 import {
     ConsensusControllerInterface,
     ConsensusData,
@@ -23,14 +23,14 @@ import {
     PollardNode,
     PollardType,
     SyncControllerInterface,
-} from "../types";
+} from "../types/index.js";
 
-import { createConsensus, fetchConsensus } from "./consensus";
-import { createHead, fetchHead } from "./head";
-import { createManifest, fetchManifest } from "./manifest";
-import { createSyncController } from "./sync";
-import { HeliaController, emptyCID } from "./utils/helia";
-import { SortedItemsStore } from "./utils/sortedItems";
+import { createConsensus, fetchConsensus } from "./consensus.js";
+import { createHead, fetchHead } from "./head.js";
+import { createManifest, fetchManifest } from "./manifest.js";
+import { createSyncController } from "./sync.js";
+import { HeliaController, emptyCID } from "./utils/helia.js";
+import { SortedItemsStore } from "./utils/sortedItems.js";
 
 // class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
 

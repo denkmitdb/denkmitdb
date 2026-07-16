@@ -7,7 +7,7 @@
         "access": "public"
     },
     "type": "module",
-    "types": "./dist/types/index.d.ts",
+    "types": "./dist/functions/index.d.ts",
     "files": [
         "src",
         "dist",
@@ -16,7 +16,7 @@
     ],
     "exports": {
         ".": {
-            "types": "./dist/types/index.d.ts",
+            "types": "./dist/functions/index.d.ts",
             "import": "./dist/functions/index.js"
         },
         "./package.json": "./package.json"
@@ -24,9 +24,11 @@
     "scripts": {
         "build": "rm -rf dist && tsc && tsc --declaration --emitDeclarationOnly",
         "docs": "typedoc",
-        "lint": "eslint src",
+        "lint": "eslint src test examples vitest.config.ts",
+        "typecheck": "tsc -p tsconfig.test.json --noEmit",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "test:package": "node scripts/package-smoke.mjs"
     },
     "keywords": [
         "denkmitdb",
@@ -45,11 +47,9 @@
     "devDependencies": {
         "@eslint/eslintrc": "^3.1.0",
         "@eslint/js": "^9.4.0",
-        "@helia/interface": "^4.3.0",
         "@microsoft/tsdoc": "^0.15.0",
         "@ptkdev/all-shields-cli": "^2.0.2",
         "@types/eslint__js": "^8.42.3",
-        "@types/inquirer": "^9.0.7",
         "@types/node": "^22.20.1",
         "@typescript-eslint/eslint-plugin": "^7.13.0",
         "@typescript-eslint/parser": "^7.12.0",
@@ -66,7 +66,6 @@
         "typedoc-plugin-mdn-links": "^3.1.30",
         "typescript": "^5.4.5",
         "typescript-eslint": "^7.12.0",
-        "vite-tsconfig-paths": "^6.1.1",
         "vitest": "^4.1.10"
     },
     "dependencies": {
@@ -97,8 +96,8 @@
     },
     "packageManager": "pnpm@9.4.0+sha512.f549b8a52c9d2b8536762f99c0722205efc5af913e77835dbccc3b0b0b2ca9e7dc8022b78062c17291c48e88749c70ce88eb5a74f1fa8c4bf5e18bb46c8bd83a",
     "pnpm": {
-        "neverBuiltDependencies": [
-            "node-datachannel"
-        ]
+        "overrides": {
+            "node-datachannel": "link:./stubs/node-datachannel"
+        }
     }
 }

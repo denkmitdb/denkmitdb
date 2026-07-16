@@ -3,7 +3,7 @@ import { Identify } from "@libp2p/identify";
 import { Libp2p, PubSub } from "@libp2p/interface";
 import { HeliaLibp2p } from "helia";
 import { CID } from "multiformats/cid";
-import { IdentityInterface } from "./identity";
+import { IdentityInterface } from "./identity.js";
 import { Datastore } from "interface-datastore";
 
 export enum DataTypes {

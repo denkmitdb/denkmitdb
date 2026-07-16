@@ -46,7 +46,10 @@ describe("SortedItemsStore", () => {
         expect(keys).toEqual(["b", "c"]);
     });
 
-    it("updating the same key twice keeps a single logical record", async () => {
+    it("getByKey reflects the latest set() for a key", async () => {
+        // Note: this covers key lookup only. The superseded physical record is
+        // NOT removed from the sorted index — that defect is pinned separately
+        // below (KNOWN_ISSUES.md #2 part 2).
         const store = new SortedItemsStore();
         await store.set(100, "k", await cidOf("old"), creator);
         await store.set(200, "k", await cidOf("new"), creator);
@@ -70,11 +73,16 @@ describe("SortedItemsStore", () => {
     // timestamp is the documented conflict-resolution model.
     it.fails("an older record must not overwrite a newer one for the same key (known bug)", async () => {
         const store = new SortedItemsStore();
-        await store.set(200, "k", await cidOf("new"), creator);
+        const newerCreator = await cidOf("newer-creator");
+        await store.set(200, "k", await cidOf("new"), newerCreator);
         await store.set(100, "k", await cidOf("old"), creator); // e.g. merged later from a peer
 
+        // The full record must survive — timestamp, CID, and creator — so a
+        // partial fix that repairs only the sort field cannot satisfy this pin.
         const item = await store.getByKey("k");
         expect(item?.sortField).toBe(200);
+        expect(item?.cid.equals(await cidOf("new"))).toBe(true);
+        expect(item?.creator.equals(newerCreator)).toBe(true);
     });
 
     // KNOWN_ISSUES.md #3: the sorted index is keyed by millisecond timestamp alone, so two

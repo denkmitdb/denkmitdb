@@ -1,8 +1,8 @@
 import type { Logger, Message } from "@libp2p/interface";
 import delay from "delay";
 import PQueue from "p-queue";
-import { HeadInterface, HeliaControllerInterface } from "src/types";
-import { SyncControllerInterface } from "src/types";
+import { HeadInterface, HeliaControllerInterface } from "../types/index.js";
+import { SyncControllerInterface } from "../types/index.js";
 
 /**
  * Represents a SyncController that handles synchronization operations.

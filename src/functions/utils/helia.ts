@@ -11,9 +11,9 @@ import {
     HeliaStorageInterface,
     IdentityInterface,
     OwnedDataType,
-} from "../../types";
+} from "../../types/index.js";
 import { TimeoutController } from "timeout-abort-controller";
-import { fetchIdentity } from "../identity";
+import { fetchIdentity } from "../identity.js";
 
 const DefaultTimeout = 30000; // 30 seconds
 

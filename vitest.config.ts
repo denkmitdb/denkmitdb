@@ -1,31 +1,15 @@
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
+// WebRTC note: helia transitively imports node-datachannel (a native module
+// whose build fails on modern Node). It is replaced repo-wide by a stub via
+// pnpm.overrides in package.json (see stubs/node-datachannel), so no test-only
+// aliasing is needed here — tests exercise the same module graph as `node`.
 export default defineConfig({
-    resolve: {
-        alias: {
-            // The source imports modules as "src/..." (resolved via tsconfig baseUrl).
-            src: fileURLToPath(new URL("./src", import.meta.url)),
-            // WebRTC is unused in tests; the native node-datachannel build is skipped.
-            "node-datachannel/polyfill": fileURLToPath(
-                new URL("./test/stubs/node-datachannel-polyfill.ts", import.meta.url),
-            ),
-            "node-datachannel": fileURLToPath(
-                new URL("./test/stubs/node-datachannel-polyfill.ts", import.meta.url),
-            ),
-        },
-    },
     test: {
         include: ["test/**/*.test.ts"],
-        server: {
-            deps: {
-                // Force these through the vite pipeline so the node-datachannel
-                // aliases above apply to their internal imports.
-                inline: ["helia", "@libp2p/webrtc"],
-            },
-        },
-        // Integration tests spin up real libp2p/Helia nodes over TCP.
-        testTimeout: 60_000,
-        hookTimeout: 60_000,
+        // Unit tests should fail fast; integration tests that spin up real
+        // libp2p/Helia nodes declare their own longer timeouts inline.
+        testTimeout: 10_000,
+        hookTimeout: 15_000,
     },
 });

@@ -1,5 +1,5 @@
 import { CID } from "multiformats/cid";
-import { LeafType, LeafTypes } from "../../types";
+import { LeafType, LeafTypes } from "../../types/index.js";
 
 export function createLeaf(): LeafType;
 export function createLeaf(type: LeafTypes.Empty): LeafType;

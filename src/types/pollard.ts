@@ -1,6 +1,6 @@
 import { CID } from "multiformats/cid";
 import { Optional } from "utility-types";
-import { LeafType, LeafTypes } from "./leaf";
+import { LeafType, LeafTypes } from "./leaf.js";
 
 export type PollardLocation = {
     layerIndex: number;
@@ -51,15 +51,9 @@ export type PollardNode = PollardLocation & {
     pollard?: PollardInterface;
 };
 
-export declare function createEmptyPollard(order: number): Promise<PollardInterface>;
-
 export type PollardOptions = {
     cid?: CID;
     noUpdate?: boolean;
     hashFunc?: (data: Uint8Array) => Promise<Uint8Array>;
 };
 
-export declare function createPollard(
-    pollard: Partial<PollardType>,
-    options?: PollardOptions,
-): Promise<PollardInterface>;

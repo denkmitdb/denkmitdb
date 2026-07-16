@@ -14,9 +14,9 @@ import {
     IdentityJWS,
     IdentityTypes,
     KeyPair,
-} from "../types";
+} from "../types/index.js";
 
-import { HeliaStorage } from "./utils/helia";
+import { HeliaStorage } from "./utils/helia.js";
 
 const keyPrefix = "/Denkmit/";
 

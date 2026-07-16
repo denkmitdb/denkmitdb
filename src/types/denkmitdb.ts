@@ -11,7 +11,7 @@ import {
     IdentityInterface,
     ManifestInterface,
     ConsensusControllerInterface,
-} from "../types";
+} from "./index.js";
 
 export const DENKMITDB_PREFIX = "/denkmitdb/";
 
@@ -106,6 +106,17 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
      * @returns A promise that resolves when the merge is complete.
      */
     merge(head: HeadInterface): Promise<void>;
+
+    /**
+     * The number of records currently in the sorted index.
+     */
+    readonly size: number;
+
+    /**
+     * Publishes the current head (if the root changed) on the sync topic.
+     * @returns A promise that resolves once the head has been handed to the sync controller.
+     */
+    sendHead(): Promise<void>;
 }
 
 export type DenkmitDatabaseOptions<T> = {
@@ -118,11 +129,3 @@ export type DenkmitDatabaseOptions<T> = {
     consensusController?: ConsensusControllerInterface;
 };
 
-export declare function createDenkmitDatabase<T>(
-    name: string,
-    options: DenkmitDatabaseOptions<T>,
-): Promise<DenkmitDatabaseInterface<T>>;
-export declare function openDenkmitDatabase<T>(
-    cid: CID,
-    options: DenkmitDatabaseOptions<T>,
-): Promise<DenkmitDatabaseInterface<T>>;

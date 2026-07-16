@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        // Tests and configs are executed by vitest/vite, not emitted by tsc,
+        // so they use bundler resolution (extensionless imports are fine).
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "types": ["node"]
+    },
+    "include": ["src/**/*", "test/**/*", "examples/**/*", "vitest.config.ts", "scripts/**/*.mjs"],
+    "exclude": ["node_modules", "dist"]
+}

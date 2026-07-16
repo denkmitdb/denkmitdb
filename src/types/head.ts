@@ -1,6 +1,5 @@
 import { CID } from "multiformats/cid";
-import { HeliaStorage } from "src/functions";
-import { DenkmitMetadata } from "./utils";
+import { DenkmitMetadata } from "./utils.js";
 
 export const HEAD_VERSION = 1;
 export type HeadVersionType = typeof HEAD_VERSION;
@@ -18,5 +17,3 @@ export type HeadType = HeadData & DenkmitMetadata;
 
 export interface HeadInterface extends HeadType {}
 
-export declare function createHead(head: HeadData, heliaStorage: HeliaStorage): Promise<HeadInterface>;
-export declare function fetchHead(cid: CID, heliaStorage: HeliaStorage): Promise<HeadInterface>;

@@ -1,8 +1,8 @@
 import type { RulesLogic } from "json-logic-js";
 import jsonLogic from "json-logic-js";
 import { CID } from "multiformats/cid";
-import { DenkmitData, HeliaControllerInterface } from "src/types";
-import { ConsensusData, ConsensusControllerInterface, ConsensusVersionType } from "src/types/consensus";
+import { DenkmitData, HeliaControllerInterface } from "../types/index.js";
+import { ConsensusData, ConsensusControllerInterface, ConsensusVersionType } from "../types/consensus.js";
 
 // export type ConsensusCheckData = {
 //     currentTimestamp: number;

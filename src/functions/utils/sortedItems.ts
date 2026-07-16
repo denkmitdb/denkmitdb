@@ -1,6 +1,6 @@
 import { OrderedMap } from "js-sdsl";
 import { CID } from "multiformats/cid";
-import { SortedItemsStoreInterface, SortedItemType } from "src/types";
+import { SortedItemsStoreInterface, SortedItemType } from "../../types/index.js";
 
 export class SortedItemsStore implements SortedItemsStoreInterface {
     private sortedMap: OrderedMap<number, Omit<SortedItemType, "sortField" | "index">>;

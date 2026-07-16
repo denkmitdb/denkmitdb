@@ -1,4 +1,4 @@
-import { ENTRY_VERSION, EntryInterface, EntryData, HeliaControllerInterface, DenkmitData } from "../types";
+import { ENTRY_VERSION, EntryInterface, EntryData, HeliaControllerInterface, DenkmitData } from "../types/index.js";
 import { CID } from "multiformats/cid";
 import { logger } from "@libp2p/logger";
 

@@ -5,6 +5,13 @@ on:
         branches: [main]
     pull_request:
 
+permissions:
+    contents: read
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
     test:
         name: Build, lint & test (Node ${{ matrix.node-version }})
@@ -15,12 +22,12 @@ jobs:
                 node-version: [20.x, 22.x]
 
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
 
             - name: Enable corepack (pnpm)
               run: corepack enable
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v5
               with:
                   node-version: ${{ matrix.node-version }}
                   cache: pnpm
@@ -31,8 +38,14 @@ jobs:
             - name: Lint
               run: pnpm lint
 
+            - name: Typecheck tests & configs
+              run: pnpm typecheck
+
             - name: Build
               run: pnpm build
 
             - name: Test
               run: pnpm test
+
+            - name: Package smoke test (packed artifact imports)
+              run: pnpm test:package

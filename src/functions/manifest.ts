@@ -1,6 +1,6 @@
 import { CID } from "multiformats/cid";
-import { DenkmitData, HeliaControllerInterface } from "src/types";
-import { MANIFEST_VERSION, ManifestData, ManifestInterface, ManifestVersionType } from "../types/manifest";
+import { DenkmitData, HeliaControllerInterface } from "../types/index.js";
+import { MANIFEST_VERSION, ManifestData, ManifestInterface, ManifestVersionType } from "../types/manifest.js";
 
 export class Manifest implements ManifestInterface {
     readonly version: ManifestVersionType;

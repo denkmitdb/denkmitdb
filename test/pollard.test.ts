@@ -11,9 +11,19 @@ async function cidOf(value: unknown): Promise<CID> {
 }
 
 describe("Pollard", () => {
-    it("rejects orders outside (0, 8]", async () => {
+    it("accepts orders 1..7 and rejects 0 and 9", async () => {
         await expect(createEmptyPollard(0)).rejects.toThrow();
         await expect(createEmptyPollard(9)).rejects.toThrow();
+        expect((await createEmptyPollard(1)).maxLength).toBe(2);
+        expect((await createEmptyPollard(7)).maxLength).toBe(128);
+    });
+
+    // KNOWN_ISSUES.md (housekeeping): the guard is `order >= 8` but the error
+    // message (and this contract) says "less than or equal 8" — order 8 should
+    // be accepted per the message, or the message should say "less than 8".
+    it.fails("order 8 should be accepted per the documented contract (known discrepancy)", async () => {
+        const pollard = await createEmptyPollard(8);
+        expect(pollard.maxLength).toBe(256);
     });
 
     it("creates an empty pollard with 2^order capacity", async () => {

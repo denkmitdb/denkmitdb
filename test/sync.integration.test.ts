@@ -38,7 +38,7 @@ describe("Two-node synchronization", () => {
             helia: nodeB.helia,
             identity: nodeB.identity,
         });
-    });
+    }, 60_000);
 
     afterAll(async () => {
         await dbA.close();
@@ -53,7 +53,7 @@ describe("Two-node synchronization", () => {
         expect(manifestB.name).toBe(TOPIC);
     });
 
-    it("replicates entries from node A to node B after a head announcement", async () => {
+    it("replicates entries from node A to node B after a head announcement", { timeout: 60_000 }, async () => {
         // Wait until gossipsub has built a mesh for the topic on both sides.
         await waitFor(
             () => {

@@ -1,2 +1,2 @@
-export * from "./leaf";
-export * from "./pollard";
+export * from "./leaf.js";
+export * from "./pollard.js";

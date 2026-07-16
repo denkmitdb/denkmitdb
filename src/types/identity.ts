@@ -1,5 +1,5 @@
 import * as jose from "jose";
-import { DenkmitHeliaInterface, DenkmitMetadata } from "./utils";
+import { DenkmitMetadata } from "./utils.js";
 
 export type KeyPair = Partial<jose.GenerateKeyPairResult>;
 
@@ -43,15 +43,3 @@ export interface IdentityInterface extends IdentityType {
     decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | boolean>;
 }
 
-export declare function createIdentity(
-    name: string,
-    passphrase: string,
-    helia: DenkmitHeliaInterface,
-    alg?: string,
-): Promise<IdentityInterface>;
-export declare function hasIdentity(name: string, helia: DenkmitHeliaInterface): Promise<boolean>;
-export declare function openIdentity(
-    name: string,
-    passphrase: string,
-    helia: DenkmitHeliaInterface,
-): Promise<IdentityInterface>;

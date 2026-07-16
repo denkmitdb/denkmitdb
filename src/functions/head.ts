@@ -6,7 +6,7 @@ import {
     HeadInterface,
     HeadVersionType,
     HeliaControllerInterface,
-} from "../types";
+} from "../types/index.js";
 
 export class Head implements HeadInterface {
     readonly version: HeadVersionType;
