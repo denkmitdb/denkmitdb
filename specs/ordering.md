@@ -79,10 +79,28 @@ clock:
 - What we lose until then: a writer with a fast clock wins conflicts for as long
   as its skew. This is the documented v2 trade-off (KNOWN_ISSUES.md D3).
 
-Mitigation required in v2 (enforced at merge time, not only at write time): the
-default write-validation rule must reject entries whose timestamp is further
-than `MAX_CLOCK_SKEW` (default: **60 000 ms**) ahead of the local clock. Entries
-arbitrarily far in the past are accepted (they lose conflicts naturally).
+**Skew handling — deferred in v2, and must NOT live in the replicated policy.**
+An earlier draft proposed rejecting entries more than `MAX_CLOCK_SKEW` (60 000 ms)
+ahead of the *local* clock inside the write-validation rule. That is unsafe: the
+replicated policy must be a pure function of deterministic inputs (manifest data +
+the signed entry), because `currentTimestamp` and `currentIdentity` differ per node
+and per delivery time. A skew rule that reads the local clock makes acceptance
+node-dependent — one replica rejects a signed entry another accepts — which breaks
+convergence (and, with the head-announcement gap in KNOWN_ISSUES.md, the rejecting
+node may never re-see it).
+
+Therefore, for v2:
+
+- The replicated **acceptance** decision uses only manifest + signed-entry data. No
+  node-local inputs.
+- Fast-clock skew is an accepted, documented v2 trade-off (a writer with a fast
+  clock wins conflicts for as long as its skew) — see KNOWN_ISSUES.md D3.
+- Clock-skew *defence*, if wanted, belongs in a separate **local operational
+  admission** layer (rate limits, clock warnings, temporary quarantine), never in
+  the convergence-critical policy — and only if implemented as a **durable
+  quarantine with retry-at-eligibility** and explicit resource limits, with tests
+  proving eventual convergence without a new write. That is post-v2 work, alongside
+  HLC.
 
 ## 5. Decision: format versioning and rejection
 

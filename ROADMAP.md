@@ -90,7 +90,9 @@ control).
 Tooling-only upgrades (TypeScript, eslint, typedoc, prettier) can happen at any
 convenient point — they don't change runtime behavior.
 
-## Phase 3 — Runtime upgrades (partially done, July 2026)
+## ✅ Phase 3 — Runtime upgrades (July 2026)
+
+Done as far as the ecosystem allows (libp2p 3 / helia 6; helia 7 deferred — see below).
 
 ### ✅ Done
 
@@ -147,48 +149,82 @@ helia 7 node sync with no libp2p at all).
 
 ## Phase 4 — Features & v2.0.0
 
-Strictly in this order (each depends on the previous being real):
+Ordering revised July 2026 after an independent prioritization review
+(`PHASE_PRIORITIES.md`). The earlier `access → delete → persistence → IPNS`
+sequence was wrong in three ways: persistence is more foundational than delete,
+D5 and the head-announcement fix should not wait for anything, and D6 is now a
+release concern (authenticated merge fetches + verifies an identity per foreign
+entry). Full network IPNS / helia 7 is an under-specified architecture project and
+does **not** gate v2. Effort S/M/L/XL; risk is protocol risk, not effort.
 
-1. **Access control (D1):** implement the manifest `access` controller (start with
-   creator-only / ACL json-logic over `entryCreator`), enforced in `set` **and** the
-   now-authenticated merge/load paths. Rename "consensus" to write-validation
-   policy, or specify actual coordination (D2).
-2. **Delete (D7):** tombstone leaf/entry type — only safe once writes are
-   authenticated (#10) and authorized (D1), otherwise any peer can delete anything.
-3. **Persistence (D4):** persist index/head locally; `openDenkmitDatabase` loads the
-   last local head; defined Keyv ownership semantics. Identity cache (D6).
-4. **Pluggable head discovery (D8):** the sync layer currently *only* learns a head
-   from a live peer broadcasting over pubsub, so a node that opens the database with
-   no data-holding peer online stays empty (D8). Pubsub carries only a ~36-byte
-   notification; all data transfer is bitswap — so head discovery is a *strategy*,
-   not the sync engine, and should be **selectable by configuration** rather than
-   hardcoded. Ship at least two strategies behind one interface, usable alone or
-   together:
-   - **pubsub** (current): real-time push; low latency; needs a live libp2p transport
-     and connected peers. Best for always-on full nodes.
-   - **durable pointer** — a mutable pointer to the current head (**IPNS**,
-     `@helia/ipns`, keyed by the manifest/identity) that peers *resolve* instead of
-     waiting to be told. Fixes the late-joiner / offline-peer / lone-restart gap, and
-     over **HTTP delegated routing** needs no libp2p at all (browser / HTTP-only /
-     helia 7 nodes).
-   The two compose naturally: resolve the durable pointer on open and periodically
-   (robust bootstrap), use pubsub for low-latency updates when available. Config
-   picks the set — e.g. `discovery: ['pubsub']`, `['ipns']`, or `['ipns','pubsub']`.
-   Design decisions to make deliberately:
-   - **Who publishes the pointer, and how conflicts resolve** — each writer publishes
-     its own head; readers resolve all and merge (merge is already order-independent),
-     so no single-writer bottleneck.
-   - **Routing/propagation tradeoff** — IPNS over the DHT/pubsub keeps a libp2p
-     dependency; IPNS over HTTP delegated routing drops it at the cost of an extra
-     dependency, resolution latency, and trusting a routing endpoint.
-   - Fold in D5 (topic/name = manifest CID) here.
-   This is also the natural point to revisit **helia 7**: once head discovery is a
-   configurable strategy and doesn't *require* `helia.libp2p.services.pubsub`, the
-   helia-7 libp2p-decoupling (carry libp2p separately for pubsub nodes, or drop it
-   for HTTP-only nodes) becomes worthwhile rather than busywork.
-5. **Release:** rename `polllard/` → `pollard/` and remaining typos, benchmarks
-   (write throughput, sync latency vs. diff size), typedoc regeneration, publish
-   **2.0.0** with the Phase 1 wire-format version gate.
+Sequence (each builds on the previous):
+
+1. **Contract + pins (M, high risk).** Make the v2 security/API semantics
+   deterministic before building on them:
+   - **D3 amendment (done in `specs/ordering.md`):** the replicated acceptance rule
+     uses only manifest + signed-entry data — never node-local `currentTimestamp` /
+     `currentIdentity`. Wall-clock skew is a documented v2 trade-off; skew *defence*
+     is post-v2 local admission, not policy.
+   - **D2 / #19 API decisions:** split the public `ConsensusController` into
+     **validation policy** and **access policy** (semantically-false name); honour
+     `order` **on create only** (open uses the signed manifest); **never** allow an
+     open-time policy override (policy is part of database identity — overriding it
+     destroys convergence); remove `sortedItemsStore` injection (protocol-critical
+     state, not an adapter); replace `syncController` injection with the discovery
+     strategy interface from step 4. (#19 also omits the ignored `syncController` on
+     open — fix that note.)
+   - First commits (small, ship immediately): **D5** topic = `/denkmitdb/2/<manifest-cid>`
+     (both create/open already have the CID); and the **head re-announcement fix**
+     (#21 — a peer that joins after the one announcement stays empty because the 30 s
+     task only publishes when the root changed).
+   - Write the access-control acceptance tests (see `PHASE_PRIORITIES.md`).
+2. **Access control — creator-only vertical slice, then immutable ACL (L, high).**
+   Enforce the manifest-bound policy in `set` **and** the authenticated merge/load
+   paths; world-writable becomes an explicit opt-in, not the default. Highest-value
+   capability and a hard prerequisite for safe delete.
+3. **D6 identity cache + verification budgets (M, medium).** Bounded CID-keyed LRU of
+   verified identities, in-flight promise coalescing, limited negative caching, fetch
+   concurrency limits, and a repeated-writer merge benchmark + unique-identity abuse
+   test. Access control enables cheap `kid` prefiltering; caching is still needed.
+   Never an unbounded map (that trades crypto pressure for memory pressure).
+4. **Head-discovery seam + minimal persistence (D4, D8) (L, high).** Extract a
+   head-source/head-sink strategy interface; ship two strategies — **pubsub**
+   (current) and **local persisted head** — selectable by config. Minimal durable
+   slice: persist the last accepted head CID (manifest-namespaced), revalidate +
+   rebuild on open, update the pointer only after the new tree is complete, **pin
+   foreign entries/identities fetched during merge** (a pinned head alone does not
+   keep JWS-linked blocks from GC), and namespace/own the Keyv cache without clearing
+   caller-supplied persistent stores. The head is the source of truth; a persisted
+   materialized index is a later optimization.
+5. **Delete — logical tombstones, no GC (D7) (L, high).** A signed **put/delete
+   entry union** reusing the existing `SortedEntry` leaf (a second leaf type would
+   duplicate ordering/merge logic); participates in the same composite LWW order;
+   `get()` returns missing and iteration skips a winning tombstone; a newer put
+   resurrects; the tombstone stays in the tree; no block GC/compaction in v2. Decide
+   whether `size` means **visible keys** or **Merkle records** (today one number
+   serves both).
+6. **API freeze / cleanup (#20, D2) (M, medium).** Readonly/snapshot getters (Pollard
+   and the public `layers` surface expose live arrays), delete the unused
+   tree-navigation helpers, finish the D2 renames and `polllard/` → `pollard/`. Last
+   cheap point for breaking changes.
+7. **Release hardening (M, medium).** The 53 tests don't cover the product
+   invariants: two-node concurrent same-key convergence (deferred in Phase 1, now
+   well-defined), unauthorized remote/local writes, restart recovery, late-joiner,
+   tombstone replication/restart, plus the package smoke test and benchmarks.
+8. **Publish v2.0.0 (S).** With the Phase 1 wire-format version gate.
+
+### Post-v2 (its own project)
+
+- **Remote durable discovery (D8 network layer):** IPNS / HTTP delegated routing and
+  the helia 7 revisit. Under-specified today and larger than a v2 feature — see the
+  caveats in `PHASE_PRIORITIES.md`: an IPNS name is one keypair = one publisher (the
+  "resolve all writers" plan needs a writer-name discovery mechanism); DenkMitDB's
+  ES384 identities vs IPNS's Ed25519 mandate; record expiry / republish ownership;
+  `@helia/ipns` pulls the helia-7 cluster; an HTTP router can withhold or replay
+  stale (but still signature-valid) records, so its trust boundary is
+  availability/freshness/privacy, not authenticity.
+- **HLC and hard skew enforcement**, persisted materialized index, tombstone
+  GC/compaction, dynamic ACL updates.
 
 ## Deliberately out of scope for v2
 

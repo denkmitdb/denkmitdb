@@ -54,14 +54,14 @@ describe("Two-node synchronization", () => {
     });
 
     it("replicates entries from node A to node B after a head announcement", { timeout: 60_000 }, async () => {
-        // Wait until gossipsub has built a mesh for the topic on both sides.
+        // Wait until both sides see each other subscribed to the pubsub topic.
         await waitFor(
             () => {
                 const subsA = nodeA.helia.libp2p.services.pubsub.getSubscribers(TOPIC);
                 const subsB = nodeB.helia.libp2p.services.pubsub.getSubscribers(TOPIC);
                 return subsA.length > 0 && subsB.length > 0;
             },
-            { message: "gossipsub mesh for the sync topic" },
+            { message: "pubsub subscription for the sync topic" },
         );
 
         await dbA.set("greeting", { value: "hello from A" });

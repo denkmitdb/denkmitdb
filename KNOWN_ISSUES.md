@@ -111,12 +111,30 @@ them). `getPollardTreeNodeChildren`/`...Left` multiply positions by `order` wher
 the branching factor is `maxLength` (2^order); both are currently unused
 internally. Scheduled with the Phase 4 cleanup.
 
-### 19. ◻️ [Medium] Some public options are still ignored
-`DenkmitDatabaseOptions` exposes `order`, `sortedItemsStore` and (on open)
-`consensusController`, but creation still hardcodes order 3 and the constant-true
-consensus and ignores a custom sorted store. Either honour or remove these —
-carried forward from Phase 2 to the access-control work (they interact with the
-consensus/manifest wiring). No behaviour depends on them today.
+### 19. ◻️ [Medium] Some public options are ignored — and some must stay that way
+`DenkmitDatabaseOptions` exposes `order`, `sortedItemsStore`, `syncController` and
+`consensusController`; creation hardcodes order 3 and the constant-true consensus
+and ignores a custom sorted store, and **open also silently ignores a custom
+`syncController`** (create honours it). The fix is *not* "honour them all" — several
+are convergence-hazardous:
+- `order` — honour on create only; open must use the signed manifest value.
+- open-time policy override (`consensusController`) — must **never** be honoured;
+  policy is part of database identity, and a local override destroys convergence.
+- `sortedItemsStore` — remove the injection point; it's protocol-critical state
+  (ordering/LWW invariants), not a casual adapter.
+- `syncController` — replace with the discovery-strategy interface (D8).
+Scheduled in ROADMAP.md Phase 4 step 1 (D2/#19 API decisions).
+
+### 21. ◻️ [High] No head re-announcement — late joiners can stay empty
+The 30 s sync task and public `sendHead()` both call `createOnlyNewHead()`
+(`src/functions/denkmitdb.ts` ~258, ~632), which returns `undefined` when the root
+has not changed. So a node only ever publishes a head when a write **changes the
+root** — there is no periodic re-broadcast of an unchanged head. A peer that opens
+the database and connects *after* the one announcement can remain empty until some
+later write, and a lone node that goes quiet stops announcing entirely. Combined
+with D8 (no durable pointer), a fresh reader frequently gets nothing. Fix: announce
+the current head periodically (and/or on a new subscriber), independent of whether
+the root changed. Small; ROADMAP.md Phase 4 step 1.
 
 ## Packaging & tooling
 
@@ -142,12 +160,17 @@ Access control is ROADMAP.md Phase 4, and must precede delete.
 Each node evaluates a json-logic rule locally; nodes never agree collectively.
 Rename to write-validation policy, or build real coordination.
 
-### D3. ◻️ Wall-clock ordering (bounded)
+### D3. ◻️ Wall-clock ordering (fast-clock trade-off, accepted for v2)
 Ordering uses wall-clock timestamps with the entry-CID tie-break (a deterministic
-total order — see `specs/ordering.md`). Clock skew still decides *which* write
-wins a conflict; a merge-time future-skew bound is specified but the default
-consensus rule does not yet enforce it (the constant-true rule accepts everything).
-HLC is deferred with a compatible upgrade path.
+total order — see `specs/ordering.md`). Clock skew still decides *which* write wins
+a conflict — a writer with a fast clock wins for the duration of its skew. This is
+an accepted, documented v2 trade-off. **Skew enforcement must not go into the
+replicated policy:** an earlier draft proposed rejecting entries >60 s ahead of the
+*local* clock, but the acceptance decision must be a pure function of manifest +
+signed-entry data (not node-local `currentTimestamp`/`currentIdentity`), or replicas
+diverge on which entries they accept. Skew *defence* is post-v2 local admission
+(durable quarantine with retry), and HLC is deferred with a compatible upgrade path.
+See `specs/ordering.md` §4.
 
 ### D4. ◻️ No local persistence; `close()` clears caller-owned cache
 `SortedItemsStore` and the pollard layers are memory-only. `close()` still
@@ -155,28 +178,39 @@ HLC is deferred with a compatible upgrade path.
 ownership semantics to be defined with the Phase 4 persistence work.
 
 ### D5. ◻️ The pubsub topic is the manifest *name*
-Same-name databases share a topic. The manifest-binding check (#11) prevents
-cross-contamination, but the topic should still be the manifest CID. Land with the
-Phase 3 libp2p work.
+Same-name databases share a topic. The manifest-binding check (#11) prevents state
+contamination, but such nodes still receive and fetch irrelevant announcements —
+with floodsub's fan-out this matters more, not less. Both create and open already
+have the manifest CID before constructing sync, so a versioned topic like
+`/denkmitdb/2/<manifest-cid>` is a small, low-risk change. Ship it early —
+ROADMAP.md Phase 4 step 1 (not deferred to IPNS/helia 7).
 
-### D6. ◻️ Unbounded identity fetches
-Verifying a foreign entry fetches its identity from IPFS every time; no cache.
-Note: authenticated merge (#10) makes this hotter, so the identity cache moves up
-in priority.
+### D6. ◻️ Unbounded identity fetches — now a release concern + DoS vector
+Verifying a foreign entry fetches its identity, verifies its self-signature, decodes
+it, constructs an `Identity`, and imports its key — **per entry, serially, in merge
+and load** — with no cache. Authenticated merge (#10) made this a hot path, and it's
+a DoS multiplier: an attacker can advertise many entries or many unique identity
+CIDs and force network/crypto work before rejection. The 53-test suite uses tiny
+datasets and never measures it. Bounded LRU + in-flight coalescing + fetch
+concurrency limits, before v2 (ROADMAP.md Phase 4 step 3). Access control enables a
+cheap `kid` prefilter but does not remove the need for caching.
 
 ### D7. ◻️ Delete is unimplemented
-No delete/tombstone support. Scheduled in ROADMAP.md Phase 4, after access control.
+No delete/tombstone support. Scheduled in ROADMAP.md Phase 4 step 5 — after access
+control (step 2) and persistence (step 4), which it depends on for authorization and
+a restart test-bed. Logical tombstones only (no GC) for v2.
 
 ### D8. ◻️ No durable head pointer — sync needs a live peer
 There is no persistent record of a database's current head. `openDenkmitDatabase()`
 fetches only the manifest and consensus rule, then waits for a peer to announce a
 head over pubsub (`src/functions/denkmitdb.ts` `openDenkmitDatabase`/`setupSync`).
-Consequences:
+Consequences (worsened by #21 — heads are only announced when the root *changes*,
+never re-broadcast on a timer):
 - A node that opens the database when no data-holding peer is currently
   online-and-connected stays **empty** — it never learns any head.
-- A late joiner only catches the *next* 30 s re-broadcast, and only if a peer with
-  the data is live.
-- A restarted lone node has no state until someone re-broadcasts.
+- A late joiner gets nothing until some peer performs a *new write* that changes the
+  root and re-announces; there is no periodic re-broadcast to catch (#21).
+- A restarted lone node has no state and, being quiet, announces nothing.
 
 Pubsub here is only a *notification* (a ~36-byte head CID); all data transfer is
 bitswap. The fix is to make head discovery a **configurable strategy** rather than

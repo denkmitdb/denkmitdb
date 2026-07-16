@@ -6,7 +6,24 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Phase 3 (partial) — dependency upgrades
+### Phase 4 planning — reprioritized after an independent review
+
+- Added `PHASE_PRIORITIES.md` (independent adversarial prioritization of the
+  remaining work) and reordered ROADMAP.md Phase 4 to: contract + pins (incl. D5 and
+  the head-announcement fix) → access control → identity cache → discovery seam +
+  persistence → delete → API freeze → hardening → v2.0.0, with network IPNS / helia 7
+  moved post-v2.
+- **Corrected stale docs/spec:** `specs/ordering.md` §4 — the proposed 60 s
+  future-skew rejection is removed from the replicated policy (it read the node-local
+  clock and would break convergence); skew is a documented v2 trade-off, defence is
+  post-v2 local admission. Fixed the false "30 s re-broadcast" claim (it doesn't
+  exist — new issue #21), the "conflict resolution deviates from LWW" note (fixed in
+  Phase 2), the Phase-3-partial/D5 status, and a gossipsub reference in the floodsub
+  integration test.
+- **New issue #21** (head is only announced when the root changes, so late joiners
+  can stay empty) and an expanded #19/D3/D5/D6/D8.
+
+### Phase 3 — dependency upgrades (complete to the ecosystem ceiling)
 
 - **Tooling:** TypeScript 5.4 → 5.9, typescript-eslint 7 → 8, typedoc 0.25 → 0.28,
   prettier 3.3 → 3.9.

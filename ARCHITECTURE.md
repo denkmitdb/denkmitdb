@@ -173,9 +173,11 @@ rebuilds its own honest tree from the verified index.
   rule is the constant `true` and the manifest's `access` field is a placeholder, so
   any identity may write (KNOWN_ISSUES.md D1). Access control is [ROADMAP.md](ROADMAP.md)
   Phase 4.
-- **Conflict resolution**: intended to be last-write-wins by entry timestamp; the
-  current implementation deviates from this in important ways
-  ([KNOWN_ISSUES.md](KNOWN_ISSUES.md) #2, #3).
+- **Conflict resolution**: last-write-wins on the composite key
+  `(timestamp, entryCID)` — a deterministic total order with per-key LWW and
+  superseded-record removal (`specs/ordering.md`, KNOWN_ISSUES.md #2, #3, fixed in
+  Phase 2). The remaining caveat is wall-clock trust: a writer with a fast clock
+  wins conflicts for the duration of its skew (D3).
 
 ## Source layout
 
