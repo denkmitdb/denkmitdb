@@ -1,0 +1,11 @@
+{
+    "name": "node-datachannel",
+    "version": "0.9.1",
+    "description": "Repo-local stub replacing the native node-datachannel module. WebRTC is unused by DenkMitDB; the real module's native build fails on modern Node. Applied via pnpm.overrides in the root package.json — this affects ONLY development in this repository, never consumers of the published package.",
+    "type": "module",
+    "main": "./index.js",
+    "exports": {
+        ".": "./index.js",
+        "./polyfill": "./polyfill.js"
+    }
+}
