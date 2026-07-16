@@ -15,5 +15,5 @@ export type HeadData = {
 
 export type HeadType = HeadData & DenkmitMetadata;
 
-export interface HeadInterface extends HeadType {}
+export type HeadInterface = HeadType;
 

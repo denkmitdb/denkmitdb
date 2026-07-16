@@ -22,7 +22,7 @@ export type DenkmitDatabaseType<T> = {
     readonly layers: PollardInterface[][];
     readonly heliaController: HeliaControllerInterface;
     readonly identity: IdentityInterface;
-    readonly keyValueStorage: Keyv<T, Record<string, T>>;
+    readonly keyValueStorage: Keyv<T>;
     readonly address: CID;
 };
 
@@ -30,7 +30,7 @@ export type DenkmitDatabaseInput<T> = {
     manifest: ManifestInterface;
     heliaController: HeliaControllerInterface;
     identity: IdentityInterface;
-    keyValueStorage?: Keyv<T, Record<string, T>>;
+    keyValueStorage?: Keyv<T>;
     syncController: SyncControllerInterface;
     consensusController: ConsensusControllerInterface;
 };
@@ -130,7 +130,7 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
 export type DenkmitDatabaseOptions<T> = {
     helia: DenkmitHeliaInterface;
     identity: IdentityInterface;
-    keyValueStorage?: Keyv<T, Record<string, T>>;
+    keyValueStorage?: Keyv<T>;
     order?: number;
     syncController?: SyncControllerInterface;
     sortedItemsStore?: SortedItemsStoreInterface;

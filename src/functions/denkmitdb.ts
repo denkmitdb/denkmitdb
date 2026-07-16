@@ -128,7 +128,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     readonly maxPollardLength: number;
     readonly layers: PollardInterface[][];
     readonly heliaController: HeliaControllerInterface;
-    readonly keyValueStorage: Keyv<T, Record<string, T>>;
+    readonly keyValueStorage: Keyv<T>;
     private sortedItemsStore: SortedItemsStore;
     private readonly syncController: SyncControllerInterface;
     private head?: HeadInterface;
@@ -138,7 +138,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     constructor(mdb: DenkmitDatabaseInput<T>) {
         this.manifest = mdb.manifest;
         this.layers = [];
-        this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T, Record<string, T>>();
+        this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T>();
         this.sortedItemsStore = new SortedItemsStore();
         this.maxPollardLength = 2 ** mdb.manifest.order;
         this.heliaController = mdb.heliaController;

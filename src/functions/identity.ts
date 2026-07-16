@@ -99,7 +99,7 @@ class Identity implements IdentityInterface {
             const result = await jose.flattenedVerify(jws, pk);
 
             return result.payload;
-        } catch (error) {
+        } catch {
             return undefined;
         }
     }
@@ -159,7 +159,7 @@ class Identity implements IdentityInterface {
         try {
             const result = await jose.flattenedDecrypt(jwe, this.keys.privateKey);
             return result.plaintext;
-        } catch (error) {
+        } catch {
             return false;
         }
     }
