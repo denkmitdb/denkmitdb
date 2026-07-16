@@ -2,11 +2,19 @@
 
 <!-- all-shields/header-badges:START -->
 
-[![v1.0.0](https://img.shields.io/badge/version-v1.0.0-lightgray.svg?style=flat&logo=)](https://github.com/denkmitdb/denkmitdb/blob/main/CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat&logo=license)](https://github.com/ptkdev-boilerplate/node-module-boilerplate/blob/main/LICENSE.md) [![Language: TypeScript](https://img.shields.io/badge/language-typescript-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org/)
+[![v1.0.0](https://img.shields.io/badge/version-v1.0.0-lightgray.svg?style=flat&logo=)](https://github.com/denkmitdb/denkmitdb/blob/main/CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat&logo=license)](https://github.com/denkmitdb/denkmitdb/blob/main/LICENSE) [![Language: TypeScript](https://img.shields.io/badge/language-typescript-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 
 <!-- all-shields/header-badges:END -->
 
-DenkMitDB is a distributed key-value database built heavily on IPFS, using a Merkle Tree as a consistency controller. It includes consensus and access controllers to ensure the database remains safe and consistent across distributed nodes. It has capabilities to delete records.
+[![CI](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml)
+
+DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over gossipsub and diffing Merkle trees to fetch only what they are missing.
+
+> ⚠️ **Status: experimental.** The write-validation ("consensus") rule installed by
+> default accepts every write and the access controller is not implemented yet, so a
+> database is writable by anyone who knows its address. Record deletion is planned
+> but not implemented. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and
+> [ROADMAP.md](ROADMAP.md) before using this in anything real.
 
 ## 🎁 Support: Donate
 
@@ -14,16 +22,18 @@ DenkMitDB is a distributed key-value database built heavily on IPFS, using a Mer
 
 <!-- all-shields/sponsors-badges:START -->
 
-[![Donate Bitcoin](https://img.shields.io/badge/BTC-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-E38B29.svg?style=flat-square&logo=bitcoin)]() [![Donate Ethereum](https://img.shields.io/badge/ETH-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-4E8EE9.svg?style=flat-square&logo=ethereum)]()
+[![Donate Bitcoin](https://img.shields.io/badge/BTC-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-E38B29.svg?style=flat-square&logo=bitcoin)]()
 
 <!-- all-shields/sponsors-badges:END -->
 
 ## 💡 Features
 
--   **Distributed Storage**: Utilizes IPFS for decentralized data storage.
--   **Consistency Control**: Employs Merkle Tree structures to maintain data consistency.
--   **Consensus Mechanism**: Ensures all nodes agree on the current state of the database.
--   **Access Control**: Manages permissions and security for database access.
+-   **Distributed storage**: all state lives in IPFS as signed, content-addressed dag-cbor blocks.
+-   **Efficient replication**: peers exchange one head CID and Merkle-diff their trees, so sync cost scales with the difference, not the database size.
+-   **Signed writes**: every entry is a JWS tied to a self-certifying identity (its CID).
+-   **Write validation**: a [json-logic](https://jsonlogic.com/) rule stored in the database manifest is evaluated for every local and merged write.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together.
 
 ## 💾 Installation
 
@@ -106,9 +116,35 @@ After installation, you can start using DenkMitDB by following these steps:
     await helia.stop();
     ```
 
+## 📚 Documentation
+
+| Document | Contents |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Data model, the pollard Merkle tree, write/read paths, sync protocol, trust model |
+| [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Verified bugs (several pinned by failing tests) and open design concerns |
+| [ROADMAP.md](ROADMAP.md) | Where the project is going: upgrades → correctness → features → v2.0.0 |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [docs/](docs/README.md) | Generated API reference (typedoc) |
+
+## 🛠️ Development
+
+```bash
+corepack enable        # provides the pinned pnpm version
+pnpm install
+pnpm test              # vitest: unit + integration (real libp2p nodes over TCP)
+pnpm lint
+pnpm build
+```
+
+Notes:
+
+-   Tests marked `it.fails` document known bugs (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)); when you fix one, flip its test to a normal `it`.
+-   The native `node-datachannel` build is intentionally skipped (`pnpm.neverBuiltDependencies`) — the WebRTC transport is unused, and tests stub it (`test/stubs/`).
+-   CI runs lint, build, and tests on Node 20 and 22 for every push and pull request.
+
 ## 👨‍💻 Contributing
 
-We welcome contributions! Please fork the repository and submit pull requests. For major changes, please open an issue to discuss what you would like to change.
+We welcome contributions! Please fork the repository and submit pull requests. For major changes, please open an issue to discuss what you would like to change. Good starting points are the items in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) with test pins.
 
 ## 💫 License
 
