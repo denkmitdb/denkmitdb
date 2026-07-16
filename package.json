@@ -69,25 +69,25 @@
         "vitest": "^4.1.10"
     },
     "dependencies": {
-        "@chainsafe/libp2p-gossipsub": "^13.0.0",
-        "@chainsafe/libp2p-noise": "^15.0.0",
-        "@chainsafe/libp2p-yamux": "^6.0.2",
-        "@helia/dag-cbor": "^3.0.4",
+        "@chainsafe/libp2p-gossipsub": "^14.1.2",
+        "@chainsafe/libp2p-noise": "^16.1.5",
+        "@chainsafe/libp2p-yamux": "^7.0.4",
+        "@helia/dag-cbor": "^4.1.0",
         "@ipld/dag-cbor": "^9.2.0",
-        "@libp2p/identify": "^2.0.3",
-        "@libp2p/interface": "^1.4.1",
-        "@libp2p/logger": "^4.0.14",
-        "@libp2p/tcp": "^9.0.27",
+        "@libp2p/identify": "^3.0.39",
+        "@libp2p/interface": "^2.11.0",
+        "@libp2p/logger": "^5.2.0",
+        "@libp2p/tcp": "^10.1.19",
         "@types/json-logic-js": "^2.0.7",
         "delay": "^7.0.0",
-        "helia": "^4.2.3",
-        "interface-datastore": "^8.2.11",
+        "helia": "^5.5.1",
+        "interface-datastore": "^9.0.3",
         "it-drain": "^3.0.7",
         "jose": "^6.2.3",
         "js-sdsl": "^4.4.2",
         "json-logic-js": "^2.0.2",
         "keyv": "^5.6.0",
-        "libp2p": "^1.6.1",
+        "libp2p": "^2.10.0",
         "multiformats": "^13.1.1",
         "p-queue": "^9.3.1",
         "timeout-abort-controller": "^3.0.0",
@@ -97,7 +97,7 @@
     "packageManager": "pnpm@9.4.0+sha512.f549b8a52c9d2b8536762f99c0722205efc5af913e77835dbccc3b0b0b2ca9e7dc8022b78062c17291c48e88749c70ce88eb5a74f1fa8c4bf5e18bb46c8bd83a",
     "pnpm": {
         "overrides": {
-            "node-datachannel": "link:./stubs/node-datachannel"
+            "interface-datastore": "9.0.3"
         }
     }
 }

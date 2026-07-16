@@ -104,35 +104,35 @@ convenient point — they don't change runtime behavior.
 - **Independent runtime libs:** uint8arrays 5 → 6, p-queue 8 → 9, keyv 4 → 5
   (`Keyv<T>` — dropped second generic), delay 6 → 7, it-drain patch.
 
-### ⛔ Blocked — the helia / libp2p cluster stays on helia 4 / libp2p 1 for now
+### ✅ helia 4 → 5 / libp2p 1 → 2 / gossipsub 13 → 14 (July 2026)
 
-**Ceiling is helia 5 / libp2p 2, not helia 7 / libp2p 3.** The latest
-`@chainsafe/libp2p-gossipsub` (14.1.2) still depends on `@libp2p/interface ^2`
-(libp2p 2). helia 6+ moved to libp2p 3 (`@libp2p/interface ^3`), so adopting
+Upgraded to the latest gossipsub-compatible set and verified: 53 tests pass
+(incl. two-node TCP sync), the example runs end-to-end, and the packed package
+imports. Changes: `connectionEncryption` → `connectionEncrypters`;
+`HeliaLibp2p<T>` → `Helia<T>`; `@helia/dag-cbor` pinned to 4.x (matches
+`@helia/interface ^5` — the 5.x line targets helia 6); `interface-datastore`
+deduped to 9.0.3 via `pnpm.overrides` (the libp2p 2 ecosystem pulls datastore 8).
+
+**Bonus:** the `node-datachannel` native-build problem is gone — helia 5 uses
+`@ipshipyard/node-datachannel` (prebuilt binaries), so the repo-local stub and its
+override were removed and consumer installs work with no workaround.
+
+### ⛔ Still capped at libp2p 2 — helia 7 / libp2p 3 blocked upstream
+
+The latest `@chainsafe/libp2p-gossipsub` (14.1.2) still depends on
+`@libp2p/interface ^2` (libp2p 2). helia 6+ moved to libp2p 3, so adopting
 helia 6/7 would break gossipsub — the pubsub transport the whole sync protocol
-relies on. Until gossipsub ships libp2p-3 support, the realistic target is
-**helia 5.5.x / libp2p 2.10.x / gossipsub 14**.
+relies on. Revisit once gossipsub ships libp2p-3 support (or evaluate an
+alternative pubsub). Deferred with it: multiformats 13 → 14 (helia 5 requires 13).
 
-Even that helia-5 upgrade is not a clean bump: the libp2p 2 ecosystem
-(`@libp2p/logger 5` → `interface-datastore 8`) duplicates `interface-datastore`
-and blockstore types against helia 5's datastore 9, producing `Key`/`Blockstore`
-type conflicts that need a dedupe pass (pnpm `overrides`, verified against a fresh
-lockfile). That work was attempted and deferred — it needs disk headroom to
-iterate lockfiles safely (the dev box hit 100% disk mid-upgrade).
+### Still open (independent of the cluster)
 
-**Follow-up task (helia 5 / libp2p 2):** `connectionEncryption` →
-`connectionEncrypters`; `HeliaLibp2p<T>` → `Helia<T>`; dedupe interface-datastore
-to one major via `pnpm.overrides`; multiformats 13 → 13.4 (stay on 13 — helia 5
-requires it); pair with topic = manifest CID (D5) and the listener/teardown
-remnants (#4/#9). Revisit helia 7 / libp2p 3 once gossipsub supports it.
+- Topic = manifest CID (D5) and the listener/teardown remnants (#4/#9) — moved to
+  the access-control work.
+- keyv ownership semantics (D4) — with the Phase 4 persistence work.
 
-### Deferred to the cluster upgrade
-
-- keyv ownership semantics (D4), multiformats 14, consumer-side node-datachannel
-  removal (helia's default libp2p still imports `@libp2p/webrtc`).
-
-Exit criteria (when unblocked): `pnpm outdated` clean for the compatible set, CI
-green including the packaging smoke test, adversarial integration tests pass.
+Exit criteria for the next hop: gossipsub supports libp2p 3; then `pnpm outdated`
+clean, CI green including the packaging smoke test, adversarial tests pass.
 
 ## Phase 4 — Features & v2.0.0
 

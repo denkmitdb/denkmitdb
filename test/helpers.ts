@@ -36,7 +36,7 @@ export async function createTestNode(name: string): Promise<TestNode> {
     const libp2p = await createLibp2p({
         addresses: { listen: ["/ip4/127.0.0.1/tcp/0"] },
         transports: [tcp()],
-        connectionEncryption: [noise()],
+        connectionEncrypters: [noise()],
         streamMuxers: [yamux()],
         services: {
             identify: identify(),

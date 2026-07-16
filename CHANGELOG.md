@@ -15,10 +15,14 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `encrypt`/`decrypt` re-import the EC key under ECDH-ES for key agreement.
 - **Runtime libs:** uint8arrays 5 → 6, p-queue 8 → 9, keyv 4 → 5 (`Keyv<T>`),
   delay 6 → 7.
-- **Not upgraded — helia/libp2p stay on 4/1.** The latest gossipsub still requires
-  libp2p 2, capping the cluster at helia 5 / libp2p 2 (helia 6+ needs libp2p 3).
-  See ROADMAP.md Phase 3 for the compatible-set follow-up and the dedupe work it
-  needs.
+- **helia 4 → 5, libp2p 1 → 2, gossipsub 13 → 14** (the latest gossipsub-compatible
+  set; helia 6+ needs libp2p 3, which gossipsub does not yet support).
+  `connectionEncryption` → `connectionEncrypters`; `HeliaLibp2p<T>` → `Helia<T>`;
+  `@helia/dag-cbor` pinned to 4.x (the 5.x line targets helia 6);
+  `interface-datastore` deduped to 9.0.3 via `pnpm.overrides`.
+- **Removed the `node-datachannel` stub and override entirely.** helia 5 uses
+  `@ipshipyard/node-datachannel` (prebuilt binaries), so `import("helia")` and
+  consumer installs work with no workaround — the Phase 0.5 stub is gone.
 
 ### Phase 2 — replication correctness (behavioral; wire format → v2)
 

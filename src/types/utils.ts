@@ -1,7 +1,7 @@
 import { GossipsubEvents } from "@chainsafe/libp2p-gossipsub";
 import { Identify } from "@libp2p/identify";
 import { Libp2p, PubSub } from "@libp2p/interface";
-import { HeliaLibp2p } from "helia";
+import { Helia } from "helia";
 import { CID } from "multiformats/cid";
 import { IdentityInterface } from "./identity.js";
 import { Datastore } from "interface-datastore";
@@ -23,7 +23,7 @@ export type DenkmitLibp2pType = Libp2p<{
     pubsub: PubSub<GossipsubEvents>;
 }>;
 
-export type DenkmitHeliaInterface = HeliaLibp2p<DenkmitLibp2pType>;
+export type DenkmitHeliaInterface = Helia<DenkmitLibp2pType>;
 
 export type OwnedDataType<T> = {
     data?: Omit<T, "cid">;

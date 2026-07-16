@@ -10,10 +10,8 @@
  *   4. Import the real entry file and assert the core API surface.
  *
  * Dependencies are satisfied by symlinking the repo's node_modules next to the
- * extracted package rather than a full `npm install` of the tarball: consumer
- * installs currently fail on the native node-datachannel build (stubbed only
- * inside this repo — see stubs/node-datachannel), which is tracked for the
- * helia/libp2p upgrade phase in ROADMAP.md.
+ * extracted package rather than doing a full install of the tarball — that keeps
+ * the smoke test fast and offline while still exercising the packed entry point.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";

@@ -73,7 +73,7 @@ After installation, you can start using DenkMitDB by following these steps:
     const libp2pOptions = {
         addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
         transports: [tcp()],
-        connectionEncryption: [noise()],
+        connectionEncrypters: [noise()],
         streamMuxers: [yamux()],
         services: {
             identify: identify(),
@@ -143,7 +143,6 @@ pnpm test:package      # packs the tarball and smoke-imports the packed code
 Notes:
 
 -   Tests marked `it.fails` document known bugs (see [KNOWN_ISSUES.md](KNOWN_ISSUES.md)); when you fix one, flip its test to a normal `it`.
--   `node-datachannel` (a native WebRTC module helia pulls in transitively; its build fails on modern Node) is replaced repo-wide by a stub via `pnpm.overrides` — see `stubs/node-datachannel`. WebRTC transports are therefore unavailable in this repo; DenkMitDB never uses them. This override does **not** protect consumers of the published package (tracked in [ROADMAP.md](ROADMAP.md) Phase 3).
 -   CI runs lint, typecheck, build, tests, and the package smoke test on Node 20 and 22 for every push and pull request.
 
 ## 👨‍💻 Contributing

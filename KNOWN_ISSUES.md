@@ -124,11 +124,12 @@ consensus/manifest wiring). No behaviour depends on them today.
   specifiers; guarded by `scripts/package-smoke.mjs` in CI.
 - **✅ [Fixed 0.5] Stale hand-written type declarations** — removed; `types` points
   at the runtime entry's declarations.
-- **◻️ [Partial] `node-datachannel` native build fails on modern Node.** Stubbed
-  repo-wide via `pnpm.overrides` (`stubs/node-datachannel`) so this repo works;
-  **consumers of the published package are still exposed**. Resolved properly by
-  the helia/libp2p upgrade (ROADMAP.md Phase 3), which drops the unconditional
-  WebRTC import.
+- **✅ [Fixed] `node-datachannel` native build.** Resolved by the helia 4 → 5
+  upgrade: helia 5's default libp2p uses `@ipshipyard/node-datachannel`, which
+  ships prebuilt binaries, so `import("helia")` and consumer installs work with no
+  stub or override. The repo-local stub and its `pnpm.overrides` entry are removed.
+  (One `pnpm.overrides` entry remains: `interface-datastore` pinned to 9.0.3 to
+  dedupe the libp2p 2 ecosystem's datastore 8 against helia 5's datastore 9.)
 
 ## Design concerns
 
