@@ -134,7 +134,9 @@ whole codebase reaches pubsub through `helia.libp2p.services.pubsub`, so helia 7
 needs a refactor: construct libp2p separately and carry it alongside helia (the
 `DenkmitHeliaInterface` abstraction would hold both). helia 6 keeps `helia.libp2p`
 and already runs libp2p 3, so it's the right stopping point until that refactor is
-worth doing.
+worth doing — best paired with the **durable head pointer** in Phase 4, which is
+what makes libp2p pubsub optional in the first place (and could let an HTTP-only
+helia 7 node sync with no libp2p at all).
 
 ### Still open (independent of the cluster)
 
@@ -155,7 +157,25 @@ Strictly in this order (each depends on the previous being real):
    authenticated (#10) and authorized (D1), otherwise any peer can delete anything.
 3. **Persistence (D4):** persist index/head locally; `openDenkmitDatabase` loads the
    last local head; defined Keyv ownership semantics. Identity cache (D6).
-4. **Release:** rename `polllard/` → `pollard/` and remaining typos, benchmarks
+4. **Durable head pointer (D8):** the sync layer currently relies on a live peer
+   broadcasting a head over pubsub, so a node that opens the database with no
+   data-holding peer online stays empty (D8). Pubsub only carries a ~36-byte
+   notification; all data transfer is bitswap. Introduce a durable, mutable pointer
+   to the current head — **IPNS** (`@helia/ipns`) keyed by the manifest/identity — so
+   peers *resolve* the latest head instead of waiting to be told, and demote pubsub
+   to an optional real-time accelerator. Design decisions to make deliberately:
+   - **Who publishes the pointer, and how conflicts resolve** — each writer publishes
+     its own head; readers resolve all and merge (merge is already order-independent),
+     so no single-writer bottleneck.
+   - **Routing/propagation** — IPNS over the DHT/pubsub keeps a libp2p dependency;
+     IPNS over **HTTP delegated routing** removes it (enabling helia 7 / HTTP-only /
+     browser nodes) at the cost of an extra dependency, resolution latency, and
+     trusting a routing endpoint.
+   - Fold in D5 (topic/name = manifest CID) here.
+   This is also the natural point to revisit **helia 7**: once sync no longer *requires*
+   `helia.libp2p.services.pubsub`, the helia-7 libp2p-decoupling (carry libp2p
+   separately, or drop it for HTTP nodes) becomes worthwhile rather than busywork.
+5. **Release:** rename `polllard/` → `pollard/` and remaining typos, benchmarks
    (write throughput, sync latency vs. diff size), typedoc regeneration, publish
    **2.0.0** with the Phase 1 wire-format version gate.
 

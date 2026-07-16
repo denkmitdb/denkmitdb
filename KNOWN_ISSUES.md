@@ -167,6 +167,24 @@ in priority.
 ### D7. ◻️ Delete is unimplemented
 No delete/tombstone support. Scheduled in ROADMAP.md Phase 4, after access control.
 
+### D8. ◻️ No durable head pointer — sync needs a live peer
+There is no persistent record of a database's current head. `openDenkmitDatabase()`
+fetches only the manifest and consensus rule, then waits for a peer to announce a
+head over pubsub (`src/functions/denkmitdb.ts` `openDenkmitDatabase`/`setupSync`).
+Consequences:
+- A node that opens the database when no data-holding peer is currently
+  online-and-connected stays **empty** — it never learns any head.
+- A late joiner only catches the *next* 30 s re-broadcast, and only if a peer with
+  the data is live.
+- A restarted lone node has no state until someone re-broadcasts.
+
+Pubsub here is only a *notification* (a ~36-byte head CID); all data transfer is
+bitswap. The fix is a durable, mutable head pointer (IPNS or equivalent) that peers
+**resolve** instead of waiting to be told, with pubsub demoted to an optional
+real-time accelerator. See ROADMAP.md ("Durable head pointer"). This also loosens
+the libp2p-pubsub coupling that makes helia 7 / HTTP-only nodes awkward, and
+overlaps with D5 (topic = manifest CID) and D4 (local persistence).
+
 ## Housekeeping
 
 - Directory `src/functions/polllard/` is a typo (three l's) — rename in a major
