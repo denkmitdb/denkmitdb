@@ -8,7 +8,7 @@
 
 [![CI](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml)
 
-DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over gossipsub and diffing Merkle trees to fetch only what they are missing.
+DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over libp2p pubsub and diffing Merkle trees to fetch only what they are missing.
 
 > ⚠️ **Status: experimental.** The write-validation ("consensus") rule installed by
 > default accepts every write and the access controller is not implemented yet, so a
@@ -57,7 +57,7 @@ After installation, you can start using DenkMitDB by following these steps:
 1. **Import modules**:
 
     ```typescript
-    import { gossipsub } from "@chainsafe/libp2p-gossipsub";
+    import { floodsub } from "@libp2p/floodsub";
     import { noise } from "@chainsafe/libp2p-noise";
     import { yamux } from "@chainsafe/libp2p-yamux";
     import { identify } from "@libp2p/identify";
@@ -77,7 +77,7 @@ After installation, you can start using DenkMitDB by following these steps:
         streamMuxers: [yamux()],
         services: {
             identify: identify(),
-            pubsub: gossipsub({ emitSelf: true }),
+            pubsub: floodsub({ emitSelf: true }),
         },
     };
 

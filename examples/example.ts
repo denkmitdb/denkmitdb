@@ -1,4 +1,4 @@
-import { gossipsub } from "@chainsafe/libp2p-gossipsub";
+import { floodsub } from "@libp2p/floodsub";
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { identify } from "@libp2p/identify";
@@ -16,7 +16,7 @@ const libp2pOptions = {
     streamMuxers: [yamux()],
     services: {
         identify: identify(),
-        pubsub: gossipsub({ emitSelf: true }),
+        pubsub: floodsub({ emitSelf: true }),
     },
 };
 

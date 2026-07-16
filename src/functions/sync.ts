@@ -1,4 +1,5 @@
-import type { Logger, Message } from "@libp2p/interface";
+import type { Message } from "@libp2p/floodsub";
+import type { Logger } from "@libp2p/interface";
 import delay, { clearDelay } from "delay";
 import PQueue from "p-queue";
 import { HeadInterface, HeliaControllerInterface, SyncControllerInterface } from "../types/index.js";

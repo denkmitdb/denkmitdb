@@ -5,7 +5,7 @@ DenkMitDB is a distributed key-value database built on [IPFS](https://ipfs.tech/
 state lives in immutable, content-addressed dag-cbor blocks. Entries, heads,
 manifests, consensus rules and identities are additionally **signed** (JWS);
 pollards — the Merkle index nodes — are **not** (see the trust model below).
-Replicas converge by exchanging a single CID (the "head") over gossipsub and
+Replicas converge by exchanging a single CID (the "head") over libp2p pubsub and
 diffing Merkle trees to find what they are missing.
 
 ## The big picture
@@ -22,7 +22,7 @@ flowchart TB
     end
     subgraph IPFS["IPFS / libp2p"]
         Blocks["Blockstore (dag-cbor blocks)"]
-        PubSub["gossipsub topic"]
+        PubSub["libp2p pubsub topic"]
         Bitswap["bitswap"]
     end
     API --> KV
@@ -129,7 +129,7 @@ sequenceDiagram
     participant A as Node A
     participant B as Node B
     A->>A: set(k, v), rebuild layers
-    A->>B: gossipsub: head CID
+    A->>B: pubsub: head CID
     B->>A: bitswap: fetch head + differing pollards
     B->>B: compare(head): walk both trees top-down,<br/>descend only into differing branches
     B->>A: bitswap: fetch each differing entry block

@@ -1,4 +1,4 @@
-import { gossipsub } from "@chainsafe/libp2p-gossipsub";
+import { floodsub } from "@libp2p/floodsub";
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { identify } from "@libp2p/identify";
@@ -40,7 +40,7 @@ export async function createTestNode(name: string): Promise<TestNode> {
         streamMuxers: [yamux()],
         services: {
             identify: identify(),
-            pubsub: gossipsub({ emitSelf: true, allowPublishToZeroTopicPeers: true }),
+            pubsub: floodsub({ emitSelf: true }),
         },
     });
     const helia = (await createHelia({ libp2p })) as unknown as DenkmitHeliaInterface;

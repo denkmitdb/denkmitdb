@@ -124,12 +124,11 @@ consensus/manifest wiring). No behaviour depends on them today.
   specifiers; guarded by `scripts/package-smoke.mjs` in CI.
 - **✅ [Fixed 0.5] Stale hand-written type declarations** — removed; `types` points
   at the runtime entry's declarations.
-- **✅ [Fixed] `node-datachannel` native build.** Resolved by the helia 4 → 5
-  upgrade: helia 5's default libp2p uses `@ipshipyard/node-datachannel`, which
-  ships prebuilt binaries, so `import("helia")` and consumer installs work with no
-  stub or override. The repo-local stub and its `pnpm.overrides` entry are removed.
+- **✅ [Fixed] `node-datachannel` native build.** helia uses
+  `@ipshipyard/node-datachannel` (prebuilt binaries), so `import("helia")` and
+  consumer installs work with no stub or override. The repo-local stub is removed.
   (One `pnpm.overrides` entry remains: `interface-datastore` pinned to 9.0.3 to
-  dedupe the libp2p 2 ecosystem's datastore 8 against helia 5's datastore 9.)
+  dedupe helia 6's datastore 9 against libp2p 3's datastore 10.)
 
 ## Design concerns
 

@@ -15,16 +15,21 @@ project adheres to [Semantic Versioning](https://semver.org/).
   `encrypt`/`decrypt` re-import the EC key under ECDH-ES for key agreement.
 - **Runtime libs:** uint8arrays 5 → 6, p-queue 8 → 9, keyv 4 → 5 (`Keyv<T>`),
   delay 6 → 7.
-- **helia 4 → 5, libp2p 1 → 2, gossipsub 13 → 14** (the latest gossipsub-compatible
-  set; helia 6+ needs libp2p 3, which gossipsub does not yet support).
+- **helia 4 → 6, libp2p 1 → 3, and gossipsub → floodsub.** The sync code only used
+  the generic pubsub surface, so gossipsub (still libp2p-2-only) was swapped for
+  `@libp2p/floodsub@11` (libp2p-3 compatible) to reach libp2p 3. floodsub broadcasts
+  to every subscribed peer instead of gossipsub's mesh — fine at this scale, and
+  swappable back when gossipsub supports libp2p 3. helia stops at 6 because helia 7
+  removed `helia.libp2p` (see ROADMAP.md). `gossipsub()` → `floodsub()`;
+  `PubSub<GossipsubEvents>` → `FloodSub`; `Message` from `@libp2p/floodsub`;
   `connectionEncryption` → `connectionEncrypters`; `HeliaLibp2p<T>` → `Helia<T>`;
-  `@helia/dag-cbor` pinned to 4.x (the 5.x line targets helia 6);
-  `interface-datastore` deduped to 9.0.3 via `pnpm.overrides`.
-- **Removed the `node-datachannel` stub and override entirely.** helia 5 uses
-  `@ipshipyard/node-datachannel` (prebuilt binaries), so `import("helia")` and
-  consumer installs work with no workaround — the Phase 0.5 stub is gone.
-- **Node 22+ now required** (helia 5 uses `Promise.withResolvers`, added in Node
-  22). `engines.node` set to `>=22`; CI matrix moved from Node 20/22 to 22/24.
+  `@helia/dag-cbor` 3 → 5; multiformats held at 13; `interface-datastore` deduped to
+  9.0.3 via `pnpm.overrides`. Removed the unused `addBytes`/`getBytes`.
+- **`node-datachannel` is a non-issue.** helia uses `@ipshipyard/node-datachannel`
+  (prebuilt binaries), so `import("helia")` and consumer installs work with no stub
+  or override — the Phase 0.5 stub is gone.
+- **Node 22+ now required** (helia uses `Promise.withResolvers`, added in Node 22).
+  `engines.node` set to `>=22`; CI matrix moved from Node 20/22 to 22/24.
 
 ### Phase 2 — replication correctness (behavioral; wire format → v2)
 

@@ -104,35 +104,44 @@ convenient point — they don't change runtime behavior.
 - **Independent runtime libs:** uint8arrays 5 → 6, p-queue 8 → 9, keyv 4 → 5
   (`Keyv<T>` — dropped second generic), delay 6 → 7, it-drain patch.
 
-### ✅ helia 4 → 5 / libp2p 1 → 2 / gossipsub 13 → 14 (July 2026)
+### ✅ helia 4 → 6 / libp2p 1 → 3 / gossipsub → floodsub (July 2026)
 
-Upgraded to the latest gossipsub-compatible set and verified: 53 tests pass
-(incl. two-node TCP sync), the example runs end-to-end, and the packed package
-imports. Changes: `connectionEncryption` → `connectionEncrypters`;
-`HeliaLibp2p<T>` → `Helia<T>`; `@helia/dag-cbor` pinned to 4.x (matches
-`@helia/interface ^5` — the 5.x line targets helia 6); `interface-datastore`
-deduped to 9.0.3 via `pnpm.overrides` (the libp2p 2 ecosystem pulls datastore 8).
+Reached **libp2p 3** by dropping gossipsub for floodsub. The sync code only ever
+used the generic pubsub surface (subscribe/publish/events — no peer scoring, mesh
+tuning, or custom validation), so gossipsub was never load-bearing; the latest
+gossipsub (14.1.2) still requires libp2p 2, whereas `@libp2p/floodsub@11` supports
+libp2p 3. floodsub floods to every subscribed peer (vs gossipsub's mesh) — fine at
+this project's scale (one ~36-byte CID every 30 s), and swappable back to gossipsub
+when it ships libp2p-3 support, since the code is pubsub-implementation-agnostic.
 
-**Bonus:** the `node-datachannel` native-build problem is gone — helia 5 uses
-`@ipshipyard/node-datachannel` (prebuilt binaries), so the repo-local stub and its
-override were removed and consumer installs work with no workaround.
+Verified: 53 tests pass (incl. two-node TCP replication over floodsub), the example
+runs end-to-end, the packed package imports. Changes: `gossipsub()` → `floodsub()`;
+`PubSub<GossipsubEvents>` → `FloodSub`; `Message` now from `@libp2p/floodsub`;
+`connectionEncryption` → `connectionEncrypters`; `HeliaLibp2p<T>` → `Helia<T>`;
+`@helia/dag-cbor` pinned to 5.x (matches `@helia/interface ^6`); multiformats held
+at 13 (helia 6 requires it); `interface-datastore` deduped to 9.0.3 via
+`pnpm.overrides` (helia 6 uses datastore 9, libp2p 3 pulls 10). Removed the unused
+`addBytes`/`getBytes` (dead V2 detached-payload leftovers).
 
-### ⛔ Still capped at libp2p 2 — helia 7 / libp2p 3 blocked upstream
+**Bonus:** the `node-datachannel` native build is a non-issue — helia uses
+`@ipshipyard/node-datachannel` (prebuilt binaries), no stub or override needed.
 
-The latest `@chainsafe/libp2p-gossipsub` (14.1.2) still depends on
-`@libp2p/interface ^2` (libp2p 2). helia 6+ moved to libp2p 3, so adopting
-helia 6/7 would break gossipsub — the pubsub transport the whole sync protocol
-relies on. Revisit once gossipsub ships libp2p-3 support (or evaluate an
-alternative pubsub). Deferred with it: multiformats 13 → 14 (helia 5 requires 13).
+### ⛔ helia 7 blocked by an architecture change (not gossipsub)
+
+helia 7 removed `helia.libp2p` — its `Helia` interface exposes only
+`blockstore`/`datastore`/`pins`/`routing`, decoupling from libp2p entirely. The
+whole codebase reaches pubsub through `helia.libp2p.services.pubsub`, so helia 7
+needs a refactor: construct libp2p separately and carry it alongside helia (the
+`DenkmitHeliaInterface` abstraction would hold both). helia 6 keeps `helia.libp2p`
+and already runs libp2p 3, so it's the right stopping point until that refactor is
+worth doing.
 
 ### Still open (independent of the cluster)
 
 - Topic = manifest CID (D5) and the listener/teardown remnants (#4/#9) — moved to
   the access-control work.
 - keyv ownership semantics (D4) — with the Phase 4 persistence work.
-
-Exit criteria for the next hop: gossipsub supports libp2p 3; then `pnpm outdated`
-clean, CI green including the packaging smoke test, adversarial tests pass.
+- multiformats 13 → 14 — deferred until helia adopts it.
 
 ## Phase 4 — Features & v2.0.0
 

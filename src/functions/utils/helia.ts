@@ -108,21 +108,6 @@ export class HeliaStorage implements HeliaStorageInterface {
         }
     }
 
-    async addBytes(buf: Uint8Array): Promise<CID> {
-        const hash = await sha256.digest(buf);
-        const cid = CID.createV1(codec.code, hash);
-        const controller = new TimeoutController(DefaultTimeout);
-        try {
-            await this.helia.blockstore.put(cid, buf, { signal: controller.signal });
-            if (!(await this.helia.pins.isPinned(cid))) {
-                await drain(this.helia.pins.add(cid));
-            }
-            return cid;
-        } finally {
-            controller.clear();
-        }
-    }
-
     /**
      * Retrieves an object from the Helia database.
      * @param cid - The CID of the object to retrieve.
@@ -132,15 +117,6 @@ export class HeliaStorage implements HeliaStorageInterface {
         const controller = new TimeoutController(DefaultTimeout);
         try {
             return await this.heliaDagCbor.get<T>(cid, { signal: controller.signal });
-        } finally {
-            controller.clear();
-        }
-    }
-
-    async getBytes(cid: CID): Promise<Uint8Array | undefined> {
-        const controller = new TimeoutController(DefaultTimeout);
-        try {
-            return await this.helia.blockstore.get(cid, { signal: controller.signal });
         } finally {
             controller.clear();
         }
