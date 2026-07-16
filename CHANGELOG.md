@@ -6,6 +6,20 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 3 (partial) — dependency upgrades
+
+- **Tooling:** TypeScript 5.4 → 5.9, typescript-eslint 7 → 8, typedoc 0.25 → 0.28,
+  prettier 3.3 → 3.9.
+- **jose 5 → 6:** `KeyLike` → `CryptoKey`; keys generated/imported as extractable;
+  algorithm passed explicitly to `importJWK` (stamped into exported JWKs);
+  `encrypt`/`decrypt` re-import the EC key under ECDH-ES for key agreement.
+- **Runtime libs:** uint8arrays 5 → 6, p-queue 8 → 9, keyv 4 → 5 (`Keyv<T>`),
+  delay 6 → 7.
+- **Not upgraded — helia/libp2p stay on 4/1.** The latest gossipsub still requires
+  libp2p 2, capping the cluster at helia 5 / libp2p 2 (helia 6+ needs libp2p 3).
+  See ROADMAP.md Phase 3 for the compatible-set follow-up and the dedupe work it
+  needs.
+
 ### Phase 2 — replication correctness (behavioral; wire format → v2)
 
 Makes the replication path trustworthy. All Phase 1 acceptance pins now pass as

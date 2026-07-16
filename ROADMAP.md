@@ -90,17 +90,49 @@ control).
 Tooling-only upgrades (TypeScript, eslint, typedoc, prettier) can happen at any
 convenient point — they don't change runtime behavior.
 
-## Phase 3 — Runtime upgrades, bundled with their adjacent fixes
+## Phase 3 — Runtime upgrades (partially done, July 2026)
 
-| Bundle | Packages | Paired work |
-|---|---|---|
-| 3.1 | helia 4→7, libp2p 1→3, gossipsub 13→14, @libp2p/*, multiformats 13→14 | Topic = manifest CID (D5), listener/teardown rework (#4/#9 remnants), removes the node-datachannel consumer exposure. `connectionEncryption` → `connectionEncrypters`, service typings, logger API. |
-| 3.2 | jose 5→6 | `KeyLike` removal forces reworking `identity.ts` key typing — pair with the detached-payload decision (#6) and V1/V2 consolidation. |
-| 3.3 | keyv 4→5, p-queue 8→9, uint8arrays 5→6 | Keyv ownership semantics from D4. |
+### ✅ Done
 
-Exit criteria: `pnpm outdated` clean, CI green including the packaging smoke test,
-adversarial integration tests pass, consumer install works on modern Node without
-the stub override.
+- **Tooling:** TypeScript 5.4 → 5.9, typescript-eslint 7 → 8, typedoc 0.25 → 0.28,
+  prettier 3.3 → 3.9. (Held TypeScript at 5.9 rather than the new native 7.x for
+  library-emit stability.)
+- **jose 5 → 6:** `KeyLike` → `CryptoKey`; non-extractable-by-default keys made
+  extractable; `importJWK` now needs the algorithm (stamped into exported JWKs);
+  `encrypt`/`decrypt` re-import the EC key under ECDH-ES (jose 6 pins CryptoKey
+  usages to the import algorithm).
+- **Independent runtime libs:** uint8arrays 5 → 6, p-queue 8 → 9, keyv 4 → 5
+  (`Keyv<T>` — dropped second generic), delay 6 → 7, it-drain patch.
+
+### ⛔ Blocked — the helia / libp2p cluster stays on helia 4 / libp2p 1 for now
+
+**Ceiling is helia 5 / libp2p 2, not helia 7 / libp2p 3.** The latest
+`@chainsafe/libp2p-gossipsub` (14.1.2) still depends on `@libp2p/interface ^2`
+(libp2p 2). helia 6+ moved to libp2p 3 (`@libp2p/interface ^3`), so adopting
+helia 6/7 would break gossipsub — the pubsub transport the whole sync protocol
+relies on. Until gossipsub ships libp2p-3 support, the realistic target is
+**helia 5.5.x / libp2p 2.10.x / gossipsub 14**.
+
+Even that helia-5 upgrade is not a clean bump: the libp2p 2 ecosystem
+(`@libp2p/logger 5` → `interface-datastore 8`) duplicates `interface-datastore`
+and blockstore types against helia 5's datastore 9, producing `Key`/`Blockstore`
+type conflicts that need a dedupe pass (pnpm `overrides`, verified against a fresh
+lockfile). That work was attempted and deferred — it needs disk headroom to
+iterate lockfiles safely (the dev box hit 100% disk mid-upgrade).
+
+**Follow-up task (helia 5 / libp2p 2):** `connectionEncryption` →
+`connectionEncrypters`; `HeliaLibp2p<T>` → `Helia<T>`; dedupe interface-datastore
+to one major via `pnpm.overrides`; multiformats 13 → 13.4 (stay on 13 — helia 5
+requires it); pair with topic = manifest CID (D5) and the listener/teardown
+remnants (#4/#9). Revisit helia 7 / libp2p 3 once gossipsub supports it.
+
+### Deferred to the cluster upgrade
+
+- keyv ownership semantics (D4), multiformats 14, consumer-side node-datachannel
+  removal (helia's default libp2p still imports `@libp2p/webrtc`).
+
+Exit criteria (when unblocked): `pnpm outdated` clean for the compatible set, CI
+green including the packaging smoke test, adversarial integration tests pass.
 
 ## Phase 4 — Features & v2.0.0
 
