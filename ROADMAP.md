@@ -157,24 +157,35 @@ Strictly in this order (each depends on the previous being real):
    authenticated (#10) and authorized (D1), otherwise any peer can delete anything.
 3. **Persistence (D4):** persist index/head locally; `openDenkmitDatabase` loads the
    last local head; defined Keyv ownership semantics. Identity cache (D6).
-4. **Durable head pointer (D8):** the sync layer currently relies on a live peer
-   broadcasting a head over pubsub, so a node that opens the database with no
-   data-holding peer online stays empty (D8). Pubsub only carries a ~36-byte
-   notification; all data transfer is bitswap. Introduce a durable, mutable pointer
-   to the current head — **IPNS** (`@helia/ipns`) keyed by the manifest/identity — so
-   peers *resolve* the latest head instead of waiting to be told, and demote pubsub
-   to an optional real-time accelerator. Design decisions to make deliberately:
+4. **Pluggable head discovery (D8):** the sync layer currently *only* learns a head
+   from a live peer broadcasting over pubsub, so a node that opens the database with
+   no data-holding peer online stays empty (D8). Pubsub carries only a ~36-byte
+   notification; all data transfer is bitswap — so head discovery is a *strategy*,
+   not the sync engine, and should be **selectable by configuration** rather than
+   hardcoded. Ship at least two strategies behind one interface, usable alone or
+   together:
+   - **pubsub** (current): real-time push; low latency; needs a live libp2p transport
+     and connected peers. Best for always-on full nodes.
+   - **durable pointer** — a mutable pointer to the current head (**IPNS**,
+     `@helia/ipns`, keyed by the manifest/identity) that peers *resolve* instead of
+     waiting to be told. Fixes the late-joiner / offline-peer / lone-restart gap, and
+     over **HTTP delegated routing** needs no libp2p at all (browser / HTTP-only /
+     helia 7 nodes).
+   The two compose naturally: resolve the durable pointer on open and periodically
+   (robust bootstrap), use pubsub for low-latency updates when available. Config
+   picks the set — e.g. `discovery: ['pubsub']`, `['ipns']`, or `['ipns','pubsub']`.
+   Design decisions to make deliberately:
    - **Who publishes the pointer, and how conflicts resolve** — each writer publishes
      its own head; readers resolve all and merge (merge is already order-independent),
      so no single-writer bottleneck.
-   - **Routing/propagation** — IPNS over the DHT/pubsub keeps a libp2p dependency;
-     IPNS over **HTTP delegated routing** removes it (enabling helia 7 / HTTP-only /
-     browser nodes) at the cost of an extra dependency, resolution latency, and
-     trusting a routing endpoint.
+   - **Routing/propagation tradeoff** — IPNS over the DHT/pubsub keeps a libp2p
+     dependency; IPNS over HTTP delegated routing drops it at the cost of an extra
+     dependency, resolution latency, and trusting a routing endpoint.
    - Fold in D5 (topic/name = manifest CID) here.
-   This is also the natural point to revisit **helia 7**: once sync no longer *requires*
-   `helia.libp2p.services.pubsub`, the helia-7 libp2p-decoupling (carry libp2p
-   separately, or drop it for HTTP nodes) becomes worthwhile rather than busywork.
+   This is also the natural point to revisit **helia 7**: once head discovery is a
+   configurable strategy and doesn't *require* `helia.libp2p.services.pubsub`, the
+   helia-7 libp2p-decoupling (carry libp2p separately for pubsub nodes, or drop it
+   for HTTP-only nodes) becomes worthwhile rather than busywork.
 5. **Release:** rename `polllard/` → `pollard/` and remaining typos, benchmarks
    (write throughput, sync latency vs. diff size), typedoc regeneration, publish
    **2.0.0** with the Phase 1 wire-format version gate.

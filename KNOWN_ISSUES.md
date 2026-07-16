@@ -179,11 +179,13 @@ Consequences:
 - A restarted lone node has no state until someone re-broadcasts.
 
 Pubsub here is only a *notification* (a ~36-byte head CID); all data transfer is
-bitswap. The fix is a durable, mutable head pointer (IPNS or equivalent) that peers
-**resolve** instead of waiting to be told, with pubsub demoted to an optional
-real-time accelerator. See ROADMAP.md ("Durable head pointer"). This also loosens
-the libp2p-pubsub coupling that makes helia 7 / HTTP-only nodes awkward, and
-overlaps with D5 (topic = manifest CID) and D4 (local persistence).
+bitswap. The fix is to make head discovery a **configurable strategy** rather than
+hardcoded pubsub: offer pubsub (real-time, needs a live libp2p transport) and a
+durable, resolvable head pointer (IPNS or equivalent, works for late joiners and
+over HTTP-only), usable alone or together and selected by config. See ROADMAP.md
+("Pluggable head discovery"). This also loosens the libp2p-pubsub coupling that
+makes helia 7 / HTTP-only nodes awkward, and overlaps with D5 (topic = manifest
+CID) and D4 (local persistence).
 
 ## Housekeeping
 
