@@ -71,14 +71,15 @@ class Identity implements IdentityInterface {
 
     /**
      * Retrieves the public key in a format compatible with the jose library.
-     * @returns A promise that resolves to the public key in jose.KeyLike format.
+     * @returns A promise that resolves to the public key in CryptoKey format.
      * @internal
      */
-    private async getPublicKeyLike(): Promise<jose.KeyLike> {
+    private async getPublicKeyLike(): Promise<CryptoKey> {
         if (this.keys.publicKey) return this.keys.publicKey;
 
         const publicJwk = HeliaStorage.decode<jose.JWK>(uint8ArrayFromString(this.publicKey, "base64"));
-        this.keys.publicKey = (await jose.importJWK(publicJwk)) as jose.KeyLike;
+        // jose 6 requires the algorithm when the JWK has no `alg`; pass it explicitly.
+        this.keys.publicKey = (await jose.importJWK(publicJwk, this.alg)) as CryptoKey;
 
         return this.keys.publicKey;
     }
@@ -137,7 +138,12 @@ class Identity implements IdentityInterface {
      * @returns A promise that resolves to the JWE (JSON Web Encryption) of the encrypted data.
      */
     async encrypt(data: Uint8Array): Promise<jose.FlattenedJWE> {
-        const pk = await this.getPublicKeyLike();
+        // The identity's EC key is imported for signing (ES384); ECDH-ES key
+        // agreement needs a key with `deriveBits` usage, so re-import the same
+        // public key material under the key-management algorithm (jose 6 pins
+        // CryptoKey usages to the import algorithm).
+        const publicJwk = HeliaStorage.decode<jose.JWK>(uint8ArrayFromString(this.publicKey, "base64"));
+        const pk = (await jose.importJWK(publicJwk, "ECDH-ES+A256KW")) as CryptoKey;
 
         return await new jose.FlattenedEncrypt(data)
             .setProtectedHeader({ alg: "ECDH-ES+A256KW", kid: this.cid.toString(), enc: "A256GCM" })
@@ -157,7 +163,12 @@ class Identity implements IdentityInterface {
         if (!this.keys.privateKey) throw new Error("Private key is not available");
 
         try {
-            const result = await jose.flattenedDecrypt(jwe, this.keys.privateKey);
+            // Re-import the private key under the ECDH-ES algorithm so it carries
+            // the `deriveBits` usage that key agreement requires (see encrypt()).
+            const privateJwk = await jose.exportJWK(this.keys.privateKey);
+            privateJwk.alg = "ECDH-ES+A256KW";
+            const decryptionKey = (await jose.importJWK(privateJwk, "ECDH-ES+A256KW")) as CryptoKey;
+            const result = await jose.flattenedDecrypt(jwe, decryptionKey);
             return result.plaintext;
         } catch {
             return false;
@@ -165,12 +176,15 @@ class Identity implements IdentityInterface {
     }
 }
 
-async function exportPrivateKey(keys: KeyPair, passphrase: string): Promise<jose.FlattenedJWE> {
+async function exportPrivateKey(keys: KeyPair, passphrase: string, alg: string): Promise<jose.FlattenedJWE> {
     if (!keys.privateKey) throw new Error("Private key is not available");
 
     const encryptionConfig = { alg: "PBES2-HS256+A128KW", enc: "A128GCM" };
 
     const jwk = await jose.exportJWK(keys.privateKey);
+    // Stamp the signing algorithm so importJWK can infer it on the way back in
+    // (jose 6 no longer guesses from the key type).
+    jwk.alg = alg;
     const encryptedPrivateKey = await new jose.FlattenedEncrypt(HeliaStorage.encode(jwk))
         .setProtectedHeader(encryptionConfig)
         .encrypt(uint8ArrayFromString(passphrase));
@@ -190,12 +204,14 @@ async function importPrivateKey(encryptedPrivateKey: jose.FlattenedJWE, passphra
         encryptionConfig,
     );
     const jwk = HeliaStorage.decode<jose.JWK>(decrypted.plaintext);
-    const privateKey = (await jose.importJWK(jwk)) as jose.KeyLike;
+    // Extractable so decrypt() can re-import it under the ECDH-ES algorithm; alg is
+    // read from the stamped JWK (jose 6 no longer infers it from the key type).
+    const privateKey = (await jose.importJWK(jwk, jwk.alg, { extractable: true })) as CryptoKey;
 
     return { privateKey };
 }
 
-async function encodePublicKey(publicKey: jose.KeyLike): Promise<string> {
+async function encodePublicKey(publicKey: CryptoKey): Promise<string> {
     const publicJwk = await jose.exportJWK(publicKey);
     return uint8ArrayToString(HeliaStorage.encode(publicJwk), "base64");
 }
@@ -300,8 +316,11 @@ export async function createIdentity(
     if (await hasIdentity(name, helia)) throw new Error("Identity already exists");
 
     const heliaStorage = new HeliaStorage(helia);
-    const keys = await jose.generateKeyPair(alg);
-    const encryptedPrivateKey = await exportPrivateKey(keys, passphrase);
+    // jose 6 generates non-extractable keys by default; we export the private key
+    // to an (encrypted) JWK and the public key to a JWK string, so both must be
+    // extractable.
+    const keys = await jose.generateKeyPair(alg, { extractable: true });
+    const encryptedPrivateKey = await exportPrivateKey(keys, passphrase, alg);
     const publicKey = await encodePublicKey(keys.publicKey);
     const data: IdentityData = {
         version: IDENTITY_VERSION,
