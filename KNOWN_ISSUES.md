@@ -150,11 +150,17 @@ half (a reader with *no* live data-holding peer at all) remains D8.
 
 ## Design concerns
 
-### D1. ◻️ The database is world-writable
-The default consensus rule is the constant `true` and the manifest `access` field
-is a placeholder. Writes are now *authenticated* (#10) — every indexed entry is
-signed by a known identity — but not *authorized*: any identity may write.
-Access control is ROADMAP.md Phase 4, and must precede delete.
+### D1. ✅ Access control — creator-only by default
+The manifest `access` field now holds a real, deterministic json-logic authorization
+policy: by default **creator-only** (only the identity that created the database may
+write, `entryCreator == databaseCreator`), enforced on both the local `set` path and
+the authenticated merge/load path. `createDenkmitDatabase(..., { publicWrite: true })`
+opts into a world-writable database; the policy is read from the signed manifest on
+open, so a peer cannot loosen it locally (KNOWN_ISSUES #19). Covered by
+`test/access.test.ts` (creator writes, non-creator local write and merged entry both
+rejected, public opt-in, no local override). Remaining for later: dynamic/allow-list
+ACLs (post-v2), and a cheap `kid` prefilter before identity fetch (D6). The
+world-writable *default* is gone — it's now an explicit opt-in.
 
 ### D2. ◻️ "Consensus" is a local validation predicate, not consensus
 Each node evaluates a json-logic rule locally; nodes never agree collectively.

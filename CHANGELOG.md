@@ -6,6 +6,21 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 4 — access control (D1) + step-1 fixes
+
+- **Access control, creator-only by default (D1).** The manifest `access` field now
+  holds a deterministic json-logic authorization policy. Default: only the database
+  creator may write (`entryCreator == databaseCreator`), enforced on both `set` and
+  the authenticated merge/load path. `createDenkmitDatabase(..., { publicWrite: true })`
+  opts into a world-writable database; open reads the policy from the signed manifest
+  so a peer cannot loosen it locally. World-writable is no longer the default.
+  Covered by `test/access.test.ts` (5 cases).
+- **D5:** sync topic is now the manifest CID (`/denkmitdb/2/<cid>`), not the name.
+- **#21:** heads are re-announced periodically (`announceHead()`), so a peer that
+  connects after the last change converges instead of staying empty.
+- Added `DenkmitDatabase.idle()` / `SyncController.onIdle()`; dropped name-based
+  `syncController` injection from the integration tests.
+
 ### Phase 4 planning — reprioritized after an independent review
 
 - Added `PHASE_PRIORITIES.md` (independent adversarial prioritization of the

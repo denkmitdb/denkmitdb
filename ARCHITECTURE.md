@@ -168,11 +168,13 @@ rebuilds its own honest tree from the verified index.
   this database's manifest and format version (KNOWN_ISSUES.md #10, #11). Content
   addressing guarantees you got the bytes the sender meant; the signature check adds
   that an honest identity actually authored them.
-- **Authorization**: *currently none* — writes are authenticated (every indexed
-  entry is signed by a known identity) but not authorized: the default consensus
-  rule is the constant `true` and the manifest's `access` field is a placeholder, so
-  any identity may write (KNOWN_ISSUES.md D1). Access control is [ROADMAP.md](ROADMAP.md)
-  Phase 4.
+- **Authorization**: the manifest's `access` field holds a deterministic json-logic
+  policy, evaluated (using only the signed entry's creator vs. the manifest creator)
+  on both `set` and merge/load. The default is **creator-only** — only the database
+  creator may write; `publicWrite: true` opts into world-writable. Because the rule
+  uses only deterministic inputs and is read from the signed manifest, every replica
+  reaches the same decision (KNOWN_ISSUES.md D1). Allow-list / dynamic ACLs are
+  future work.
 - **Conflict resolution**: last-write-wins on the composite key
   `(timestamp, entryCID)` — a deterministic total order with per-key LWW and
   superseded-record removal (`specs/ordering.md`, KNOWN_ISSUES.md #2, #3, fixed in

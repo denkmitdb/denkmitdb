@@ -31,7 +31,7 @@ import { createConsensus, fetchConsensus } from "./consensus.js";
 import { createHead, fetchHead } from "./head.js";
 import { createManifest, fetchManifest } from "./manifest.js";
 import { createSyncController } from "./sync.js";
-import { HeliaController, emptyCID } from "./utils/helia.js";
+import { HeliaController } from "./utils/helia.js";
 import { SortedItemsStore } from "./utils/sortedItems.js";
 
 // class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
@@ -73,14 +73,19 @@ export async function createDenkmitDatabase<T>(
 
     const consensusController = await createConsensus(consensus, heliaController);
 
-    const empty = await emptyCID();
+    // Access (authorization) policy — separate from consensus (validation). Default
+    // is creator-only; opt into world-writable with `publicWrite`. The rule uses only
+    // deterministic inputs (the signed entry's creator vs. the manifest creator), so
+    // every replica reaches the same decision (KNOWN_ISSUES.md D1, specs/ordering.md).
+    const accessController = await createConsensus(accessPolicy(options.publicWrite ?? false), heliaController);
+
     const manifestInput: ManifestData = {
         version: MANIFEST_VERSION,
         name,
         type: "denkmit-database-key-value",
         order: 3,
         consensus: consensusController.cid,
-        access: empty, // TODO: Implement TimestampConsensusController
+        access: accessController.cid,
         timestamp: Date.now(),
     };
     const manifest = await createManifest(manifestInput, heliaController);
@@ -94,6 +99,7 @@ export async function createDenkmitDatabase<T>(
         keyValueStorage: options.keyValueStorage,
         syncController,
         consensusController,
+        accessController,
     };
     const dmdb = new DenkmitDatabase<T>(mdb);
     await dmdb.setupSync();
@@ -118,6 +124,10 @@ export async function openDenkmitDatabase<T>(
     const manifest = await fetchManifest(cid, heliaController);
     const syncController = options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
     const consensusController = await fetchConsensus(manifest.consensus, heliaController);
+    // The access policy is part of the database identity — always read it from the
+    // signed manifest, never from local options (a local override would let replicas
+    // disagree on who may write, breaking convergence — KNOWN_ISSUES.md #19).
+    const accessController = await fetchConsensus(manifest.access, heliaController);
 
     const mdb: DenkmitDatabaseInput<T> = {
         manifest,
@@ -126,12 +136,35 @@ export async function openDenkmitDatabase<T>(
         keyValueStorage: options.keyValueStorage,
         syncController,
         consensusController,
+        accessController,
     };
 
     const dmdb = new DenkmitDatabase<T>(mdb);
     await dmdb.setupSync();
 
     return dmdb;
+}
+
+/**
+ * Builds the access-policy rule for a new database.
+ * @param publicWrite - When true, any identity may write; otherwise creator-only.
+ * @returns The consensus/access data describing the policy.
+ */
+function accessPolicy(publicWrite: boolean): ConsensusData {
+    if (publicWrite) {
+        return {
+            version: 1,
+            name: "denkmit-access-public",
+            description: "Any identity may write",
+            logic: true,
+        };
+    }
+    return {
+        version: 1,
+        name: "denkmit-access-creator-only",
+        description: "Only the database creator may write",
+        logic: { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
+    };
 }
 
 /**
@@ -148,6 +181,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private readonly syncController: SyncControllerInterface;
     private head?: HeadInterface;
     private consensusController: ConsensusControllerInterface;
+    private accessController: ConsensusControllerInterface;
     private log: Logger;
 
     constructor(mdb: DenkmitDatabaseInput<T>) {
@@ -159,7 +193,20 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         this.heliaController = mdb.heliaController;
         this.syncController = mdb.syncController;
         this.consensusController = mdb.consensusController;
+        this.accessController = mdb.accessController;
         this.log = this.heliaController.helia.logger.forComponent("denkmitdb:denkmitdb");
+    }
+
+    /**
+     * Evaluates the manifest-bound access (authorization) policy for a writer.
+     * Uses only deterministic inputs — the entry's signed creator vs. the database
+     * creator — so every replica reaches the same decision.
+     */
+    private async isAuthorized(entryCreator: CID): Promise<boolean> {
+        return this.accessController.execute({
+            entryCreator: entryCreator.toString(),
+            databaseCreator: this.manifest.creator.toString(),
+        });
     }
 
     get identity(): IdentityInterface {
@@ -183,6 +230,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      */
     async set(key: string, value: T): Promise<void> {
         const entry = await createEntry<T>(key, value, this.heliaController);
+
+        // Authorization: is this writer allowed to write to this database?
+        if (!(await this.isAuthorized(entry.creator))) {
+            throw new Error("Access denied: this identity is not authorized to write to this database");
+        }
+
         const check = {
             currentTimestamp: Date.now(),
             databaseCreator: this.manifest.creator.toString(),
@@ -415,6 +468,14 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const timestamp = entry.timestamp;
         const key = entry.key;
         const creator = entry.creator;
+
+        // Authorization on the merge/load path — the signed creator must be allowed
+        // to write, or a peer could inject entries the local writer couldn't
+        // (KNOWN_ISSUES.md D1). Deterministic, so replicas agree on what they ingest.
+        if (!(await this.isAuthorized(creator))) {
+            this.log("Rejected leaf %s: writer %s not authorized", cid.toString(), creator.toString());
+            return;
+        }
 
         const check = {
             currentTimestamp: Date.now(),

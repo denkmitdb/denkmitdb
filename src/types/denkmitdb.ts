@@ -33,6 +33,7 @@ export type DenkmitDatabaseInput<T> = {
     keyValueStorage?: Keyv<T>;
     syncController: SyncControllerInterface;
     consensusController: ConsensusControllerInterface;
+    accessController: ConsensusControllerInterface;
 };
 
 /**
@@ -148,5 +149,11 @@ export type DenkmitDatabaseOptions<T> = {
     syncController?: SyncControllerInterface;
     sortedItemsStore?: SortedItemsStoreInterface;
     consensusController?: ConsensusControllerInterface;
+    /**
+     * Access policy for new databases (create only; open reads the manifest).
+     * Default is **creator-only** — only the identity that created the database may
+     * write. Set `publicWrite: true` to opt into a world-writable database.
+     */
+    publicWrite?: boolean;
 };
 

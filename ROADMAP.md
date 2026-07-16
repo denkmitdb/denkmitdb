@@ -178,10 +178,14 @@ Sequence (each builds on the previous):
      (#21 — a peer that joins after the one announcement stays empty because the 30 s
      task only publishes when the root changed).
    - Write the access-control acceptance tests (see `PHASE_PRIORITIES.md`).
-2. **Access control — creator-only vertical slice, then immutable ACL (L, high).**
-   Enforce the manifest-bound policy in `set` **and** the authenticated merge/load
-   paths; world-writable becomes an explicit opt-in, not the default. Highest-value
-   capability and a hard prerequisite for safe delete.
+2. **Access control — creator-only vertical slice (✅ done), then immutable ACL.**
+   Creator-only is now the **default** policy: a deterministic json-logic rule
+   (`entryCreator == databaseCreator`) stored in the manifest `access` field and
+   enforced in `set` **and** the authenticated merge/load paths; `publicWrite: true`
+   opts into world-writable, and open reads the policy from the signed manifest (no
+   local override). Covered by `test/access.test.ts`. **Still to do:** immutable
+   allow-list ACLs (a rule over a set of creator CIDs baked into the manifest), and
+   the D2 rename (`ConsensusController` → validation/access policy) in the API freeze.
 3. **D6 identity cache + verification budgets (M, medium).** Bounded CID-keyed LRU of
    verified identities, in-flight promise coalescing, limited negative caching, fetch
    concurrency limits, and a repeated-writer merge benchmark + unique-identity abuse
