@@ -5,6 +5,7 @@ import { createEmptyPollard, createEntry, createPollard, fetchEntry } from "./in
 import {
     ConsensusControllerInterface,
     ConsensusData,
+    DENKMITDB_PREFIX,
     DenkmitDatabaseInput,
     DenkmitDatabaseInterface,
     DenkmitDatabaseOptions,
@@ -34,6 +35,19 @@ import { HeliaController, emptyCID } from "./utils/helia.js";
 import { SortedItemsStore } from "./utils/sortedItems.js";
 
 // class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
+
+/**
+ * The pubsub topic a database syncs on. Derived from the manifest CID (the database
+ * address), not its name, so distinct databases that happen to share a name do not
+ * share a topic (KNOWN_ISSUES.md D5). Versioned so a future wire change can move to a
+ * new topic namespace.
+ *
+ * @param manifestCid - The database address (manifest CID).
+ * @returns The versioned, manifest-scoped topic string.
+ */
+export function syncTopic(manifestCid: CID): string {
+    return `${DENKMITDB_PREFIX}2/${manifestCid.toString()}`;
+}
 
 /**
  * Creates a Denkmit database with the specified name and options.
@@ -70,7 +84,8 @@ export async function createDenkmitDatabase<T>(
         timestamp: Date.now(),
     };
     const manifest = await createManifest(manifestInput, heliaController);
-    const syncController = options.syncController ?? (await createSyncController(manifest.name, heliaController));
+    const syncController =
+        options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
 
     const mdb: DenkmitDatabaseInput<T> = {
         manifest,
@@ -101,7 +116,7 @@ export async function openDenkmitDatabase<T>(
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
-    const syncController = await createSyncController(manifest.name, heliaController);
+    const syncController = options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
     const consensusController = await fetchConsensus(manifest.consensus, heliaController);
 
     const mdb: DenkmitDatabaseInput<T> = {
@@ -646,6 +661,15 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     async announceHead(): Promise<void> {
         const head = (await this.createOnlyNewHead()) ?? this.head;
         if (head) await this.syncController.sendHead(head);
+    }
+
+    /**
+     * Resolves once queued background work (tree rebuilds, merges) has drained.
+     * Writes are indexed synchronously, but the Merkle tree is rebuilt on the sync
+     * queue; await this to observe a settled tree/head after `set` or a merge.
+     */
+    async idle(): Promise<void> {
+        await this.syncController.onIdle();
     }
 
     /**

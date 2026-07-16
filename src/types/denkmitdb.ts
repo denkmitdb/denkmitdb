@@ -126,6 +126,12 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     announceHead(): Promise<void>;
 
     /**
+     * Resolves once queued background work (tree rebuilds, merges) has drained.
+     * @returns A promise that resolves when the sync task queue is idle.
+     */
+    idle(): Promise<void>;
+
+    /**
      * Handles an incoming head announcement (the encoded CID of a peer's head),
      * queuing a load or merge of that head into this database.
      * @param data - The encoded CID bytes received on the sync topic.

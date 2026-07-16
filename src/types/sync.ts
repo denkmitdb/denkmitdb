@@ -5,6 +5,7 @@ export interface SyncControllerInterface {
     sendHead(head: HeadInterface): Promise<void>;
     addTask(task: () => Promise<void>): Promise<void>;
     addRepetitiveTask(task: () => Promise<void>, interval: number): Promise<void>;
+    onIdle(): Promise<void>;
     close(): Promise<void>;
 }
 

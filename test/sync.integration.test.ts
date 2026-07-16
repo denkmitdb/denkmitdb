@@ -1,43 +1,31 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-    createDenkmitDatabase,
-    createSyncController,
-    openDenkmitDatabase,
-    HeliaController,
-    SyncController,
-} from "../src/functions";
+import { createDenkmitDatabase, openDenkmitDatabase, syncTopic } from "../src/functions";
 import { DenkmitDatabaseInterface } from "../src/types";
 import { connectNodes, createTestNode, TestNode, waitFor } from "./helpers";
 
 type Value = { value: string };
 
-const TOPIC = "sync-test";
+const NAME = "sync-test";
 
 describe("Two-node synchronization", () => {
     let nodeA: TestNode;
     let nodeB: TestNode;
-    let syncA: SyncController;
     let dbA: DenkmitDatabaseInterface<Value>;
     let dbB: DenkmitDatabaseInterface<Value>;
+    let topic: string;
 
     beforeAll(async () => {
         nodeA = await createTestNode("node-a");
         nodeB = await createTestNode("node-b");
         await connectNodes(nodeA, nodeB);
 
-        const heliaControllerA = new HeliaController(nodeA.helia, nodeA.identity);
-        syncA = (await createSyncController(TOPIC, heliaControllerA)) as SyncController;
-        dbA = await createDenkmitDatabase<Value>(TOPIC, {
-            helia: nodeA.helia,
-            identity: nodeA.identity,
-            syncController: syncA,
-        });
+        dbA = await createDenkmitDatabase<Value>(NAME, { helia: nodeA.helia, identity: nodeA.identity });
 
         // Node B opens the database by its address; the manifest travels over bitswap.
-        dbB = await openDenkmitDatabase<Value>(dbA.address, {
-            helia: nodeB.helia,
-            identity: nodeB.identity,
-        });
+        dbB = await openDenkmitDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
+
+        // The sync topic is derived from the manifest CID (D5), not the name.
+        topic = syncTopic(dbA.address);
     }, 60_000);
 
     afterAll(async () => {
@@ -50,15 +38,20 @@ describe("Two-node synchronization", () => {
     it("opens the same database on a second node via its address", async () => {
         const manifestB = await dbB.getManifest();
         expect(manifestB.cid.equals(dbA.address)).toBe(true);
-        expect(manifestB.name).toBe(TOPIC);
+        expect(manifestB.name).toBe(NAME);
+    });
+
+    it("syncs on a manifest-CID-derived topic, not the name", () => {
+        expect(topic).toBe(`/denkmitdb/2/${dbA.address.toString()}`);
+        expect(topic).not.toContain(NAME);
     });
 
     it("replicates entries from node A to node B after a head announcement", { timeout: 60_000 }, async () => {
         // Wait until both sides see each other subscribed to the pubsub topic.
         await waitFor(
             () => {
-                const subsA = nodeA.helia.libp2p.services.pubsub.getSubscribers(TOPIC);
-                const subsB = nodeB.helia.libp2p.services.pubsub.getSubscribers(TOPIC);
+                const subsA = nodeA.helia.libp2p.services.pubsub.getSubscribers(topic);
+                const subsB = nodeB.helia.libp2p.services.pubsub.getSubscribers(topic);
                 return subsA.length > 0 && subsB.length > 0;
             },
             { message: "pubsub subscription for the sync topic" },
@@ -66,7 +59,7 @@ describe("Two-node synchronization", () => {
 
         await dbA.set("greeting", { value: "hello from A" });
         await dbA.set("farewell", { value: "bye from A" });
-        await syncA.queue.onIdle();
+        await dbA.idle();
 
         await dbA.sendHead();
 
@@ -91,30 +84,26 @@ describe("Two-node synchronization", () => {
 describe("Late-joiner head re-announcement (#21)", () => {
     let nodeA: TestNode;
     let nodeB: TestNode;
-    let syncA: SyncController;
     let dbA: DenkmitDatabaseInterface<Value>;
     let dbB: DenkmitDatabaseInterface<Value>;
-
-    const NAME = "late-join-test";
+    let topic: string;
 
     beforeAll(async () => {
         nodeA = await createTestNode("late-a");
         nodeB = await createTestNode("late-b");
         await connectNodes(nodeA, nodeB);
 
-        const heliaControllerA = new HeliaController(nodeA.helia, nodeA.identity);
-        syncA = (await createSyncController(NAME, heliaControllerA)) as SyncController;
-        dbA = await createDenkmitDatabase<Value>(NAME, {
+        dbA = await createDenkmitDatabase<Value>("late-join-test", {
             helia: nodeA.helia,
             identity: nodeA.identity,
-            syncController: syncA,
         });
+        topic = syncTopic(dbA.address);
 
         // Node A writes and builds its head. It never calls sendHead(), and the 30 s
         // periodic task won't fire during the test, so no announcement goes out.
         await dbA.set("k1", { value: "v1" });
         await dbA.set("k2", { value: "v2" });
-        await syncA.queue.onIdle();
+        await dbA.idle();
         await dbA.createHead(); // fix the root; a later sendHead() is a no-op
 
         // Node B is the late joiner — it opens and subscribes only now, after A's
@@ -126,8 +115,8 @@ describe("Late-joiner head re-announcement (#21)", () => {
 
         await waitFor(
             () => {
-                const subsA = nodeA.helia.libp2p.services.pubsub.getSubscribers(NAME);
-                const subsB = nodeB.helia.libp2p.services.pubsub.getSubscribers(NAME);
+                const subsA = nodeA.helia.libp2p.services.pubsub.getSubscribers(topic);
+                const subsB = nodeB.helia.libp2p.services.pubsub.getSubscribers(topic);
                 return subsA.length > 0 && subsB.length > 0;
             },
             { message: "pubsub subscription for the late-join topic" },

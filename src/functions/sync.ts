@@ -50,6 +50,11 @@ export class SyncController implements SyncControllerInterface {
         await this.heliaController.libp2p.services.pubsub.publish(this.name, head.cid.bytes);
     }
 
+    /** Resolves when the task queue has drained. */
+    async onIdle(): Promise<void> {
+        await this.queue.onIdle();
+    }
+
     async addTask(task: () => Promise<void>): Promise<void> {
         if (this.closed) return;
         await this.queue.add(async () => {

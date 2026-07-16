@@ -177,13 +177,15 @@ See `specs/ordering.md` §4.
 `clear()`s the Keyv cache even when the caller supplied a persistent store —
 ownership semantics to be defined with the Phase 4 persistence work.
 
-### D5. ◻️ The pubsub topic is the manifest *name*
-Same-name databases share a topic. The manifest-binding check (#11) prevents state
-contamination, but such nodes still receive and fetch irrelevant announcements —
-with floodsub's fan-out this matters more, not less. Both create and open already
-have the manifest CID before constructing sync, so a versioned topic like
-`/denkmitdb/2/<manifest-cid>` is a small, low-risk change. Ship it early —
-ROADMAP.md Phase 4 step 1 (not deferred to IPNS/helia 7).
+### D5. ✅ The pubsub topic is now the manifest CID
+Was the manifest *name*, so distinct databases sharing a name shared a topic and
+received each other's (rejected-but-fetched) announcements. **Fixed:** the topic is
+`syncTopic(manifest.cid)` = `/denkmitdb/2/<manifest-cid>` — versioned and
+manifest-scoped. Covered by a topic-derivation assertion plus the existing two-node
+sync test (`test/sync.integration.test.ts`). Landed with the removal of
+name-based `syncController` injection from the integration tests (see #19): the
+database derives its own topic and exposes `idle()` to await queued sync work, so
+tests no longer inject a controller with an arbitrary topic.
 
 ### D6. ◻️ Unbounded identity fetches — now a release concern + DoS vector
 Verifying a foreign entry fetches its identity, verifies its self-signature, decodes
