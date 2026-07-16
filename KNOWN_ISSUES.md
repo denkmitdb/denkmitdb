@@ -125,16 +125,16 @@ are convergence-hazardous:
 - `syncController` — replace with the discovery-strategy interface (D8).
 Scheduled in ROADMAP.md Phase 4 step 1 (D2/#19 API decisions).
 
-### 21. ◻️ [High] No head re-announcement — late joiners can stay empty
-The 30 s sync task and public `sendHead()` both call `createOnlyNewHead()`
-(`src/functions/denkmitdb.ts` ~258, ~632), which returns `undefined` when the root
-has not changed. So a node only ever publishes a head when a write **changes the
-root** — there is no periodic re-broadcast of an unchanged head. A peer that opens
-the database and connects *after* the one announcement can remain empty until some
-later write, and a lone node that goes quiet stops announcing entirely. Combined
-with D8 (no durable pointer), a fresh reader frequently gets nothing. Fix: announce
-the current head periodically (and/or on a new subscriber), independent of whether
-the root changed. Small; ROADMAP.md Phase 4 step 1.
+### 21. ✅ [High] No head re-announcement — late joiners could stay empty
+The 30 s sync task and public `sendHead()` both called `createOnlyNewHead()`, which
+returns `undefined` when the root has not changed — so a node only ever published a
+head when a write **changed the root**, with no periodic re-broadcast. A peer that
+connected *after* the one announcement could stay empty until some later write.
+**Fixed:** added `announceHead()`, which re-announces the current head
+unconditionally, and pointed the 30 s periodic task at it. Covered by two
+late-joiner integration tests (`test/sync.integration.test.ts`) — one pins the old
+change-gated behavior, one proves re-announcement converges. The durable-pointer
+half (a reader with *no* live data-holding peer at all) remains D8.
 
 ## Packaging & tooling
 

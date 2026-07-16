@@ -119,6 +119,13 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     sendHead(): Promise<void>;
 
     /**
+     * Re-announces the current head on the sync topic even when the root has not
+     * changed, so peers that connected after the last change can converge.
+     * @returns A promise that resolves once the head (if any) has been published.
+     */
+    announceHead(): Promise<void>;
+
+    /**
      * Handles an incoming head announcement (the encoded CID of a peer's head),
      * queuing a load or merge of that head into this database.
      * @param data - The encoded CID bytes received on the sync topic.

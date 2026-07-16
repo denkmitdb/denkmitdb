@@ -635,6 +635,20 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     /**
+     * Re-announces the current head on the sync topic even when the root has not
+     * changed. `sendHead()` only publishes on a root change, so a peer that connects
+     * after the last change-triggered announcement would otherwise never learn the
+     * head (KNOWN_ISSUES.md #21). Builds a head first if one exists but hasn't been
+     * created yet; no-op for an empty database.
+     *
+     * @returns A promise that resolves once the head (if any) has been published.
+     */
+    async announceHead(): Promise<void> {
+        const head = (await this.createOnlyNewHead()) ?? this.head;
+        if (head) await this.syncController.sendHead(head);
+    }
+
+    /**
      * Sets up the synchronization process.
      *
      * @returns A Promise that resolves when the setup is complete.
@@ -642,10 +656,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     async setupSync(): Promise<void> {
         this.log("Setup sync");
         await this.syncController.start(async (data: Uint8Array) => await this.syncNewHead(data));
+        // Re-announce the current head periodically (not only on change) so late
+        // joiners and newly-connected peers can converge (KNOWN_ISSUES.md #21).
         await this.syncController.addRepetitiveTask(async () => {
-            const head = await this.createOnlyNewHead();
-            this.log("New head: ", head);
-            if (head) await this.syncController.sendHead(head);
+            await this.announceHead();
         }, 30000);
     }
 }
