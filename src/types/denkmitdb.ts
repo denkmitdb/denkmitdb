@@ -117,6 +117,14 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
      * @returns A promise that resolves once the head has been handed to the sync controller.
      */
     sendHead(): Promise<void>;
+
+    /**
+     * Handles an incoming head announcement (the encoded CID of a peer's head),
+     * queuing a load or merge of that head into this database.
+     * @param data - The encoded CID bytes received on the sync topic.
+     * @returns A promise that resolves once the task has been enqueued.
+     */
+    syncNewHead(data: Uint8Array): Promise<void>;
 }
 
 export type DenkmitDatabaseOptions<T> = {

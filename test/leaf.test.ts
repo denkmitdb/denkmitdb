@@ -56,4 +56,14 @@ describe("isLeavesEqual", () => {
         expect(isLeavesEqual(createLeaf(LeafTypes.Pollard, cidA), createLeaf(LeafTypes.Identity, cidA))).toBe(false);
         expect(isLeavesEqual(createLeaf(), createLeaf(LeafTypes.Pollard, cidA))).toBe(false);
     });
+
+    // KNOWN_ISSUES.md #12 — SortedEntry equality compares only the link CID and
+    // ignores sort/key/creator, so tree comparison can hide differing (or forged)
+    // index metadata. Two SortedEntry leaves with the same link but a different
+    // key must be considered different.
+    it.fails("distinguishes SortedEntry leaves that differ only in metadata (known bug)", () => {
+        const a = createLeaf(LeafTypes.SortedEntry, cidA, cidB, [1], "key-a");
+        const b = createLeaf(LeafTypes.SortedEntry, cidA, cidB, [1], "key-b");
+        expect(isLeavesEqual(a, b)).toBe(false);
+    });
 });

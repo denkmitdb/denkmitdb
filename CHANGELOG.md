@@ -6,6 +6,20 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Phase 1 — ordering spec & acceptance pins
+
+- **`specs/ordering.md`**: accepted the v2 ordering model — composite sort key
+  `[timestamp, entryCID]` (deterministic total order), last-write-wins by that
+  key, wall-clock timestamps with a merge-time future-skew bound (HLC deferred),
+  and a `POLLARD_VERSION`/`HEAD_VERSION` bump to 2 that rejects old/foreign-version
+  blocks. No v1 data migration (v1 was never installable).
+- **`test/adversarial.test.ts`**: six new `it.fails` acceptance pins encoding the
+  spec and the replication-trust requirements (KNOWN_ISSUES.md #1, #2, #10, #11,
+  #12, #18). Each was verified to fail at its intended assertion, and flips to a
+  normal test when its Phase 2 fix lands.
+- Added `syncNewHead` to `DenkmitDatabaseInterface` (the ingestion entry point the
+  pins drive; caught again by the typecheck gate).
+
 ### Phase 0.5 — honest safety net (after independent adversarial review)
 
 An independent Codex review (`CODEX_REVIEW.md`) of Phase 0 found the published

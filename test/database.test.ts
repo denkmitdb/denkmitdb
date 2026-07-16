@@ -101,4 +101,28 @@ describe("DenkmitDatabase (single node)", () => {
 
         await db.close();
     });
+
+    // KNOWN_ISSUES.md #18 — falsy values (0, "", false, null) are legitimate
+    // values but iterator() drops them via `if (value) yield`. They must survive
+    // a round-trip through the ordered iterator.
+    it.fails("iterates over falsy values instead of dropping them (known bug)", async () => {
+        const syncController = (await createSyncController("db-falsy", heliaController)) as SyncController;
+        const db = await createDenkmitDatabase<number>("db-falsy", {
+            helia: node.helia,
+            identity: node.identity,
+            syncController,
+        });
+        await db.set("zero", 0);
+        await db.set("one", 1);
+        await syncController.queue.onIdle();
+
+        const entries: Array<[string, number]> = [];
+        for await (const entry of db.iterator()) entries.push(entry);
+
+        expect(entries).toEqual([
+            ["zero", 0],
+            ["one", 1],
+        ]);
+        await db.close();
+    });
 });

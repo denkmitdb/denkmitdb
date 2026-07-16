@@ -92,8 +92,8 @@ with narrower impact; **Low** is misleading or brittle but off the hot path.
   both keys survive in `keyMap` — key lookup and ordered iteration/tree state then
   disagree with each other.
 - **Test:** `test/sortedItems.test.ts` (`it.fails`)
-- **Fix:** composite sort key `[timestamp, entryCID]` (breaking wire-format change —
-  needs the versioning/migration plan in ROADMAP.md Phase 1).
+- **Fix:** composite sort key `[timestamp, entryCID]` — specified in
+  [`specs/ordering.md`](specs/ordering.md); pinned in `test/adversarial.test.ts`.
 
 ### 4. [High] Pubsub messages are not filtered by topic
 - **Where:** `src/functions/sync.ts` — `newMessage()`

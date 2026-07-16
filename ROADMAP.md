@@ -39,19 +39,29 @@ Findings from the adversarial review that invalidated Phase 0's guarantees:
       does not verify entries), added ten review-found issues to KNOWN_ISSUES.md,
       reordered this roadmap.
 
-## Phase 1 — Specify, then pin (before touching behavior)
+## ✅ Phase 1 — Specify, then pin (July 2026)
 
 Decisions that freeze the wire format, plus tests that lock in what "correct"
 means, so later phases have a target:
 
-1. **Ordering format decision (D3, #3):** composite sort key `[timestamp, entryCID]`
-   as a deterministic total order; decide now whether wall-clock or HLC timestamps
-   determine LWW winners. Version the leaf/pollard format and specify how old
-   blocks/peers are rejected or migrated — "publish 2.0.0" is not a plan.
-2. **Adversarial test pins** (all `it.fails` today): forged leaf metadata must be
-   rejected (#10), foreign/malformed heads must be rejected (#11), `SortedEntry`
-   diff must see metadata changes (#12), merge conflict + reverse delivery + two
-   databases on one node (#4/D5), stale-cache-after-merge (#1), falsy values (#18).
+- [x] **Ordering & wire-format spec** — [`specs/ordering.md`](specs/ordering.md):
+      composite sort key `[timestamp, entryCID]` as a deterministic total order,
+      last-write-wins by that key, wall-clock timestamps with a merge-time
+      future-skew bound (HLC deferred, with a compatible upgrade path),
+      `POLLARD_VERSION`/`HEAD_VERSION` bump to 2 with old-block/foreign-version
+      rejection (no v1 migration — v1 was never a usable package).
+- [x] **Adversarial acceptance pins** (all `it.fails` today, verified to fail at
+      their final assertion): foreign-manifest head rejected (#11), forged leaf
+      key not indexed (#10), newer merged entry wins + cache invalidated (#1/#2),
+      older merged entry loses (#2) — in `test/adversarial.test.ts`; `SortedEntry`
+      metadata distinguished in equality (#12) in `test/leaf.test.ts`; falsy
+      values iterated (#18) in `test/database.test.ts`. Each flips to a normal
+      `it` as its Phase 2 fix lands — that flip is the acceptance test.
+
+Two-node live conflict *convergence* is intentionally left as future integration
+coverage rather than an `it.fails` pin: without the Phase 2 winner rule its
+outcome is timing-dependent, and a flaky pin would falsely "pass". The
+deterministic single-node conflict pins above cover the same invariant.
 
 ## Phase 2 — Correctness on the current stack
 
