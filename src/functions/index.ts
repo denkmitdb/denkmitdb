@@ -1,3 +1,5 @@
+// The package entry: implementation plus the full public type surface.
+export * from "../types/index.js";
 export * from "./entry.js";
 export * from "./identity.js";
 export * from "./denkmitdb.js";

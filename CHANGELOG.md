@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+- **`mcp/` — denkmit-mcp (prototype).** An MCP stdio server exposing the database
+  as shared, signed agent memory: `memory_set/get/delete/list/provenance/status`,
+  per-agent identities and data directories, mdns local peer discovery, and an
+  end-to-end smoke test (real MCP client over stdio) wired into CI.
+- **Additive API:** `DenkmitDatabase.provenance(key)` (entry CID, writer, timestamp,
+  tombstone flag); the package entry now re-exports the full public type surface.
+
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).

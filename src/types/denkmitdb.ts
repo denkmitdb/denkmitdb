@@ -66,6 +66,14 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     delete(key: string): Promise<void>;
 
     /**
+     * Returns the provenance of the current record for a key — signed entry CID,
+     * writer identity CID, timestamp, and tombstone flag — or undefined if the key
+     * has never been written.
+     * @param key - The key to inspect.
+     */
+    provenance(key: string): Promise<{ cid: CID; creator: CID; timestamp: number; deleted: boolean } | undefined>;
+
+    /**
      * Closes the database connection.
      * @returns A promise that resolves when the connection is closed.
      */

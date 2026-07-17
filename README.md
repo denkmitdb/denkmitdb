@@ -131,6 +131,7 @@ After installation, you can start using DenkMitDB by following these steps:
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [CODEX_REVIEW.md](CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
 | [PHASE_PRIORITIES.md](PHASE_PRIORITIES.md) | Independent prioritization review of the remaining Phase 4 work (July 2026) |
+| [mcp/](mcp/README.md) | MCP server: DenkMitDB as shared, signed agent memory for Claude Code/Codex/any MCP client |
 | [docs/](docs/README.md) | Generated API reference (typedoc) |
 
 ## 🛠️ Development

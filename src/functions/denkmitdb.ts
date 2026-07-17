@@ -346,6 +346,23 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     /**
+     * Returns the provenance of the current record for a key: the signed entry's
+     * CID, its writer identity CID, the write timestamp, and whether it is a
+     * tombstone. Undefined when the key has never been written.
+     *
+     * @param key - The key to inspect.
+     * @returns The provenance record, or undefined if the key is unknown.
+     */
+    async provenance(
+        key: string,
+    ): Promise<{ cid: CID; creator: CID; timestamp: number; deleted: boolean } | undefined> {
+        const item = await this.sortedItemsStore.getByKey(key);
+        if (!item) return undefined;
+        const entry = await fetchEntry<T>(item.cid, this.heliaController);
+        return { cid: item.cid, creator: entry.creator, timestamp: entry.timestamp, deleted: entry.deleted === true };
+    }
+
+    /**
      * Returns an async iterator that yields key-value pairs from the DenkmitDB instance.
      * The key-value pairs are retrieved from the sortedItemsStore and filtered based on the availability of the value.
      * @returns An async generator that yields key-value pairs.

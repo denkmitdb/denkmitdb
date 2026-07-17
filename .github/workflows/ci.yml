@@ -49,3 +49,10 @@ jobs:
 
             - name: Package smoke test (packed artifact imports)
               run: pnpm test:package
+
+            - name: MCP server (install, build, end-to-end smoke)
+              working-directory: mcp
+              run: |
+                  pnpm install --frozen-lockfile
+                  pnpm build
+                  pnpm smoke
