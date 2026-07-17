@@ -217,10 +217,16 @@ rejects a non-member writer *before* fetching its identity (needs a peek-at-`kid
 step in the entry-fetch path) to blunt the unique-CID DoS — follow-ups, not v2
 blockers.
 
-### D7. ◻️ Delete is unimplemented
-No delete/tombstone support. Scheduled in ROADMAP.md Phase 4 step 5 — after access
-control (step 2) and persistence (step 4), which it depends on for authorization and
-a restart test-bed. Logical tombstones only (no GC) for v2.
+### D7. ✅ Delete via logical tombstones
+`db.delete(key)` writes a signed tombstone — a delete record in the same composite
+LWW order as puts (a versioned put/delete entry union on the existing `SortedEntry`
+leaf, per `PHASE_PRIORITIES.md`). While the tombstone wins, the key is hidden from
+`get`/`iterator`; a newer `set` resurrects it; the record stays in the Merkle tree
+and replicates like any entry. Deletes are authorized like writes (an unauthorized
+tombstone is rejected locally and through merge) and survive reopen from the
+persisted head. `size` counts Merkle records including tombstones (matches
+`head.size`). Covered by `test/delete.test.ts` (5 cases incl. two-node replication
+with root convergence). **No GC/compaction in v2** — deferred by design.
 
 ### D8. ◻️ No durable head pointer — sync needs a live peer
 There is no persistent record of a database's current head. `openDenkmitDatabase()`

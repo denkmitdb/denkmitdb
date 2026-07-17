@@ -6,7 +6,16 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Phase 4 — access control, identity cache, persistence, step-1 fixes
+### Phase 4 — access control, identity cache, persistence, delete, step-1 fixes
+
+- **Delete via logical tombstones (D7).** `db.delete(key)` writes a signed delete
+  record in the same composite LWW order as puts; while it wins, the key is hidden
+  from `get`/`iterator`, a newer `set` resurrects it, and the record stays in the
+  Merkle tree (no GC). Deletes are authorized like writes — an unauthorized
+  tombstone is rejected locally and through merge — replicate to peers with root
+  convergence, and survive reopen from the persisted head. `size` counts Merkle
+  records including tombstones (matches `head.size`).
+
 
 - **Local head persistence (D4).** The last locally built head CID is persisted in
   the Helia datastore under `/denkmitdb/head/<manifest-cid>` (written only after the

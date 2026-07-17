@@ -2,7 +2,7 @@ import type { Logger } from "@libp2p/interface";
 import { Key } from "interface-datastore";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
-import { createEmptyPollard, createEntry, createPollard, fetchEntry } from "./index.js";
+import { createEmptyPollard, createEntry, createPollard, createTombstone, fetchEntry } from "./index.js";
 import {
     ConsensusControllerInterface,
     ConsensusData,
@@ -284,6 +284,40 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     /**
+     * Deletes a key by writing a signed tombstone (specs/ordering.md): the tombstone
+     * participates in the same composite last-write-wins order as puts, hides the
+     * key from `get`/`iterator` while it wins, and a newer `set` resurrects the key.
+     * The record remains in the Merkle tree and replicates like any entry; no block
+     * garbage collection is performed.
+     *
+     * @param key - The key to delete.
+     * @returns A promise that resolves when the tombstone is indexed.
+     */
+    async delete(key: string): Promise<void> {
+        const entry = await createTombstone<T>(key, this.heliaController);
+
+        if (!(await this.isAuthorized(entry.creator))) {
+            throw new Error("Access denied: this identity is not authorized to write to this database");
+        }
+
+        const check = {
+            currentTimestamp: Date.now(),
+            databaseCreator: this.manifest.creator.toString(),
+            currentIdentity: this.identity.cid.toString(),
+            entryTimestamp: entry.timestamp,
+            entryCreator: entry.creator.toString(),
+        };
+        if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
+
+        const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
+        if (!result.applied) return;
+
+        await this.keyValueStorage.delete(key);
+        const rebuildFrom = Math.min(entry.timestamp, result.previousTimestamp ?? entry.timestamp);
+        await this.createTaskUpdateLayers(rebuildFrom);
+    }
+
+    /**
      * Retrieves the value associated with the specified key.
      * If the value is found in the key-value storage, it is returned.
      * Otherwise, it retrieves the item from the sorted items store,
@@ -299,9 +333,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const value = await this.keyValueStorage.get(key);
         if (value !== undefined) return value;
         const item = await this.sortedItemsStore.getByKey(key);
-        if (!item) return;
+        if (!item || item.deleted) return; // absent, or hidden by a winning tombstone
         const entry = await fetchEntry<T>(item.cid, this.heliaController);
-        if (!entry) return;
+        if (!entry || entry.deleted || entry.value === undefined) return;
         await this.keyValueStorage.set(key, entry.value);
         return entry.value;
     }
@@ -524,7 +558,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             return;
         }
 
-        const result = await this.sortedItemsStore.set(timestamp, key, cid, creator);
+        const result = await this.sortedItemsStore.set(timestamp, key, cid, creator, entry.deleted === true);
         if (!result.applied) return;
 
         // Pin the accepted foreign entry: it was fetched (unpinned), and the tree we

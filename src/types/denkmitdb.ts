@@ -57,6 +57,16 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     get(key: string): Promise<T | undefined>;
 
     /**
+     * Deletes a key by writing a signed tombstone. The tombstone participates in
+     * the same last-write-wins order as puts: while it wins, the key is hidden from
+     * `get`/`iterator`; a newer `set` resurrects it. The record remains in the
+     * Merkle tree and replicates like any entry.
+     * @param key - The key to delete.
+     * @returns A promise that resolves when the tombstone is indexed.
+     */
+    delete(key: string): Promise<void>;
+
+    /**
      * Closes the database connection.
      * @returns A promise that resolves when the connection is closed.
      */

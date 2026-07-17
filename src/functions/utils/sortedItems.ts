@@ -10,7 +10,7 @@ import { SetResult, SortedItemsStoreInterface, SortedItemType } from "../../type
  */
 type CompositeKey = { readonly timestamp: number; readonly cid: Uint8Array };
 
-type Record = { cid: CID; key: string; creator: CID };
+type Record = { cid: CID; key: string; creator: CID; deleted?: boolean };
 
 function compareBytes(a: Uint8Array, b: Uint8Array): number {
     const length = Math.min(a.length, b.length);
@@ -27,7 +27,7 @@ function compareKeys(a: CompositeKey, b: CompositeKey): number {
 
 export class SortedItemsStore implements SortedItemsStoreInterface {
     private sortedMap: OrderedMap<CompositeKey, Record>;
-    private keyMap: Map<string, { timestamp: number; cid: CID; creator: CID }>;
+    private keyMap: Map<string, { timestamp: number; cid: CID; creator: CID; deleted?: boolean }>;
 
     constructor() {
         this.sortedMap = new OrderedMap<CompositeKey, Record>([], compareKeys, true);
@@ -44,7 +44,7 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
      *   record's timestamp so callers can rebuild the tree from the earlier of
      *   the two positions.
      */
-    async set(sortField: number, key: string, cid: CID, creator: CID): Promise<SetResult> {
+    async set(sortField: number, key: string, cid: CID, creator: CID, deleted?: boolean): Promise<SetResult> {
         const incoming: CompositeKey = { timestamp: sortField, cid: cid.bytes };
         const existing = this.keyMap.get(key);
 
@@ -55,13 +55,13 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
             // Incoming wins: drop the superseded record from the ordered index so
             // exactly one live record per key remains (KNOWN_ISSUES.md #2 part 2).
             this.sortedMap.eraseElementByKey(current);
-            this.keyMap.set(key, { timestamp: sortField, cid, creator });
-            this.sortedMap.setElement(incoming, { cid, key, creator });
+            this.keyMap.set(key, { timestamp: sortField, cid, creator, ...(deleted ? { deleted } : {}) });
+            this.sortedMap.setElement(incoming, { cid, key, creator, ...(deleted ? { deleted } : {}) });
             return { applied: true, previousTimestamp: existing.timestamp };
         }
 
-        this.keyMap.set(key, { timestamp: sortField, cid, creator });
-        this.sortedMap.setElement(incoming, { cid, key, creator });
+        this.keyMap.set(key, { timestamp: sortField, cid, creator, ...(deleted ? { deleted } : {}) });
+        this.sortedMap.setElement(incoming, { cid, key, creator, ...(deleted ? { deleted } : {}) });
         return { applied: true };
     }
 
@@ -70,7 +70,7 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
         if (!res) return undefined;
         const composite: CompositeKey = { timestamp: res.timestamp, cid: res.cid.bytes };
         const it = this.sortedMap.find(composite);
-        return { cid: res.cid, key, creator: res.creator, sortField: res.timestamp, index: it.index };
+        return { cid: res.cid, key, creator: res.creator, sortField: res.timestamp, index: it.index, ...(res.deleted ? { deleted: true } : {}) };
     }
 
     async *iterator(): AsyncGenerator<SortedItemType> {

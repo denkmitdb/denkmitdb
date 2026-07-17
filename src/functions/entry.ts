@@ -8,7 +8,8 @@ export class Entry<T> implements EntryInterface<T> {
     readonly version = ENTRY_VERSION;
     readonly timestamp: number;
     readonly key: string;
-    readonly value: T;
+    readonly value?: T;
+    readonly deleted?: boolean;
 
     readonly cid: CID;
     readonly creator: CID;
@@ -17,7 +18,11 @@ export class Entry<T> implements EntryInterface<T> {
     constructor(entry: DenkmitData<EntryData<T>>) {
         this.timestamp = entry.data.timestamp;
         this.key = entry.data.key;
-        this.value = entry.data.value;
+        if ("deleted" in entry.data && entry.data.deleted === true) {
+            this.deleted = true;
+        } else if ("value" in entry.data) {
+            this.value = entry.data.value;
+        }
 
         this.cid = entry.cid;
         this.creator = entry.creator;
@@ -27,12 +32,11 @@ export class Entry<T> implements EntryInterface<T> {
     }
 
     toJSON(): EntryData<T> {
-        return {
-            version: this.version,
-            timestamp: this.timestamp,
-            key: this.key,
-            value: this.value,
-        };
+        // dag-cbor rejects undefined fields, so emit exactly one shape per variant.
+        if (this.deleted) {
+            return { version: this.version, timestamp: this.timestamp, key: this.key, deleted: true };
+        }
+        return { version: this.version, timestamp: this.timestamp, key: this.key, value: this.value as T };
     }
 }
 
@@ -56,6 +60,31 @@ export async function createEntry<T>(
         timestamp: Date.now(),
         key,
         value,
+    };
+
+    const result = await heliaController.addSignedV2(data);
+    return new Entry(result);
+}
+
+/**
+ * Creates a signed tombstone for the specified key: a delete record that
+ * participates in the same composite last-write-wins order as puts. A winning
+ * tombstone hides the key; a newer put resurrects it (specs/ordering.md).
+ *
+ * @param key - The key to delete.
+ * @param heliaController - The Helia controller interface.
+ * @returns A promise that resolves to the created tombstone entry.
+ */
+export async function createTombstone<T>(
+    key: string,
+    heliaController: HeliaControllerInterface,
+): Promise<EntryInterface<T>> {
+    log("Creating tombstone for key:", { key });
+    const data: EntryData<T> = {
+        version: ENTRY_VERSION,
+        timestamp: Date.now(),
+        key,
+        deleted: true,
     };
 
     const result = await heliaController.addSignedV2(data);

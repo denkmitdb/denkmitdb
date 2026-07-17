@@ -10,11 +10,13 @@
 
 DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over libp2p pubsub and diffing Merkle trees to fetch only what they are missing.
 
-> ⚠️ **Status: experimental.** The write-validation ("consensus") rule installed by
-> default accepts every write and the access controller is not implemented yet, so a
-> database is writable by anyone who knows its address. Record deletion is planned
-> but not implemented. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) and
-> [ROADMAP.md](ROADMAP.md) before using this in anything real.
+> ⚠️ **Status: experimental, approaching v2.** Databases are **creator-only by
+> default** (only the creating identity may write; `publicWrite: true` opts into a
+> world-writable database), every merged entry is signature-verified before
+> indexing, records can be deleted via signed tombstones, and a database reopens
+> its own last state without a live peer. Remaining pre-release work (API freeze,
+> hardening) is tracked in [ROADMAP.md](ROADMAP.md); open items in
+> [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ## 🎁 Support: Donate
 
@@ -31,7 +33,9 @@ DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://git
 -   **Distributed storage**: all state lives in IPFS as signed, content-addressed dag-cbor blocks.
 -   **Efficient replication**: peers exchange one head CID and Merkle-diff their trees, so sync cost scales with the difference, not the database size.
 -   **Signed writes**: every entry is a JWS tied to a self-certifying identity (its CID).
--   **Write validation**: a [json-logic](https://jsonlogic.com/) rule stored in the database manifest is evaluated for every local and merged write.
+-   **Access control**: a deterministic [json-logic](https://jsonlogic.com/) policy in the manifest — creator-only by default, world-writable by explicit opt-in — enforced on local writes and merged entries alike.
+-   **Delete**: signed tombstones in the same last-write-wins order as puts; a newer write resurrects the key.
+-   **Restart durability**: the last head is persisted and re-validated on open, so a node recovers its own state without a live peer.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together.
 

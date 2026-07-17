@@ -203,13 +203,14 @@ Sequence (each builds on the previous):
    now would be speculative; extract it when the remote IPNS strategy (post-v2 D8)
    gives it a third implementation. Persisted materialized index also deferred (the
    head is the source of truth).
-5. **Delete — logical tombstones, no GC (D7) (L, high).** A signed **put/delete
-   entry union** reusing the existing `SortedEntry` leaf (a second leaf type would
-   duplicate ordering/merge logic); participates in the same composite LWW order;
-   `get()` returns missing and iteration skips a winning tombstone; a newer put
-   resurrects; the tombstone stays in the tree; no block GC/compaction in v2. Decide
-   whether `size` means **visible keys** or **Merkle records** (today one number
-   serves both).
+5. **Delete — logical tombstones, no GC (D7) (✅ done).** Signed put/delete entry
+   union on the existing `SortedEntry` leaf; same composite LWW order; a winning
+   tombstone hides the key from `get`/`iterator`; a newer put resurrects; the record
+   stays in the tree; authorized like any write (rejected locally and through merge
+   for non-writers); survives reopen from the persisted head. **Decision:** `size`
+   counts Merkle records including tombstones (consistent with `head.size`); a
+   visible-keys count can be added later if needed. No GC/compaction in v2.
+   Covered by `test/delete.test.ts`.
 6. **API freeze / cleanup (#20, D2) (M, medium).** Readonly/snapshot getters (Pollard
    and the public `layers` surface expose live arrays), delete the unused
    tree-navigation helpers, finish the D2 renames and `polllard/` → `pollard/`. Last

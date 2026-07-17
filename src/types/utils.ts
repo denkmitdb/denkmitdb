@@ -36,6 +36,8 @@ export type SortedItemType = {
     readonly key: string;
     readonly creator: CID;
     readonly index: number;
+    /** True when the record is a tombstone (the key is deleted). */
+    readonly deleted?: boolean;
 };
 
 /**
@@ -52,7 +54,7 @@ export type SetResult = {
 export interface SortedItemsStoreInterface {
     readonly size: number;
 
-    set(sortField: number, key: string, cid: CID, creator: CID): Promise<SetResult>;
+    set(sortField: number, key: string, cid: CID, creator: CID, deleted?: boolean): Promise<SetResult>;
     getByKey(key: string): Promise<SortedItemType | undefined>;
     getByIndex(index: number): Promise<SortedItemType>;
     iterator(): AsyncGenerator<SortedItemType>;
