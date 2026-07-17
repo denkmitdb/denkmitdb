@@ -1,4 +1,5 @@
 import type { Logger } from "@libp2p/interface";
+import { Key } from "interface-datastore";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { createEmptyPollard, createEntry, createPollard, fetchEntry } from "./index.js";
@@ -35,6 +36,20 @@ import { HeliaController } from "./utils/helia.js";
 import { SortedItemsStore } from "./utils/sortedItems.js";
 
 // class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
+
+/**
+ * Datastore key holding the CID of the last locally built head for a database,
+ * namespaced by manifest CID (KNOWN_ISSUES.md D4). Durability follows the stores the
+ * caller gives Helia: with a persistent datastore/blockstore the database reopens
+ * from its own head with no live peer; with in-memory stores the pointer lives as
+ * long as the Helia node.
+ *
+ * @param manifestCid - The database address (manifest CID).
+ * @returns The datastore key for the persisted head pointer.
+ */
+export function headStoreKey(manifestCid: CID): Key {
+    return new Key(`${DENKMITDB_PREFIX}head/${manifestCid.toString()}`);
+}
 
 /**
  * The pubsub topic a database syncs on. Derived from the manifest CID (the database
@@ -142,6 +157,16 @@ export async function openDenkmitDatabase<T>(
     const dmdb = new DenkmitDatabase<T>(mdb);
     await dmdb.setupSync();
 
+    // Restore the last locally persisted head, if any (D4). Goes through
+    // syncNewHead, so the head is re-validated exactly like a remote announcement
+    // (signature, manifest binding, format version, per-entry authentication and
+    // authorization) — a tampered pointer can degrade only to an empty database.
+    const pointerKey = headStoreKey(manifest.cid);
+    if (await heliaController.datastore.has(pointerKey)) {
+        const pointer = await heliaController.datastore.get(pointerKey);
+        await dmdb.syncNewHead(pointer);
+    }
+
     return dmdb;
 }
 
@@ -182,11 +207,15 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private head?: HeadInterface;
     private consensusController: ConsensusControllerInterface;
     private accessController: ConsensusControllerInterface;
+    // Whether this instance created keyValueStorage (vs. caller-supplied). Only an
+    // owned store may be cleared on close (KNOWN_ISSUES.md D4).
+    private readonly ownsKeyValueStorage: boolean;
     private log: Logger;
 
     constructor(mdb: DenkmitDatabaseInput<T>) {
         this.manifest = mdb.manifest;
         this.layers = [];
+        this.ownsKeyValueStorage = mdb.keyValueStorage === undefined;
         this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T>();
         this.sortedItemsStore = new SortedItemsStore();
         this.maxPollardLength = 2 ** mdb.manifest.order;
@@ -296,7 +325,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      */
     async close(): Promise<void> {
         await this.syncController.close();
-        await this.keyValueStorage.clear();
+        // Only clear a store we created; a caller-supplied (possibly persistent)
+        // Keyv is theirs, and clearing it would destroy their data (D4).
+        if (this.ownsKeyValueStorage) await this.keyValueStorage.clear();
         this.layers.length = 0;
         this.sortedItemsStore.clear();
     }
@@ -339,6 +370,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         };
 
         this.head = await createHead(headInput, this.heliaController);
+
+        // Persist the pointer only after the head (and the tree it references) is
+        // complete, so a crash mid-build never leaves a dangling pointer (D4).
+        await this.heliaController.datastore.put(headStoreKey(this.manifest.cid), this.head.cid.bytes);
 
         return this.head;
     }
@@ -491,6 +526,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         const result = await this.sortedItemsStore.set(timestamp, key, cid, creator);
         if (!result.applied) return;
+
+        // Pin the accepted foreign entry: it was fetched (unpinned), and the tree we
+        // rebuild will reference it — it must survive GC and restarts (D4).
+        await this.heliaController.pin(cid);
 
         // The winning value differs from anything cached under this key; drop the
         // stale cache entry so the next read refetches (KNOWN_ISSUES.md #1).

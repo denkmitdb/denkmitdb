@@ -6,7 +6,17 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Phase 4 — access control, identity cache, step-1 fixes
+### Phase 4 — access control, identity cache, persistence, step-1 fixes
+
+- **Local head persistence (D4).** The last locally built head CID is persisted in
+  the Helia datastore under `/denkmitdb/head/<manifest-cid>` (written only after the
+  tree is complete); `openDenkmitDatabase()` restores it through `syncNewHead`, so
+  the pointer is re-validated like a remote announcement. Foreign entries and
+  identities accepted during merge are pinned (survive GC). `close()` clears only an
+  internally-owned Keyv, never a caller-supplied store. A database now reopens its
+  own state with no live peer (`test/persistence.test.ts`); durability across
+  process restarts follows the datastore/blockstore the caller gives Helia.
+
 
 - **Identity cache (D6).** `HeliaController` caches resolved identities in a bounded
   LRU (1024) with in-flight coalescing (failures not cached), so a repeated foreign

@@ -178,10 +178,21 @@ diverge on which entries they accept. Skew *defence* is post-v2 local admission
 (durable quarantine with retry), and HLC is deferred with a compatible upgrade path.
 See `specs/ordering.md` §4.
 
-### D4. ◻️ No local persistence; `close()` clears caller-owned cache
-`SortedItemsStore` and the pollard layers are memory-only. `close()` still
-`clear()`s the Keyv cache even when the caller supplied a persistent store —
-ownership semantics to be defined with the Phase 4 persistence work.
+### D4. ✅ (minimal slice) Local head persistence + Keyv ownership
+The last locally built head CID is persisted in the Helia datastore under
+`/denkmitdb/head/<manifest-cid>` (written only after the head/tree is complete), and
+`openDenkmitDatabase()` restores from it **through `syncNewHead`** — i.e. the
+pointer is re-validated exactly like a remote announcement (signature, manifest
+binding, version, per-entry authentication + authorization), so a tampered pointer
+degrades to an empty database, never to corrupted state. Foreign entries and
+identities accepted during merge are **pinned**, so the referenced blocks survive
+Helia GC. `close()` now clears only an internally-owned Keyv, never a
+caller-supplied store. Covered by `test/persistence.test.ts` (pointer written;
+reopen with no live peer recovers state and root; caller Keyv survives close).
+Durability across process restarts follows the stores the caller gives Helia — with
+a persistent datastore/blockstore, reopen-from-disk works; with in-memory stores the
+pointer lives as long as the node. **Deferred:** persisted materialized index (the
+head is the source of truth; rebuild is the startup cost).
 
 ### D5. ✅ The pubsub topic is now the manifest CID
 Was the manifest *name*, so distinct databases sharing a name shared a topic and
@@ -215,13 +226,14 @@ a restart test-bed. Logical tombstones only (no GC) for v2.
 There is no persistent record of a database's current head. `openDenkmitDatabase()`
 fetches only the manifest and consensus rule, then waits for a peer to announce a
 head over pubsub (`src/functions/denkmitdb.ts` `openDenkmitDatabase`/`setupSync`).
-Consequences (worsened by #21 — heads are only announced when the root *changes*,
-never re-broadcast on a timer):
-- A node that opens the database when no data-holding peer is currently
-  online-and-connected stays **empty** — it never learns any head.
-- A late joiner gets nothing until some peer performs a *new write* that changes the
-  root and re-announces; there is no periodic re-broadcast to catch (#21).
-- A restarted lone node has no state and, being quiet, announces nothing.
+Consequences (mitigated but not eliminated by #21 and D4):
+- ~~A restarted lone node has no state~~ — fixed by D4: a node reopens its **own**
+  last head from the local pointer, no peer needed.
+- ~~Late joiners miss the one announcement~~ — fixed by #21: heads are re-announced
+  periodically.
+- Remaining gap: a *fresh* reader (no local pointer) whose data-holding peers are
+  all offline still gets nothing — that needs the remote durable pointer
+  (IPNS/delegated routing), which is the post-v2 D8 project.
 
 Pubsub here is only a *notification* (a ~36-byte head CID); all data transfer is
 bitswap. The fix is to make head discovery a **configurable strategy** rather than

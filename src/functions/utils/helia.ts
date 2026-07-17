@@ -109,6 +109,19 @@ export class HeliaStorage implements HeliaStorageInterface {
     }
 
     /**
+     * Pins a block so Helia garbage collection cannot drop it. Used for foreign
+     * blocks (entries, identities) accepted during merge — they were fetched, not
+     * added, so they are unpinned by default and a locally persisted head would not
+     * survive GC without this (KNOWN_ISSUES.md D4).
+     * @param cid - The CID of the block to pin.
+     */
+    async pin(cid: CID): Promise<void> {
+        if (!(await this.helia.pins.isPinned(cid))) {
+            await drain(this.helia.pins.add(cid));
+        }
+    }
+
+    /**
      * Retrieves an object from the Helia database.
      * @param cid - The CID of the object to retrieve.
      * @returns A Promise that resolves to the retrieved object, or undefined if not found.
@@ -180,10 +193,16 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
         }
 
         this.identityFetches++;
-        const promise = fetchIdentity(cid, this).catch((error) => {
-            this.identityCache.delete(key);
-            throw error;
-        });
+        const promise = fetchIdentity(cid, this)
+            .then(async (identity) => {
+                // Keep verified foreign identities across restarts/GC (D4).
+                await this.pin(cid);
+                return identity;
+            })
+            .catch((error) => {
+                this.identityCache.delete(key);
+                throw error;
+            });
         this.identityCache.set(key, promise);
 
         if (this.identityCache.size > HeliaController.IDENTITY_CACHE_MAX) {

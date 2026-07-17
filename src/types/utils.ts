@@ -68,6 +68,7 @@ export interface HeliaStorageInterface {
 
     add(data: unknown): Promise<CID>;
     get<T>(cid: CID): Promise<T | undefined>;
+    pin(cid: CID): Promise<void>;
     close(): Promise<void>;
 }
 

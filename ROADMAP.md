@@ -191,15 +191,18 @@ Sequence (each builds on the previous):
    foreign writer resolves once (`test/identity-cache.test.ts`). **Still to do:** a
    global fetch-concurrency limit and a cheap `kid` prefilter (reject a non-member
    *before* fetching its identity) for the unique-CID DoS — follow-ups, not blockers.
-4. **Head-discovery seam + minimal persistence (D4, D8) (L, high).** Extract a
-   head-source/head-sink strategy interface; ship two strategies — **pubsub**
-   (current) and **local persisted head** — selectable by config. Minimal durable
-   slice: persist the last accepted head CID (manifest-namespaced), revalidate +
-   rebuild on open, update the pointer only after the new tree is complete, **pin
-   foreign entries/identities fetched during merge** (a pinned head alone does not
-   keep JWS-linked blocks from GC), and namespace/own the Keyv cache without clearing
-   caller-supplied persistent stores. The head is the source of truth; a persisted
-   materialized index is a later optimization.
+4. **Minimal persistence (D4) (✅ done).** The last locally built head CID is
+   persisted under `/denkmitdb/head/<manifest-cid>` (written only after the tree is
+   complete); open restores it through `syncNewHead`, so the pointer is re-validated
+   like a remote announcement; foreign entries/identities accepted in merge are
+   pinned so the head survives GC; `close()` no longer clears caller-supplied Keyv.
+   Covered by `test/persistence.test.ts` (reopen with no live peer recovers state
+   and root). **Deliberately not done here:** a formal head-source/head-sink
+   strategy interface — with only two sources (pubsub + local pointer), both wired
+   through existing seams (`SyncControllerInterface`, `syncNewHead`), an abstraction
+   now would be speculative; extract it when the remote IPNS strategy (post-v2 D8)
+   gives it a third implementation. Persisted materialized index also deferred (the
+   head is the source of truth).
 5. **Delete — logical tombstones, no GC (D7) (L, high).** A signed **put/delete
    entry union** reusing the existing `SortedEntry` leaf (a second leaf type would
    duplicate ordering/merge logic); participates in the same composite LWW order;
