@@ -17,7 +17,7 @@ import { FsDatastore } from "datastore-fs";
 import { createHelia } from "helia";
 import { createLibp2p } from "libp2p";
 import { CID } from "multiformats/cid";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -95,14 +95,48 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         ? await openIdentity(config.identityName, config.passphrase, helia)
         : await createIdentity(config.identityName, config.passphrase, helia);
 
+    const { multiaddr } = await import("@multiformats/multiaddr");
+
     for (const peer of config.peers) {
         try {
-            const { multiaddr } = await import("@multiformats/multiaddr");
             await libp2p.dial(multiaddr(peer));
         } catch (error) {
             console.error(`[denkmit-mcp] failed to dial ${peer}:`, (error as Error).message);
         }
     }
+
+    // Same-machine rendezvous: advertise our listen addresses under the shared data
+    // root and dial every sibling identity's advertised addresses. This makes agents
+    // sharing DENKMIT_DATADIR find each other even where mdns multicast is blocked
+    // (containers, locked-down hosts); dial failures (stale files, dead peers) are
+    // ignored. Re-scans periodically because sibling servers may start later or
+    // restart on new ports.
+    await writeFile(
+        join(dir, "addrs.json"),
+        JSON.stringify({ addrs: libp2p.getMultiaddrs().map(String), updatedAt: Date.now() }),
+    );
+    const dialSiblings = async (): Promise<void> => {
+        let siblings: string[] = [];
+        try {
+            siblings = (await readdir(config.dataDir)).filter((name) => name !== config.identityName);
+        } catch {
+            return;
+        }
+        for (const sibling of siblings) {
+            try {
+                const raw = await readFile(join(config.dataDir, sibling, "addrs.json"), "utf8");
+                const { addrs } = JSON.parse(raw) as { addrs: string[] };
+                for (const addr of addrs) {
+                    await libp2p.dial(multiaddr(addr)).catch(() => {});
+                }
+            } catch {
+                // sibling has no addr file (yet) — fine
+            }
+        }
+    };
+    await dialSiblings();
+    const rendezvousTimer = setInterval(() => void dialSiblings(), 15_000);
+    rendezvousTimer.unref();
 
     // Resolve the database address: explicit env > remembered from a previous
     // create > create fresh and remember.
@@ -135,6 +169,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         db,
         created,
         stop: async () => {
+            clearInterval(rendezvousTimer);
             await db.close();
             await helia.stop();
             await libp2p.stop();

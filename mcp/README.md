@@ -70,8 +70,15 @@ args = ["/path/to/denkmitdb/mcp/dist/index.js"]
 env = { DENKMIT_IDENTITY = "codex", DENKMIT_PASSPHRASE = "another-secret", DENKMIT_DB = "<address>" }
 ```
 
-Servers on the same machine/LAN discover each other automatically (mdns) and sync
-over libp2p; remote peers can be dialed explicitly via `DENKMIT_PEERS`.
+Servers on the same machine that share a `DENKMIT_DATADIR` root find each other
+via a **file rendezvous** (each advertises its listen addresses under the data
+root and dials its siblings — works even where mdns multicast is blocked); mdns
+additionally discovers LAN peers where multicast works, and remote peers can be
+dialed explicitly via `DENKMIT_PEERS`.
+
+> **First join:** the first time an agent opens a database by address, a peer
+> holding the data must be reachable (the manifest travels over bitswap). After
+> that the agent persists its own replica and reopens it with no peers online.
 
 > **Write access:** databases are **creator-only by default** — other agents can
 > read/replicate but their writes are rejected. For a fleet where every agent
@@ -98,4 +105,7 @@ agent's memory survives restarts even with no peers online.
 - Prototype status: local stdio for personal/team use. If this graduates to
   distribution, the sanctioned path is an MCPB bundle (runtime included).
 - `pnpm smoke` runs an end-to-end test (real MCP client over stdio against a
-  throwaway data directory).
+  throwaway data directory); `node dist/smoke-sync.js` runs a two-agent
+  replication test (two server processes, rendezvous discovery, bidirectional
+  sync with provenance) — kept out of CI because it exercises timing-sensitive
+  peer discovery.
