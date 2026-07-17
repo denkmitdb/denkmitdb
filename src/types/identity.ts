@@ -38,7 +38,6 @@ export type IdentityJWS = jose.FlattenedJWS;
 export interface IdentityInterface extends IdentityType {
     verify(jws: jose.FlattenedJWSInput): Promise<Uint8Array | undefined>;
     sign(data: Uint8Array): Promise<jose.FlattenedJWS>;
-    signWithoutPayload(data: Uint8Array): Promise<jose.FlattenedJWS>;
     encrypt(data: Uint8Array): Promise<jose.FlattenedJWE>;
     decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | boolean>;
 }

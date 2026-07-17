@@ -1,8 +1,8 @@
 import { RulesLogic } from "json-logic-js";
 import { DenkmitMetadata } from "./utils.js";
 
-export const CONSENSUS_VERSION = 1;
-export type ConsensusVersionType = typeof CONSENSUS_VERSION;
+export const POLICY_VERSION = 1;
+export type PolicyVersionType = typeof POLICY_VERSION;
 
 /**
  * Represents the type of a Database consensus.
@@ -10,11 +10,11 @@ export type ConsensusVersionType = typeof CONSENSUS_VERSION;
 /**
  * Represents the data for a consensus.
  */
-export type ConsensusData = {
+export type PolicyData = {
     /**
      * The version of the consensus.
      */
-    readonly version: ConsensusVersionType;
+    readonly version: PolicyVersionType;
 
     /**
      * The name of the consensus.
@@ -32,10 +32,10 @@ export type ConsensusData = {
     readonly logic: RulesLogic;
 };
 
-export type ConsensusType = ConsensusData & DenkmitMetadata;
+export type ConsensusType = PolicyData & DenkmitMetadata;
 
-export interface ConsensusControllerInterface extends ConsensusType {
-    toJSON(): ConsensusData;
+export interface PolicyInterface extends ConsensusType {
+    toJSON(): PolicyData;
     execute(data: unknown): Promise<boolean>;
 }
 

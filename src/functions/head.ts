@@ -35,12 +35,12 @@ export class Head implements HeadInterface {
 }
 
 export async function createHead(head: HeadData, heliaController: HeliaControllerInterface): Promise<HeadInterface> {
-    const result = await heliaController.addSignedV2(head);
+    const result = await heliaController.addSigned(head);
     return new Head(result);
 }
 
 export async function fetchHead(cid: CID, heliaController: HeliaControllerInterface): Promise<HeadInterface> {
-    const result = await heliaController.getSignedV2<HeadData>(cid);
+    const result = await heliaController.getSigned<HeadData>(cid);
     if (!result || !result.data) throw new Error("Head not found");
     return new Head(result);
 }

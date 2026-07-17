@@ -35,7 +35,7 @@ const EXPECTED_EXPORTS = [
     "createHead",
     "createManifest",
     "createSyncController",
-    "createConsensus",
+    "createPolicy",
     "HeliaController",
     "SortedItemsStore",
 ];

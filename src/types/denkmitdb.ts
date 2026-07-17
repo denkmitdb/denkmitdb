@@ -6,11 +6,10 @@ import {
     HeliaControllerInterface,
     SyncControllerInterface,
     DenkmitHeliaInterface,
-    SortedItemsStoreInterface,
     HeadInterface,
     IdentityInterface,
     ManifestInterface,
-    ConsensusControllerInterface,
+    PolicyInterface,
 } from "./index.js";
 
 export const DENKMITDB_PREFIX = "/denkmitdb/";
@@ -32,8 +31,8 @@ export type DenkmitDatabaseInput<T> = {
     identity: IdentityInterface;
     keyValueStorage?: Keyv<T>;
     syncController: SyncControllerInterface;
-    consensusController: ConsensusControllerInterface;
-    accessController: ConsensusControllerInterface;
+    validationPolicy: PolicyInterface;
+    accessPolicy: PolicyInterface;
 };
 
 /**
@@ -155,10 +154,13 @@ export type DenkmitDatabaseOptions<T> = {
     helia: DenkmitHeliaInterface;
     identity: IdentityInterface;
     keyValueStorage?: Keyv<T>;
+    /**
+     * Pollard order for new databases: each Merkle subtree holds 2^order leaves.
+     * Integer in [1, 8]; default 3. Create only — open always uses the value from
+     * the signed manifest (it defines the tree shape every replica must agree on).
+     */
     order?: number;
     syncController?: SyncControllerInterface;
-    sortedItemsStore?: SortedItemsStoreInterface;
-    consensusController?: ConsensusControllerInterface;
     /**
      * Access policy for new databases (create only; open reads the manifest).
      * Default is **creator-only** — only the identity that created the database may

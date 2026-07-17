@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
     createDenkmitDatabase,
     createSyncController,
-    fetchConsensus,
+    fetchPolicy,
     HeliaController,
     SyncController,
 } from "../src/functions";
@@ -49,11 +49,27 @@ describe("DenkmitDatabase (single node)", () => {
         // checking what the factory actually wired, not a hand-built controller.
         const { db } = await createDb("db-consensus-wiring");
         const manifest = await db.getManifest();
-        const installed = await fetchConsensus(manifest.consensus, heliaController);
+        const installed = await fetchPolicy(manifest.consensus, heliaController);
         expect(installed.name).toBe("denkmit-timestamp");
         expect(installed.logic).toBe(true);
         expect(await installed.execute({ anything: "goes" })).toBe(true);
         await db.close();
+    });
+
+    it("honours the order option on create and records it in the manifest", async () => {
+        const db = await createDenkmitDatabase<Value>("db-order", {
+            helia: node.helia,
+            identity: node.identity,
+            order: 2,
+        });
+        expect(db.order).toBe(2);
+        expect((await db.getManifest()).order).toBe(2);
+        expect(db.maxPollardLength).toBe(4);
+        await db.close();
+
+        await expect(
+            createDenkmitDatabase<Value>("db-order-bad", { helia: node.helia, identity: node.identity, order: 9 }),
+        ).rejects.toThrow(/order/i);
     });
 
     it("returns undefined for a missing key", async () => {

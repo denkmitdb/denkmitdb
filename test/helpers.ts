@@ -75,7 +75,7 @@ export async function putSignedEntry<T>(
     timestamp: number,
 ): Promise<{ cid: CID; creator: CID; timestamp: number; key: string }> {
     const data: EntryData<T> = { version: ENTRY_VERSION, timestamp, key, value };
-    const signed = await heliaController.addSignedV2(data);
+    const signed = await heliaController.addSigned(data);
     return { cid: signed.cid, creator: signed.creator, timestamp, key };
 }
 

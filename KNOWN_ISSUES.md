@@ -105,25 +105,20 @@ loaded state.
 
 ## Still open
 
-### 8b/20. ◻️ [Low] Public getters expose internal references; helper arithmetic
-`Pollard.layers` and `all()` return the live internal arrays (callers can mutate
-them). `getPollardTreeNodeChildren`/`...Left` multiply positions by `order` where
-the branching factor is `maxLength` (2^order); both are currently unused
-internally. Scheduled with the Phase 4 cleanup.
+### 8b/20. ✅ Getter snapshots; dead helpers removed
+`Pollard.all()`, the `layers` getter and `getLayers()` return snapshots instead of
+live internal arrays. The unused tree-navigation helpers
+(`getPollardTreeNodeLeft/Children/Parent`, which also carried wrong position
+arithmetic) are deleted.
 
-### 19. ◻️ [Medium] Some public options are ignored — and some must stay that way
-`DenkmitDatabaseOptions` exposes `order`, `sortedItemsStore`, `syncController` and
-`consensusController`; creation hardcodes order 3 and the constant-true consensus
-and ignores a custom sorted store, and **open also silently ignores a custom
-`syncController`** (create honours it). The fix is *not* "honour them all" — several
-are convergence-hazardous:
-- `order` — honour on create only; open must use the signed manifest value.
-- open-time policy override (`consensusController`) — must **never** be honoured;
-  policy is part of database identity, and a local override destroys convergence.
-- `sortedItemsStore` — remove the injection point; it's protocol-critical state
-  (ordering/LWW invariants), not a casual adapter.
-- `syncController` — replace with the discovery-strategy interface (D8).
-Scheduled in ROADMAP.md Phase 4 step 1 (D2/#19 API decisions).
+### 19. ✅ Public options resolved (honour, remove, or manifest-bind)
+`order` is now honoured **on create only** (validated integer in [1, 8]; open always
+uses the signed manifest value). The convergence-hazardous injection points are
+**removed** from `DenkmitDatabaseOptions`: `sortedItemsStore` (protocol-critical
+state) and the open-time policy override (policy is part of database identity; the
+access/validation policies are always constructed on create and fetched from the
+signed manifest on open). `syncController` remains injectable and is honoured by
+both create and open.
 
 ### 21. ✅ [High] No head re-announcement — late joiners could stay empty
 The 30 s sync task and public `sendHead()` both called `createOnlyNewHead()`, which
@@ -162,9 +157,13 @@ rejected, public opt-in, no local override). Remaining for later: dynamic/allow-
 ACLs (post-v2), and a cheap `kid` prefilter before identity fetch (D6). The
 world-writable *default* is gone — it's now an explicit opt-in.
 
-### D2. ◻️ "Consensus" is a local validation predicate, not consensus
-Each node evaluates a json-logic rule locally; nodes never agree collectively.
-Rename to write-validation policy, or build real coordination.
+### D2. ✅ Renamed: policies, not "consensus"
+The public API now says what the thing is: `PolicyController` (a deterministic
+json-logic rule evaluator), `createPolicy`/`fetchPolicy`, `PolicyData`/
+`PolicyInterface`, and the database wires a **validation policy** (`manifest.consensus`)
+and an **access policy** (`manifest.access`). Wire-format field names are unchanged
+(no manifest version bump needed). Nodes still never agree collectively — that
+honest scope is documented in ROADMAP ("out of scope: BFT consensus").
 
 ### D3. ◻️ Wall-clock ordering (fast-clock trade-off, accepted for v2)
 Ordering uses wall-clock timestamps with the entry-CID tie-break (a deterministic
@@ -252,8 +251,8 @@ CID) and D4 (local persistence).
 
 ## Housekeeping
 
-- Directory `src/functions/polllard/` is a typo (three l's) — rename in a major
-  version (breaks deep imports).
-- `nexLayerIndex` (pollard.ts) typo; `getSigned`/`addSigned` (V1) duplicate the V2
-  methods — consolidate with the jose decision (#6).
+- ✅ `src/functions/polllard/` → `pollard/`; `nexLayerIndex` typo fixed.
+- ✅ V1 `addSigned`/`getSigned` (unused `OwnedDataType` variants) deleted; the V2
+  methods now carry the plain names. `signWithoutPayload` and the dead
+  detached-payload draft removed with them (closes the #6 follow-up).
 - Donation badges: the ETH badge showed a BTC address (removed).

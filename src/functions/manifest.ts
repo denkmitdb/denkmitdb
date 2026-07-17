@@ -52,12 +52,12 @@ export async function createManifest(
     manifest: ManifestData,
     heliaController: HeliaControllerInterface,
 ): Promise<ManifestInterface> {
-    const result = await heliaController.addSignedV2<ManifestData>(manifest);
+    const result = await heliaController.addSigned<ManifestData>(manifest);
     return new Manifest(result);
 }
 
 export async function fetchManifest(cid: CID, heliaController: HeliaControllerInterface): Promise<ManifestInterface> {
-    const result = await heliaController.getSignedV2<ManifestData>(cid);
+    const result = await heliaController.getSigned<ManifestData>(cid);
     if (!result || !result.data) throw new Error(`Manifest not found.`);
     return new Manifest(result);
 }

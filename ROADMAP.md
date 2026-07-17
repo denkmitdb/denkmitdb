@@ -211,10 +211,12 @@ Sequence (each builds on the previous):
    counts Merkle records including tombstones (consistent with `head.size`); a
    visible-keys count can be added later if needed. No GC/compaction in v2.
    Covered by `test/delete.test.ts`.
-6. **API freeze / cleanup (#20, D2) (M, medium).** Readonly/snapshot getters (Pollard
-   and the public `layers` surface expose live arrays), delete the unused
-   tree-navigation helpers, finish the D2 renames and `polllard/` → `pollard/`. Last
-   cheap point for breaking changes.
+6. **API freeze / cleanup (#20, D2, #19) (✅ done).** `ConsensusController` →
+   `PolicyController` with `createPolicy`/`fetchPolicy` and validation/access policy
+   wiring (wire-format field names unchanged); Pollard getters return snapshots;
+   unused tree helpers deleted; V1 signed API and `signWithoutPayload` removed (V2
+   methods take the plain names); `polllard/` → `pollard/`; `order` honoured on
+   create only; `sortedItemsStore` and policy injection removed from options.
 7. **Release hardening (M, medium).** The 53 tests don't cover the product
    invariants: two-node concurrent same-key convergence (deferred in Phase 1, now
    well-defined), unauthorized remote/local writes, restart recovery, late-joiner,

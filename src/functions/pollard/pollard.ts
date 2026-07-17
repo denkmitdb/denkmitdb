@@ -138,9 +138,9 @@ class Pollard implements PollardInterface {
             combined.set(hash1);
             combined.set(hash2, hash1.length);
             const hash = await this._hashFunc(combined);
-            const nexLayerIndex = startIndex >> 1;
-            this._layers[i + 1][nexLayerIndex] = createLeaf(LeafTypes.Hash, hash);
-            startIndex = (nexLayerIndex >> 1) << 1;
+            const nextLayerIndex = startIndex >> 1;
+            this._layers[i + 1][nextLayerIndex] = createLeaf(LeafTypes.Hash, hash);
+            startIndex = (nextLayerIndex >> 1) << 1;
         }
 
         this._needUpdate = false;
@@ -244,7 +244,8 @@ class Pollard implements PollardInterface {
      * @returns An array of LeafType elements representing all the elements in the first layer.
      */
     all(): LeafType[] {
-        return this._layers[0];
+        // Snapshot: callers must not be able to mutate internal tree state (#20).
+        return this._layers[0].map((leaf) => ({ ...leaf }));
     }
 
     /**
@@ -266,17 +267,15 @@ class Pollard implements PollardInterface {
     }
 
     get layers(): LeafType[][] {
-        if (this._needUpdate) {
-            // throw new Error("Pollard is not updated. Please, use getLayers() method to get layers.");
-        }
-        return this._layers;
+        // Snapshot: callers must not be able to mutate internal tree state (#20).
+        return this._layers.map((layer) => layer.map((leaf) => ({ ...leaf })));
     }
 
     async getLayers(): Promise<LeafType[][]> {
         if (this._needUpdate) {
             await this.updateLayers();
         }
-        return this._layers;
+        return this.layers; // snapshot (#20)
     }
 
     /**
@@ -319,7 +318,7 @@ class Pollard implements PollardInterface {
         if (this._needUpdate) {
             return 0;
         }
-        return this.layers.reduce((acc, layer) => acc + layer.reduce((acc, u) => acc + codec.encode(u).length, 0), 0);
+        return this._layers.reduce((acc, layer) => acc + layer.reduce((acc, u) => acc + codec.encode(u).length, 0), 0);
     }
 
     /**

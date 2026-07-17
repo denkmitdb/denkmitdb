@@ -47,11 +47,11 @@ building blocks:
 |---|---|---|---|
 | **Identity** | `src/functions/identity.ts` | name, key type, algorithm (default ES384), public key (JWK, base64) | Self-certifying signer identity. Stored as a self-signed JWS (embedded JWK); its CID is the identity's address. The private key lives only in the local datastore, encrypted with a passphrase (PBES2). |
 | **Entry** | `src/functions/entry.ts` | version, timestamp (`Date.now()` ms), key, value | One write. Immutable; an update to a key is a brand-new entry. |
-| **Pollard** | `src/functions/polllard/pollard.ts` | version, order, leaves + hash layers | A fixed-capacity Merkle subtree with `2^order` leaves (order is recorded in the manifest; currently hardcoded to 3 → 8 leaves — the `order` option exists but is ignored, KNOWN_ISSUES.md #19). Stored **unsigned**. The database's full tree is built from many pollards stacked in layers. |
-| **Leaf** | `src/functions/polllard/leaf.ts` | type + payload | Tree node payload. Types: `Empty`, `Hash`, `Pollard` (link to child pollard), `Entry`, `Identity`, `SortedEntry` (entry CID + sort key + db key + creator). |
+| **Pollard** | `src/functions/pollard/pollard.ts` | version, order, leaves + hash layers | A fixed-capacity Merkle subtree with `2^order` leaves (order is recorded in the manifest; currently hardcoded to 3 → 8 leaves — the `order` option exists but is ignored, KNOWN_ISSUES.md #19). Stored **unsigned**. The database's full tree is built from many pollards stacked in layers. |
+| **Leaf** | `src/functions/pollard/leaf.ts` | type + payload | Tree node payload. Types: `Empty`, `Hash`, `Pollard` (link to child pollard), `Entry`, `Identity`, `SortedEntry` (entry CID + sort key + db key + creator). |
 | **Head** | `src/functions/head.ts` | manifest CID, tree root CID, timestamp, layer count, size | A snapshot pointer: "my database state is the tree rooted at X". This is the only thing peers broadcast. |
 | **Manifest** | `src/functions/manifest.ts` | name, type, pollard order, consensus CID, access CID, creation timestamp | The database descriptor. **Its CID is the database address.** Immutable — changing any field creates a different database. |
-| **Consensus** | `src/functions/consensus.ts` | name, description, [json-logic](https://jsonlogic.com/) rule | A write-validation predicate evaluated locally against entry metadata (timestamps, creators) on every `set` and every merged remote entry. |
+| **Policy** | `src/functions/policy.ts` | name, description, [json-logic](https://jsonlogic.com/) rule | A write-validation predicate evaluated locally against entry metadata (timestamps, creators) on every `set` and every merged remote entry. |
 
 ### In-memory state (not persisted)
 
@@ -191,9 +191,9 @@ src/
 │   ├── identity.ts       # key generation, JWS sign/verify, JWE encrypt/decrypt
 │   ├── manifest.ts       # database descriptor (the address)
 │   ├── head.ts           # replication snapshot pointer
-│   ├── consensus.ts      # json-logic write-validation controller
+│   ├── policy.ts         # json-logic validation/access policy controllers
 │   ├── sync.ts           # pubsub subscription + serialized task queue
-│   ├── polllard/         # [sic] Merkle subtree + leaf codecs
+│   ├── pollard/          # Merkle subtree + leaf codecs
 │   └── utils/
 │       ├── helia.ts      # HeliaStorage/HeliaController: dag-cbor + JWS plumbing
 │       └── sortedItems.ts# timestamp-ordered in-memory index

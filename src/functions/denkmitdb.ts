@@ -4,8 +4,8 @@ import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { createEmptyPollard, createEntry, createPollard, createTombstone, fetchEntry } from "./index.js";
 import {
-    ConsensusControllerInterface,
-    ConsensusData,
+    PolicyInterface,
+    PolicyData,
     DENKMITDB_PREFIX,
     DenkmitDatabaseInput,
     DenkmitDatabaseInterface,
@@ -28,14 +28,14 @@ import {
     SyncControllerInterface,
 } from "../types/index.js";
 
-import { createConsensus, fetchConsensus } from "./consensus.js";
+import { createPolicy, fetchPolicy } from "./policy.js";
 import { createHead, fetchHead } from "./head.js";
 import { createManifest, fetchManifest } from "./manifest.js";
 import { createSyncController } from "./sync.js";
 import { HeliaController } from "./utils/helia.js";
 import { SortedItemsStore } from "./utils/sortedItems.js";
 
-// class TimestampConsensusController {} // TODO: Implement TimestampConsensusController
+// class TimestampPolicyController {} // TODO: Implement TimestampPolicyController
 
 /**
  * Datastore key holding the CID of the last locally built head for a database,
@@ -79,28 +79,33 @@ export async function createDenkmitDatabase<T>(
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
 
-    const consensus: ConsensusData = {
+    const consensus: PolicyData = {
         version: 1,
         name: "denkmit-timestamp",
         description: "Consensus for denkmit database timestamp",
         logic: true,
     };
 
-    const consensusController = await createConsensus(consensus, heliaController);
+    const validationPolicy = await createPolicy(consensus, heliaController);
 
     // Access (authorization) policy — separate from consensus (validation). Default
     // is creator-only; opt into world-writable with `publicWrite`. The rule uses only
     // deterministic inputs (the signed entry's creator vs. the manifest creator), so
     // every replica reaches the same decision (KNOWN_ISSUES.md D1, specs/ordering.md).
-    const accessController = await createConsensus(accessPolicy(options.publicWrite ?? false), heliaController);
+    const accessPolicy = await createPolicy(accessPolicyRule(options.publicWrite ?? false), heliaController);
+
+    const order = options.order ?? 3;
+    if (!Number.isInteger(order) || order < 1 || order > 8) {
+        throw new Error("order must be an integer in [1, 8]");
+    }
 
     const manifestInput: ManifestData = {
         version: MANIFEST_VERSION,
         name,
         type: "denkmit-database-key-value",
-        order: 3,
-        consensus: consensusController.cid,
-        access: accessController.cid,
+        order,
+        consensus: validationPolicy.cid,
+        access: accessPolicy.cid,
         timestamp: Date.now(),
     };
     const manifest = await createManifest(manifestInput, heliaController);
@@ -113,8 +118,8 @@ export async function createDenkmitDatabase<T>(
         identity,
         keyValueStorage: options.keyValueStorage,
         syncController,
-        consensusController,
-        accessController,
+        validationPolicy,
+        accessPolicy,
     };
     const dmdb = new DenkmitDatabase<T>(mdb);
     await dmdb.setupSync();
@@ -138,11 +143,11 @@ export async function openDenkmitDatabase<T>(
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
     const syncController = options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
-    const consensusController = await fetchConsensus(manifest.consensus, heliaController);
+    const validationPolicy = await fetchPolicy(manifest.consensus, heliaController);
     // The access policy is part of the database identity — always read it from the
     // signed manifest, never from local options (a local override would let replicas
     // disagree on who may write, breaking convergence — KNOWN_ISSUES.md #19).
-    const accessController = await fetchConsensus(manifest.access, heliaController);
+    const accessPolicy = await fetchPolicy(manifest.access, heliaController);
 
     const mdb: DenkmitDatabaseInput<T> = {
         manifest,
@@ -150,8 +155,8 @@ export async function openDenkmitDatabase<T>(
         identity,
         keyValueStorage: options.keyValueStorage,
         syncController,
-        consensusController,
-        accessController,
+        validationPolicy,
+        accessPolicy,
     };
 
     const dmdb = new DenkmitDatabase<T>(mdb);
@@ -175,7 +180,7 @@ export async function openDenkmitDatabase<T>(
  * @param publicWrite - When true, any identity may write; otherwise creator-only.
  * @returns The consensus/access data describing the policy.
  */
-function accessPolicy(publicWrite: boolean): ConsensusData {
+function accessPolicyRule(publicWrite: boolean): PolicyData {
     if (publicWrite) {
         return {
             version: 1,
@@ -205,8 +210,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private sortedItemsStore: SortedItemsStore;
     private readonly syncController: SyncControllerInterface;
     private head?: HeadInterface;
-    private consensusController: ConsensusControllerInterface;
-    private accessController: ConsensusControllerInterface;
+    private validationPolicy: PolicyInterface;
+    private accessPolicy: PolicyInterface;
     // Whether this instance created keyValueStorage (vs. caller-supplied). Only an
     // owned store may be cleared on close (KNOWN_ISSUES.md D4).
     private readonly ownsKeyValueStorage: boolean;
@@ -221,8 +226,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         this.maxPollardLength = 2 ** mdb.manifest.order;
         this.heliaController = mdb.heliaController;
         this.syncController = mdb.syncController;
-        this.consensusController = mdb.consensusController;
-        this.accessController = mdb.accessController;
+        this.validationPolicy = mdb.validationPolicy;
+        this.accessPolicy = mdb.accessPolicy;
         this.log = this.heliaController.helia.logger.forComponent("denkmitdb:denkmitdb");
     }
 
@@ -232,7 +237,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * creator — so every replica reaches the same decision.
      */
     private async isAuthorized(entryCreator: CID): Promise<boolean> {
-        return this.accessController.execute({
+        return this.accessPolicy.execute({
             entryCreator: entryCreator.toString(),
             databaseCreator: this.manifest.creator.toString(),
         });
@@ -272,7 +277,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             entryTimestamp: entry.timestamp,
             entryCreator: entry.creator.toString(),
         };
-        if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
+        if (!(await this.validationPolicy.execute(check))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
         // A concurrently-known entry with a greater composite key already wins.
@@ -307,7 +312,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             entryTimestamp: entry.timestamp,
             entryCreator: entry.creator.toString(),
         };
-        if (!(await this.consensusController.execute(check))) throw new Error("Consensus failed");
+        if (!(await this.validationPolicy.execute(check))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
         if (!result.applied) return;
@@ -553,7 +558,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             entryTimestamp: timestamp,
             entryCreator: creator.toString(),
         };
-        if (!(await this.consensusController.execute(check))) {
+        if (!(await this.validationPolicy.execute(check))) {
             this.log("Rejected leaf %s: consensus check failed", cid.toString());
             return;
         }
@@ -657,51 +662,6 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             position,
             pollard: this.layers[layerIndex][position],
         };
-    }
-
-    getPollardTreeNodeLeft(node: PollardNode): PollardNode {
-        if (node.position <= 0) throw new Error("No left node");
-        if (node.position >= Math.ceil(this.size / 2 ** (this.order * (node.layerIndex + 1))))
-            throw new Error("No right node");
-        node = node.pollard ? node : this.getPollardTreeNode(node);
-        if (!node.pollard || node.layerIndex === 0) {
-            return node;
-        }
-        const order = node.pollard.order;
-        return this.getPollardTreeNode({
-            layerIndex: node.layerIndex - 1,
-            position: node.position * order,
-        });
-    }
-
-    getPollardTreeNodeChildren(node: PollardNode): PollardNode[] {
-        node = node.pollard ? node : this.getPollardTreeNode(node);
-        if (!node.pollard || node.layerIndex === 0) {
-            return [];
-        }
-        const order = node.pollard.order;
-        return node.pollard.all().map((leaf, index) => {
-            const pollardNode = {
-                layerIndex: node.layerIndex - 1,
-                position: node.position * order + index,
-            };
-            return this.getPollardTreeNode(pollardNode);
-        });
-    }
-
-    getPollardTreeNodeParent(node: PollardNode): PollardNode {
-        node = node.pollard ? node : this.getPollardTreeNode(node);
-        if (!node.pollard) {
-            return node;
-        }
-
-        const parentLayerIndex = node.layerIndex + 1;
-        const parentPosition = this.calculatePositionInLayer(node.position);
-
-        return this.getPollardTreeNode({
-            layerIndex: parentLayerIndex,
-            position: parentPosition,
-        });
     }
 
     /**

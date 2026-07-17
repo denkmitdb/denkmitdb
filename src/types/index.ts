@@ -7,4 +7,4 @@ export * from "./pollard.js";
 export * from "./manifest.js";
 export * from "./utils.js";
 export * from "./sync.js";
-export * from "./consensus.js";
+export * from "./policy.js";

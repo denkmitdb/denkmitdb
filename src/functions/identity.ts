@@ -117,22 +117,6 @@ class Identity implements IdentityInterface {
     }
 
     /**
-     * Signs the given data without including the payload in the resulting JWS.
-     * @param data - The data to sign.
-     * @returns A promise that resolves to the JWS (JSON Web Signature) of the signed data.
-     */
-    async signWithoutPayload(data: Uint8Array): Promise<jose.FlattenedJWS> {
-        if (!this.keys.privateKey) throw new Error("Private key is not available");
-
-        return await createJWS(data, this.keys, {
-            alg: this.alg,
-            kid: this.cid.toString(),
-            includeJwk: false,
-            includePayload: false,
-        });
-    }
-
-    /**
      * Encrypts the given data using the public key associated with the identity.
      * @param data - The data to encrypt.
      * @returns A promise that resolves to the JWE (JSON Web Encryption) of the encrypted data.
@@ -220,25 +204,17 @@ type createJWSOptions = {
     alg: string;
     kid?: string;
     includeJwk?: boolean;
-    includePayload?: boolean;
 };
 
 async function createJWS(payload: Uint8Array, keys: KeyPair, options?: createJWSOptions): Promise<jose.FlattenedJWS> {
     options = options || { alg: "ES384" };
     const { alg, kid } = options;
-    let { includeJwk, includePayload } = options;
-    includeJwk = includeJwk ?? false;
-    includePayload = includePayload ?? true;
+    const includeJwk = options.includeJwk ?? false;
 
     const headers: jose.JWSHeaderParameters = { alg, kid };
     if (!keys.privateKey) throw new Error("Private key is not available");
 
     if (keys.publicKey && includeJwk) headers.jwk = await jose.exportJWK(keys.publicKey);
-
-    if (!includePayload) {
-        headers.b64 = false;
-        headers.crit = ["b64"];
-    }
 
     return await new jose.FlattenedSign(payload).setProtectedHeader(headers).sign(keys.privateKey);
 }

@@ -25,11 +25,6 @@ export type DenkmitLibp2pType = Libp2p<{
 
 export type DenkmitHeliaInterface = Helia<DenkmitLibp2pType>;
 
-export type OwnedDataType<T> = {
-    data?: Omit<T, "cid">;
-    identity?: IdentityInterface;
-};
-
 export type SortedItemType = {
     readonly sortField: number;
     readonly cid: CID;
@@ -77,10 +72,8 @@ export interface HeliaStorageInterface {
 export interface HeliaControllerInterface extends HeliaStorageInterface {
     identity: IdentityInterface;
 
-    addSigned<T>(data: OwnedDataType<T>): Promise<CID>;
-    addSignedV2<T>(data: T): Promise<DenkmitData<T>>;
-    getSigned<T>(cid: CID): Promise<OwnedDataType<T> | undefined>;
-    getSignedV2<T>(cid: CID): Promise<DenkmitData<T> | undefined>;
+    addSigned<T>(data: T): Promise<DenkmitData<T>>;
+    getSigned<T>(cid: CID): Promise<DenkmitData<T> | undefined>;
 }
 
 export type DenkmitData<T> = {

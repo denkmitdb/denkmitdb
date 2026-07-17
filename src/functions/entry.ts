@@ -62,7 +62,7 @@ export async function createEntry<T>(
         value,
     };
 
-    const result = await heliaController.addSignedV2(data);
+    const result = await heliaController.addSigned(data);
     return new Entry(result);
 }
 
@@ -87,7 +87,7 @@ export async function createTombstone<T>(
         deleted: true,
     };
 
-    const result = await heliaController.addSignedV2(data);
+    const result = await heliaController.addSigned(data);
     return new Entry(result);
 }
 
@@ -102,7 +102,7 @@ export async function createTombstone<T>(
  */
 export async function fetchEntry<T>(cid: CID, heliaController: HeliaControllerInterface): Promise<EntryInterface<T>> {
     log("Fetching entry with CID: ", cid);
-    const result = await heliaController.getSignedV2<EntryData<T>>(cid);
+    const result = await heliaController.getSigned<EntryData<T>>(cid);
     if (!result) throw new ReferenceError("Entry not found");
     if (!result.data) throw new ReferenceError("Entry data not found");
 

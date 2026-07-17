@@ -8,6 +8,16 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Phase 4 — access control, identity cache, persistence, delete, step-1 fixes
 
+- **API freeze (breaking, pre-v2).** `ConsensusController`/`createConsensus`/
+  `fetchConsensus`/`ConsensusData` → `PolicyController`/`createPolicy`/`fetchPolicy`/
+  `PolicyData` (the thing is a deterministic json-logic policy, not consensus); the
+  database wires a validation policy and an access policy — wire-format field names
+  (`manifest.consensus`/`manifest.access`) are unchanged. `addSignedV2`/`getSignedV2`
+  renamed to `addSigned`/`getSigned` (unused V1 variants and `signWithoutPayload`
+  deleted). `src/functions/polllard/` → `pollard/`. Pollard `all()`/`layers`/
+  `getLayers()` return snapshots. `order` is honoured on create (validated [1, 8]);
+  `sortedItemsStore` and policy injection removed from `DenkmitDatabaseOptions`.
+
 - **Delete via logical tombstones (D7).** `db.delete(key)` writes a signed delete
   record in the same composite LWW order as puts; while it wins, the key is hidden
   from `get`/`iterator`, a newer `set` resurrects it, and the record stays in the
