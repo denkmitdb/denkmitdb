@@ -1,14 +1,14 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / DataType
 
-# Type alias: DataType
+# Type Alias: DataType
 
-> **DataType**: `object`
+> **DataType** = `object`
 
-## Type declaration
+## Properties
 
 ### dataType
 

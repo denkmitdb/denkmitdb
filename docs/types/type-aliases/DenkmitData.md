@@ -1,31 +1,43 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / DenkmitData
 
-# Type alias: DenkmitData\<T\>
+# Type Alias: DenkmitData\<T\>
 
-> **DenkmitData**\<`T`\>: `object`
+> **DenkmitData**\<`T`\> = `object`
 
-## Type parameters
+## Extended by
 
-• **T**
+- [`DenkmitDataInterface`](../interfaces/DenkmitDataInterface.md)
 
-## Type declaration
+## Type Parameters
+
+### T
+
+`T`
+
+## Properties
 
 ### cid
 
 > **cid**: `CID`
 
+***
+
 ### creator
 
 > **creator**: `CID`
+
+***
 
 ### data
 
 > **data**: `T`
 
+***
+
 ### link?
 
-> `optional` **link**: `CID`
+> `optional` **link?**: `CID`

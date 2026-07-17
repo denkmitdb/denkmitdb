@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -10,15 +10,17 @@
 
 - [`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
+
+`T`
 
 ## Properties
 
 ### cid
 
-> **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> **cid**: `CID`
 
 #### Inherited from
 
@@ -28,7 +30,7 @@
 
 ### creator
 
-> **creator**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> **creator**: `CID`
 
 #### Inherited from
 
@@ -48,7 +50,7 @@
 
 ### link?
 
-> `optional` **link**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
 #### Inherited from
 

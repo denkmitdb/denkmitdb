@@ -1,30 +1,38 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / IdentityData
 
-# Type alias: IdentityData
+# Type Alias: IdentityData
 
-> **IdentityData**: `object`
+> **IdentityData** = `object`
 
-## Type declaration
+## Properties
 
 ### alg
 
 > `readonly` **alg**: [`IdentityAlgorithms`](IdentityAlgorithms.md)
 
+***
+
 ### name
 
 > `readonly` **name**: `string`
+
+***
 
 ### publicKey
 
 > `readonly` **publicKey**: `string`
 
+***
+
 ### type
 
 > `readonly` **type**: [`IdentityTypes`](../enumerations/IdentityTypes.md)
+
+***
 
 ### version
 

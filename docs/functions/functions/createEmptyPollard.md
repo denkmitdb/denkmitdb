@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -12,7 +12,9 @@ Creates an empty Pollard with the specified order.
 
 ## Parameters
 
-• **order**: `number`
+### order
+
+`number`
 
 The order of the Pollard.
 

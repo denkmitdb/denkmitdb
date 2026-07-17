@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,34 +6,130 @@
 
 # Function: createLeaf()
 
-> **createLeaf**(`type`?, `data`?, `sortFields`?, `key`?): [`LeafType`](../../types/type-aliases/LeafType.md)
+## Call Signature
 
-Creates a leaf node for the denkmitdb database.
+> **createLeaf**(): [`LeafType`](../../types/type-aliases/LeafType.md)
 
-## Parameters
-
-• **type?**: [`LeafTypes`](../../types/enumerations/LeafTypes.md)
-
-The type of the leaf node.
-
-• **data?**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
-
-The data associated with the leaf node.
-
-• **sortFields?**: `number`[]
-
-An optional array of sort fields for SortedEntry type.
-
-• **key?**: `string`
-
-An optional key for the leaf node.
-
-## Returns
+### Returns
 
 [`LeafType`](../../types/type-aliases/LeafType.md)
 
-The created leaf node.
+## Call Signature
 
-## Throws
+> **createLeaf**(`type`): [`LeafType`](../../types/type-aliases/LeafType.md)
 
-Error if sortFields are required for SortedEntry type but not provided.
+### Parameters
+
+#### type
+
+[`Empty`](../../types/enumerations/LeafTypes.md#empty)
+
+### Returns
+
+[`LeafType`](../../types/type-aliases/LeafType.md)
+
+## Call Signature
+
+> **createLeaf**(`type`, `data`): [`LeafType`](../../types/type-aliases/LeafType.md)
+
+### Parameters
+
+#### type
+
+[`Hash`](../../types/enumerations/LeafTypes.md#hash)
+
+#### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+
+### Returns
+
+[`LeafType`](../../types/type-aliases/LeafType.md)
+
+## Call Signature
+
+> **createLeaf**(`type`, `data`): [`LeafType`](../../types/type-aliases/LeafType.md)
+
+### Parameters
+
+#### type
+
+[`Pollard`](../../types/enumerations/LeafTypes.md#pollard)
+
+#### data
+
+`CID`
+
+### Returns
+
+[`LeafType`](../../types/type-aliases/LeafType.md)
+
+## Call Signature
+
+> **createLeaf**(`type`, `data`, `creator`): [`LeafType`](../../types/type-aliases/LeafType.md)
+
+### Parameters
+
+#### type
+
+[`Entry`](../../types/enumerations/LeafTypes.md#entry)
+
+#### data
+
+`CID`
+
+#### creator
+
+`CID`
+
+### Returns
+
+[`LeafType`](../../types/type-aliases/LeafType.md)
+
+## Call Signature
+
+> **createLeaf**(`type`, `data`): [`LeafType`](../../types/type-aliases/LeafType.md)
+
+### Parameters
+
+#### type
+
+[`Identity`](../../types/enumerations/LeafTypes.md#identity)
+
+#### data
+
+`CID`
+
+### Returns
+
+[`LeafType`](../../types/type-aliases/LeafType.md)
+
+## Call Signature
+
+> **createLeaf**(`type`, `data`, `creator`, `sort`, `key`): [`LeafType`](../../types/type-aliases/LeafType.md)
+
+### Parameters
+
+#### type
+
+[`SortedEntry`](../../types/enumerations/LeafTypes.md#sortedentry)
+
+#### data
+
+`CID`
+
+#### creator
+
+`CID`
+
+#### sort
+
+`number`[]
+
+#### key
+
+`string`
+
+### Returns
+
+[`LeafType`](../../types/type-aliases/LeafType.md)

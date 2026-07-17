@@ -1,46 +1,66 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / DenkmitDatabaseType
 
-# Type alias: DenkmitDatabaseType\<T\>
+# Type Alias: DenkmitDatabaseType\<T\>
 
-> **DenkmitDatabaseType**\<`T`\>: `object`
+> **DenkmitDatabaseType**\<`T`\> = `object`
 
-## Type parameters
+## Extended by
 
-• **T**
+- [`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md)
 
-## Type declaration
+## Type Parameters
+
+### T
+
+`T`
+
+## Properties
 
 ### address
 
 > `readonly` **address**: `CID`
 
+***
+
 ### heliaController
 
 > `readonly` **heliaController**: [`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
+
+***
 
 ### identity
 
 > `readonly` **identity**: [`IdentityInterface`](../interfaces/IdentityInterface.md)
 
+***
+
 ### keyValueStorage
 
-> `readonly` **keyValueStorage**: `Keyv`\<`T`, [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `T`\>\>
+> `readonly` **keyValueStorage**: `Keyv`\<`T`\>
+
+***
 
 ### layers
 
 > `readonly` **layers**: [`PollardInterface`](../interfaces/PollardInterface.md)[][]
 
+***
+
 ### manifest
 
 > `readonly` **manifest**: [`ManifestInterface`](../interfaces/ManifestInterface.md)
 
+***
+
 ### maxPollardLength
 
 > `readonly` **maxPollardLength**: `number`
+
+***
 
 ### order
 

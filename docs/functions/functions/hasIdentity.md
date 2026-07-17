@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -12,11 +12,15 @@ Checks if an identity with the given name exists in the datastore.
 
 ## Parameters
 
-• **name**: `string`
+### name
+
+`string`
 
 The name of the identity.
 
-• **helia**: [`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+### helia
+
+[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
 
 The instance of Helia.
 

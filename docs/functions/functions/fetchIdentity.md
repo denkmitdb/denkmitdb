@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,15 +6,21 @@
 
 # Function: fetchIdentity()
 
-> **fetchIdentity**(`cid`, `heliaStorage`, `keys`?): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+> **fetchIdentity**(`cid`, `heliaStorage`, `keys?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
 
 ## Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+### cid
 
-• **heliaStorage**: [`HeliaStorage`](../classes/HeliaStorage.md)
+`CID`
 
-• **keys?**: [`Partial`](https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype)\<`GenerateKeyPairResult`\<`KeyLike`\>\>
+### heliaStorage
+
+[`HeliaStorage`](../classes/HeliaStorage.md)
+
+### keys?
+
+[`Partial`](https://www.typescriptlang.org/docs/handbook/utility-types.html#partialtype)\<`GenerateKeyPairResult`\>
 
 ## Returns
 

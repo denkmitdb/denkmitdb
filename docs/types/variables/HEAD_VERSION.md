@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,4 +6,4 @@
 
 # Variable: HEAD\_VERSION
 
-> `const` **HEAD\_VERSION**: `1` = `1`
+> `const` **HEAD\_VERSION**: `2` = `2`

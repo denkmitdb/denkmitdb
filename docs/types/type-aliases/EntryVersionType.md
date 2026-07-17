@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / EntryVersionType
 
-# Type alias: EntryVersionType
+# Type Alias: EntryVersionType
 
-> **EntryVersionType**: *typeof* [`ENTRY_VERSION`](../variables/ENTRY_VERSION.md)
+> **EntryVersionType** = *typeof* [`ENTRY_VERSION`](../variables/ENTRY_VERSION.md)

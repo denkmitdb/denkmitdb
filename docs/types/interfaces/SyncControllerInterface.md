@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -14,9 +14,13 @@
 
 #### Parameters
 
-• **task**
+##### task
 
-• **interval**: `number`
+() => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+##### interval
+
+`number`
 
 #### Returns
 
@@ -30,7 +34,9 @@
 
 #### Parameters
 
-• **task**
+##### task
+
+() => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Returns
 
@@ -48,13 +54,25 @@
 
 ***
 
+### onIdle()
+
+> **onIdle**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+#### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+***
+
 ### sendHead()
 
 > **sendHead**(`head`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Parameters
 
-• **head**: [`HeadInterface`](HeadInterface.md)
+##### head
+
+[`HeadType`](../type-aliases/HeadType.md)
 
 #### Returns
 
@@ -68,7 +86,9 @@
 
 #### Parameters
 
-• **newHead**
+##### newHead
+
+(`data`) => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Returns
 

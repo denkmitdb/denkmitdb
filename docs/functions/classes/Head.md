@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -8,41 +8,43 @@
 
 ## Implements
 
-- [`HeadInterface`](../../types/interfaces/HeadInterface.md)
+- [`HeadInterface`](../../types/type-aliases/HeadInterface.md)
 
 ## Constructors
 
-### new Head()
+### Constructor
 
-> **new Head**(`head`): [`Head`](Head.md)
+> **new Head**(`head`): `Head`
 
 #### Parameters
 
-• **head**: [`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`HeadData`](../../types/type-aliases/HeadData.md)\>
+##### head
+
+[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`HeadData`](../../types/type-aliases/HeadData.md)\>
 
 #### Returns
 
-[`Head`](Head.md)
+`Head`
 
 ## Properties
 
 ### cid
 
-> `readonly` **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **cid**: `CID`
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`cid`](../../types/interfaces/HeadInterface.md#cid)
+`HeadInterface.cid`
 
 ***
 
 ### creator
 
-> `readonly` **creator**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **creator**: `CID`
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`creator`](../../types/interfaces/HeadInterface.md#creator)
+`HeadInterface.creator`
 
 ***
 
@@ -52,27 +54,27 @@
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`layers`](../../types/interfaces/HeadInterface.md#layers)
+`HeadInterface.layers`
 
 ***
 
 ### manifest
 
-> `readonly` **manifest**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **manifest**: `CID`
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`manifest`](../../types/interfaces/HeadInterface.md#manifest)
+`HeadInterface.manifest`
 
 ***
 
 ### root
 
-> `readonly` **root**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **root**: `CID`
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`root`](../../types/interfaces/HeadInterface.md#root)
+`HeadInterface.root`
 
 ***
 
@@ -82,7 +84,7 @@
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`size`](../../types/interfaces/HeadInterface.md#size)
+`HeadInterface.size`
 
 ***
 
@@ -92,24 +94,24 @@
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`timestamp`](../../types/interfaces/HeadInterface.md#timestamp)
+`HeadInterface.timestamp`
 
 ***
 
 ### version
 
-> `readonly` **version**: `1`
+> `readonly` **version**: `2`
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`version`](../../types/interfaces/HeadInterface.md#version)
+`HeadInterface.version`
 
 ***
 
 ### link?
 
-> `optional` `readonly` **link**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
 #### Implementation of
 
-[`HeadInterface`](../../types/interfaces/HeadInterface.md).[`link`](../../types/interfaces/HeadInterface.md#link)
+`HeadInterface.link`

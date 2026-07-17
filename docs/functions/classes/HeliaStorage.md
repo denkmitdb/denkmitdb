@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -18,21 +18,23 @@ Represents a Storage for interacting with the Helia IPFS.
 
 ## Constructors
 
-### new HeliaStorage()
+### Constructor
 
-> **new HeliaStorage**(`helia`): [`HeliaStorage`](HeliaStorage.md)
+> **new HeliaStorage**(`helia`): `HeliaStorage`
 
 Creates a new instance of the HeliaStorage class.
 
 #### Parameters
 
-• **helia**: [`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+##### helia
+
+[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
 
 The Helia database interface.
 
 #### Returns
 
-[`HeliaStorage`](HeliaStorage.md)
+`HeliaStorage`
 
 ## Properties
 
@@ -48,9 +50,11 @@ The Helia database interface.
 
 ### code
 
-> `get` `static` **code**(): `number`
+#### Get Signature
 
-#### Returns
+> **get** `static` **code**(): `number`
+
+##### Returns
 
 `number`
 
@@ -58,11 +62,13 @@ The Helia database interface.
 
 ### blockstore
 
-> `get` **blockstore**(): `Blocks`
+#### Get Signature
+
+> **get** **blockstore**(): `Blocks`
 
 Gets the blockstore.
 
-#### Returns
+##### Returns
 
 `Blocks`
 
@@ -72,29 +78,57 @@ The blockstore.
 
 ### datastore
 
-> `get` **datastore**(): `Datastore`\<`object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`\>
+#### Get Signature
+
+> **get** **datastore**(): `Datastore`\<\{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}\>
 
 Gets the datastore.
 
-#### Returns
+##### Returns
 
-`Datastore`\<`object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`\>
+`Datastore`\<\{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}\>
 
 The datastore.
+
+#### Implementation of
+
+[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`datastore`](../../types/interfaces/HeliaStorageInterface.md#datastore)
 
 ***
 
 ### libp2p
 
-> `get` **libp2p**(): [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
+#### Get Signature
+
+> **get** **libp2p**(): [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
 
 Gets the libp2p instance.
 
-#### Returns
+##### Returns
 
 [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
 
 The libp2p instance.
+
+#### Implementation of
+
+[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`libp2p`](../../types/interfaces/HeliaStorageInterface.md#libp2p)
+
+***
+
+### logger
+
+#### Get Signature
+
+> **get** **logger**(): `ComponentLogger`
+
+Gets the logger instance.
+
+##### Returns
+
+`ComponentLogger`
+
+The logger instance.
 
 ## Methods
 
@@ -104,15 +138,19 @@ The libp2p instance.
 
 Decodes the given Uint8Array data using the specified codec.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 The type of the decoded data.
 
 #### Parameters
 
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+##### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
 
 The data to be decoded.
 
@@ -130,13 +168,17 @@ The decoded data.
 
 Encodes the given data into a Uint8Array.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 #### Parameters
 
-• **data**: `T`
+##### data
+
+`T`
 
 The data to be encoded.
 
@@ -156,7 +198,9 @@ Adds an object to the Helia database.
 
 #### Parameters
 
-• **data**: `unknown`
+##### data
+
+`unknown`
 
 The object to add.
 
@@ -169,20 +213,6 @@ A Promise that resolves to the CID of the added object.
 #### Implementation of
 
 [`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`add`](../../types/interfaces/HeliaStorageInterface.md#add)
-
-***
-
-### addBytes()
-
-> **addBytes**(`buf`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
-
-#### Parameters
-
-• **buf**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
 
 ***
 
@@ -206,23 +236,27 @@ A Promise that resolves when the controller is closed.
 
 ### get()
 
-> **get**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+> **get**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 Retrieves an object from the Helia database.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
 
 The CID of the object to retrieve.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 A Promise that resolves to the retrieved object, or undefined if not found.
 
@@ -232,14 +266,27 @@ A Promise that resolves to the retrieved object, or undefined if not found.
 
 ***
 
-### getBytes()
+### pin()
 
-> **getBytes**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+> **pin**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+Pins a block so Helia garbage collection cannot drop it. Used for foreign
+blocks (entries, identities) accepted during merge — they were fetched, not
+added, so they are unpinned by default and a locally persisted head would not
+survive GC without this (KNOWN_ISSUES.md D4).
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
+
+The CID of the block to pin.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+#### Implementation of
+
+[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`pin`](../../types/interfaces/HeliaStorageInterface.md#pin)

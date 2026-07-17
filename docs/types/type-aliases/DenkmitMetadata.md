@@ -1,23 +1,27 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / DenkmitMetadata
 
-# Type alias: DenkmitMetadata
+# Type Alias: DenkmitMetadata
 
-> **DenkmitMetadata**: `object`
+> **DenkmitMetadata** = `object`
 
-## Type declaration
+## Properties
 
 ### cid
 
 > `readonly` **cid**: `CID`
 
+***
+
 ### creator
 
 > `readonly` **creator**: `CID`
 
+***
+
 ### link?
 
-> `optional` `readonly` **link**: `CID`
+> `readonly` `optional` **link?**: `CID`

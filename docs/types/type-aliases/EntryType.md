@@ -1,13 +1,15 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / EntryType
 
-# Type alias: EntryType\<T\>
+# Type Alias: EntryType\<T\>
 
-> **EntryType**\<`T`\>: [`EntryData`](EntryData.md)\<`T`\> & [`DenkmitMetadata`](DenkmitMetadata.md)
+> **EntryType**\<`T`\> = [`EntryData`](EntryData.md)\<`T`\> & [`DenkmitMetadata`](DenkmitMetadata.md)
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
+
+`T`

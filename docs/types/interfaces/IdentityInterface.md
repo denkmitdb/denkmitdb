@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -24,7 +24,7 @@
 
 ### cid
 
-> `readonly` **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **cid**: `CID`
 
 #### Inherited from
 
@@ -34,7 +34,7 @@
 
 ### creator
 
-> `readonly` **creator**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **creator**: `CID`
 
 #### Inherited from
 
@@ -84,7 +84,7 @@
 
 ### link?
 
-> `optional` `readonly` **link**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
 #### Inherited from
 
@@ -94,15 +94,17 @@
 
 ### decrypt()
 
-> **decrypt**(`jwe`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+> **decrypt**(`jwe`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\<`ArrayBufferLike`\>\>
 
 #### Parameters
 
-• **jwe**: `FlattenedJWE`
+##### jwe
+
+`FlattenedJWE`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\<`ArrayBufferLike`\>\>
 
 ***
 
@@ -112,7 +114,9 @@
 
 #### Parameters
 
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+##### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
 
 #### Returns
 
@@ -126,21 +130,9 @@
 
 #### Parameters
 
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+##### data
 
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`FlattenedJWS`\>
-
-***
-
-### signWithoutPayload()
-
-> **signWithoutPayload**(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`FlattenedJWS`\>
-
-#### Parameters
-
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
 
 #### Returns
 
@@ -150,12 +142,14 @@
 
 ### verify()
 
-> **verify**(`jws`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+> **verify**(`jws`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\<`ArrayBufferLike`\> \| `undefined`\>
 
 #### Parameters
 
-• **jws**: `FlattenedJWSInput`
+##### jws
+
+`FlattenedJWSInput`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\<`ArrayBufferLike`\> \| `undefined`\>

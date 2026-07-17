@@ -1,31 +1,15 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / EntryData
 
-# Type alias: EntryData\<T\>
+# Type Alias: EntryData\<T\>
 
-> **EntryData**\<`T`\>: `object`
+> **EntryData**\<`T`\> = [`PutEntryData`](PutEntryData.md)\<`T`\> \| [`TombstoneEntryData`](TombstoneEntryData.md)
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
 
-## Type declaration
-
-### key
-
-> `readonly` **key**: `string`
-
-### timestamp
-
-> `readonly` **timestamp**: `number`
-
-### value
-
-> `readonly` **value**: `T`
-
-### version
-
-> `readonly` **version**: [`EntryVersionType`](EntryVersionType.md)
+`T`

@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,9 +6,11 @@
 
 # Class: Entry\<T\>
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
+
+`T`
 
 ## Implements
 
@@ -16,23 +18,25 @@
 
 ## Constructors
 
-### new Entry()
+### Constructor
 
-> **new Entry**\<`T`\>(`entry`): [`Entry`](Entry.md)\<`T`\>
+> **new Entry**\<`T`\>(`entry`): `Entry`\<`T`\>
 
 #### Parameters
 
-• **entry**: [`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`EntryData`](../../types/type-aliases/EntryData.md)\<`T`\>\>
+##### entry
+
+[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`EntryData`](../../types/type-aliases/EntryData.md)\<`T`\>\>
 
 #### Returns
 
-[`Entry`](Entry.md)\<`T`\>
+`Entry`\<`T`\>
 
 ## Properties
 
 ### cid
 
-> `readonly` **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **cid**: `CID`
 
 #### Implementation of
 
@@ -42,7 +46,7 @@
 
 ### creator
 
-> `readonly` **creator**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **creator**: `CID`
 
 #### Implementation of
 
@@ -70,16 +74,6 @@
 
 ***
 
-### value
-
-> `readonly` **value**: `T`
-
-#### Implementation of
-
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`value`](../../types/interfaces/EntryInterface.md#value)
-
-***
-
 ### version
 
 > `readonly` **version**: `1` = `ENTRY_VERSION`
@@ -90,13 +84,37 @@
 
 ***
 
+### deleted?
+
+> `readonly` `optional` **deleted?**: `boolean`
+
+True for tombstones.
+
+#### Implementation of
+
+[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`deleted`](../../types/interfaces/EntryInterface.md#deleted)
+
+***
+
 ### link?
 
-> `optional` `readonly` **link**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
 #### Implementation of
 
 [`EntryInterface`](../../types/interfaces/EntryInterface.md).[`link`](../../types/interfaces/EntryInterface.md#link)
+
+***
+
+### value?
+
+> `readonly` `optional` **value?**: `T`
+
+Present for puts; undefined for tombstones.
+
+#### Implementation of
+
+[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`value`](../../types/interfaces/EntryInterface.md#value)
 
 ## Methods
 

@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,14 +6,18 @@
 
 # Function: fetchHead()
 
-> **fetchHead**(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+> **fetchHead**(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
 
 ## Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+### cid
 
-• **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+`CID`
+
+### heliaController
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>

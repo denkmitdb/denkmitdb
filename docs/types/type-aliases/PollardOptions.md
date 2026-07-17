@@ -1,31 +1,37 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / PollardOptions
 
-# Type alias: PollardOptions
+# Type Alias: PollardOptions
 
-> **PollardOptions**: `object`
+> **PollardOptions** = `object`
 
-## Type declaration
+## Properties
 
 ### cid?
 
-> `optional` **cid**: `CID`
+> `optional` **cid?**: `CID`
 
-### hashFunc()?
+***
 
-> `optional` **hashFunc**: (`data`) => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
+### hashFunc?
+
+> `optional` **hashFunc?**: (`data`) => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
 
 #### Parameters
 
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+##### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
 
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
 
+***
+
 ### noUpdate?
 
-> `optional` **noUpdate**: `boolean`
+> `optional` **noUpdate?**: `boolean`

@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -14,7 +14,7 @@
 
 ### cid
 
-> `readonly` **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **cid**: `CID`
 
 #### Inherited from
 
@@ -64,7 +64,7 @@
 
 ### version
 
-> `readonly` **version**: `1`
+> `readonly` **version**: `2`
 
 #### Inherited from
 
@@ -78,7 +78,9 @@
 
 #### Parameters
 
-• **leaf**: [`LeafType`](../type-aliases/LeafType.md)
+##### leaf
+
+[`LeafType`](../type-aliases/LeafType.md)
 
 #### Returns
 
@@ -98,21 +100,131 @@
 
 ### append()
 
-> **append**(`type`, `data`, `options`?): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+#### Call Signature
 
-#### Parameters
+> **append**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
 
-• **type**: [`LeafTypes`](../enumerations/LeafTypes.md)
+##### Returns
 
-• **data**: `string` \| `CID`\<`unknown`, `number`, `number`, `Version`\> \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
 
-• **options?**
+#### Call Signature
 
-• **options.key?**: `string`
+> **append**(`type`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
 
-• **options.sortFields?**: `number`[]
+##### Parameters
 
-#### Returns
+###### type
+
+[`Empty`](../enumerations/LeafTypes.md#empty)
+
+##### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+#### Call Signature
+
+> **append**(`type`, `data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+##### Parameters
+
+###### type
+
+[`Hash`](../enumerations/LeafTypes.md#hash)
+
+###### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+
+##### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+#### Call Signature
+
+> **append**(`type`, `data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+##### Parameters
+
+###### type
+
+[`Pollard`](../enumerations/LeafTypes.md#pollard)
+
+###### data
+
+`CID`
+
+##### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+#### Call Signature
+
+> **append**(`type`, `data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+##### Parameters
+
+###### type
+
+[`Identity`](../enumerations/LeafTypes.md#identity)
+
+###### data
+
+`CID`
+
+##### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+#### Call Signature
+
+> **append**(`type`, `data`, `creator`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+##### Parameters
+
+###### type
+
+[`Entry`](../enumerations/LeafTypes.md#entry)
+
+###### data
+
+`CID`
+
+###### creator
+
+`CID`
+
+##### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+#### Call Signature
+
+> **append**(`type`, `data`, `creator`, `sort`, `key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
+
+##### Parameters
+
+###### type
+
+[`SortedEntry`](../enumerations/LeafTypes.md#sortedentry)
+
+###### data
+
+`CID`
+
+###### creator
+
+`CID`
+
+###### sort
+
+`number`[]
+
+###### key
+
+`string`
+
+##### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`boolean`\>
 
@@ -120,23 +232,17 @@
 
 ### compare()
 
-> **compare**(`other`?): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`object`\>
+> **compare**(`other?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../type-aliases/LeafType.md)[], [`LeafType`](../type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
 
 #### Parameters
 
-• **other?**: [`PollardInterface`](PollardInterface.md)
+##### other?
+
+`PollardInterface`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`object`\>
-
-##### difference
-
-> **difference**: [[`LeafType`](../type-aliases/LeafType.md)[], [`LeafType`](../type-aliases/LeafType.md)[]]
-
-##### isEqual
-
-> **isEqual**: `boolean`
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../type-aliases/LeafType.md)[], [`LeafType`](../type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
 
 ***
 
@@ -166,7 +272,9 @@
 
 #### Parameters
 
-• **index**: `number`
+##### index
+
+`number`
 
 #### Returns
 
@@ -180,9 +288,13 @@
 
 #### Parameters
 
-• **layer**: `number`
+##### layer
 
-• **index**: `number`
+`number`
+
+##### index
+
+`number`
 
 #### Returns
 
@@ -212,11 +324,11 @@
 
 ### iterator()
 
-> **iterator**(): [`Generator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Generator)\<[`LeafType`](../type-aliases/LeafType.md), `any`, `unknown`\>
+> **iterator**(): [`Generator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Generator)\<[`LeafType`](../type-aliases/LeafType.md)\>
 
 #### Returns
 
-[`Generator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Generator)\<[`LeafType`](../type-aliases/LeafType.md), `any`, `unknown`\>
+[`Generator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Generator)\<[`LeafType`](../type-aliases/LeafType.md)\>
 
 ***
 
@@ -232,11 +344,13 @@
 
 ### updateLayers()
 
-> **updateLayers**(`startPosition`?): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
+> **updateLayers**(`startPosition?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
 
 #### Parameters
 
-• **startPosition?**: `number`
+##### startPosition?
+
+`number`
 
 #### Returns
 

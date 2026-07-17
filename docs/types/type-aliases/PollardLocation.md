@@ -1,18 +1,20 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / PollardLocation
 
-# Type alias: PollardLocation
+# Type Alias: PollardLocation
 
-> **PollardLocation**: `object`
+> **PollardLocation** = `object`
 
-## Type declaration
+## Properties
 
 ### layerIndex
 
 > **layerIndex**: `number`
+
+***
 
 ### position
 

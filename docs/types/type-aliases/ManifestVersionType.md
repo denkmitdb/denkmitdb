@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / ManifestVersionType
 
-# Type alias: ManifestVersionType
+# Type Alias: ManifestVersionType
 
-> **ManifestVersionType**: *typeof* [`MANIFEST_VERSION`](../variables/MANIFEST_VERSION.md)
+> **ManifestVersionType** = *typeof* [`MANIFEST_VERSION`](../variables/MANIFEST_VERSION.md)

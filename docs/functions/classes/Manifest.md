@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -12,23 +12,25 @@
 
 ## Constructors
 
-### new Manifest()
+### Constructor
 
-> **new Manifest**(`manifest`): [`Manifest`](Manifest.md)
+> **new Manifest**(`manifest`): `Manifest`
 
 #### Parameters
 
-• **manifest**: [`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`ManifestData`](../../types/type-aliases/ManifestData.md)\>
+##### manifest
+
+[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`ManifestData`](../../types/type-aliases/ManifestData.md)\>
 
 #### Returns
 
-[`Manifest`](Manifest.md)
+`Manifest`
 
 ## Properties
 
 ### access
 
-> `readonly` **access**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **access**: `CID`
 
 The access controller CID of the database.
 
@@ -40,7 +42,7 @@ The access controller CID of the database.
 
 ### cid
 
-> `readonly` **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **cid**: `CID`
 
 #### Implementation of
 
@@ -50,7 +52,7 @@ The access controller CID of the database.
 
 ### consensus
 
-> `readonly` **consensus**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **consensus**: `CID`
 
 The consensus controller CID of the database.
 
@@ -62,7 +64,7 @@ The consensus controller CID of the database.
 
 ### creator
 
-> `readonly` **creator**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` **creator**: `CID`
 
 #### Implementation of
 
@@ -130,7 +132,7 @@ The version of the manifest.
 
 ### link?
 
-> `optional` `readonly` **link**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
 #### Implementation of
 
@@ -140,7 +142,7 @@ The version of the manifest.
 
 ### meta?
 
-> `optional` `readonly` **meta**: [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `unknown`\>
+> `readonly` `optional` **meta?**: [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `unknown`\>
 
 Additional metadata for the database.
 

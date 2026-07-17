@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -10,19 +10,25 @@
 
 Opens a Denkmit database.
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
+
+`T`
 
 The type of data stored in the database.
 
 ## Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+### cid
+
+`CID`
 
 The CID (Content Identifier) of the database.
 
-• **options**: [`DenkmitDatabaseOptions`](../../types/type-aliases/DenkmitDatabaseOptions.md)\<`T`\>
+### options
+
+[`DenkmitDatabaseOptions`](../../types/type-aliases/DenkmitDatabaseOptions.md)\<`T`\>
 
 The options for opening the database.
 

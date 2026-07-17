@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / IdentityType
 
-# Type alias: IdentityType
+# Type Alias: IdentityType
 
-> **IdentityType**: [`IdentityData`](IdentityData.md) & [`DenkmitMetadata`](DenkmitMetadata.md)
+> **IdentityType** = [`IdentityData`](IdentityData.md) & [`DenkmitMetadata`](DenkmitMetadata.md)

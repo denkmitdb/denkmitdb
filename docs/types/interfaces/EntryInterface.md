@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,13 +6,11 @@
 
 # Interface: EntryInterface\<T\>
 
-## Extends
+## Type Parameters
 
-- [`EntryType`](../type-aliases/EntryType.md)\<`T`\>
+### T
 
-## Type parameters
-
-• **T**
+`T`
 
 ## Properties
 
@@ -20,19 +18,11 @@
 
 > `readonly` **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
-#### Inherited from
-
-`EntryType.cid`
-
 ***
 
 ### creator
 
 > `readonly` **creator**: `CID`\<`unknown`, `number`, `number`, `Version`\>
-
-#### Inherited from
-
-`EntryType.creator`
 
 ***
 
@@ -40,29 +30,11 @@
 
 > `readonly` **key**: `string`
 
-#### Inherited from
-
-`EntryType.key`
-
 ***
 
 ### timestamp
 
 > `readonly` **timestamp**: `number`
-
-#### Inherited from
-
-`EntryType.timestamp`
-
-***
-
-### value
-
-> `readonly` **value**: `T`
-
-#### Inherited from
-
-`EntryType.value`
 
 ***
 
@@ -70,19 +42,27 @@
 
 > `readonly` **version**: `1`
 
-#### Inherited from
+***
 
-`EntryType.version`
+### deleted?
+
+> `readonly` `optional` **deleted?**: `boolean`
+
+True for tombstones.
 
 ***
 
 ### link?
 
-> `optional` `readonly` **link**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+> `readonly` `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
 
-#### Inherited from
+***
 
-`EntryType.link`
+### value?
+
+> `readonly` `optional` **value?**: `T`
+
+Present for puts; undefined for tombstones.
 
 ## Methods
 

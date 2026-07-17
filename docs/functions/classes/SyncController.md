@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -14,19 +14,23 @@ Represents a SyncController that handles synchronization operations.
 
 ## Constructors
 
-### new SyncController()
+### Constructor
 
-> **new SyncController**(`heliaController`, `name`): [`SyncController`](SyncController.md)
+> **new SyncController**(`heliaController`, `name`): `SyncController`
 
 #### Parameters
 
-• **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+##### heliaController
 
-• **name**: `string`
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+
+##### name
+
+`string`
 
 #### Returns
 
-[`SyncController`](SyncController.md)
+`SyncController`
 
 ## Properties
 
@@ -44,23 +48,25 @@ Represents a SyncController that handles synchronization operations.
 
 ### queue
 
-> **queue**: `default`\<`default`, `QueueAddOptions`\>
+> **queue**: `PQueue`
 
 ***
 
-### schdeduleQueue
+### scheduleQueue
 
-> **schdeduleQueue**: `default`\<`default`, `QueueAddOptions`\>
+> **scheduleQueue**: `PQueue`
 
 ***
 
-### newHead()?
+### newHead?
 
-> `optional` **newHead**: (`data`) => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> `optional` **newHead?**: (`data`) => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Parameters
 
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+##### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
 
 #### Returns
 
@@ -74,9 +80,13 @@ Represents a SyncController that handles synchronization operations.
 
 #### Parameters
 
-• **task**
+##### task
 
-• **interval**: `number`
+() => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+##### interval
+
+`number`
 
 #### Returns
 
@@ -94,7 +104,9 @@ Represents a SyncController that handles synchronization operations.
 
 #### Parameters
 
-• **task**
+##### task
+
+() => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Returns
 
@@ -126,11 +138,29 @@ Represents a SyncController that handles synchronization operations.
 
 #### Parameters
 
-• **message**: [`CustomEvent`](https://developer.mozilla.org/docs/Web/API/CustomEvent)\<`Message`\>
+##### message
+
+[`CustomEvent`](https://developer.mozilla.org/docs/Web/API/CustomEvent)\<`Message`\>
 
 #### Returns
 
 `void`
+
+***
+
+### onIdle()
+
+> **onIdle**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+Resolves when the task queue has drained.
+
+#### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+#### Implementation of
+
+[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`onIdle`](../../types/interfaces/SyncControllerInterface.md#onidle)
 
 ***
 
@@ -140,7 +170,9 @@ Represents a SyncController that handles synchronization operations.
 
 #### Parameters
 
-• **head**: [`HeadInterface`](../../types/interfaces/HeadInterface.md)
+##### head
+
+[`HeadType`](../../types/type-aliases/HeadType.md)
 
 #### Returns
 
@@ -158,7 +190,9 @@ Represents a SyncController that handles synchronization operations.
 
 #### Parameters
 
-• **newHead**
+##### newHead
+
+(`data`) => [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Returns
 

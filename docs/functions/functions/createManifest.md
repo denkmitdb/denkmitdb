@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -10,9 +10,13 @@
 
 ## Parameters
 
-• **manifest**: [`ManifestData`](../../types/type-aliases/ManifestData.md)
+### manifest
 
-• **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`ManifestData`](../../types/type-aliases/ManifestData.md)
+
+### heliaController
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
 
 ## Returns
 

@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / IdentityJWS
 
-# Type alias: IdentityJWS
+# Type Alias: IdentityJWS
 
-> **IdentityJWS**: `jose.FlattenedJWS`
+> **IdentityJWS** = `jose.FlattenedJWS`

@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -8,18 +8,38 @@
 
 > **createEntry**\<`T`\>(`key`, `value`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
 
-## Type parameters
+Creates a new entry with the specified key and value.
 
-• **T**
+## Type Parameters
+
+### T
+
+`T`
+
+The type of the value.
 
 ## Parameters
 
-• **key**: `string`
+### key
 
-• **value**: `T`
+`string`
 
-• **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+The key of the entry.
+
+### value
+
+`T`
+
+The value of the entry.
+
+### heliaController
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+
+The Helia controller interface.
 
 ## Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+
+A promise that resolves to the created entry.

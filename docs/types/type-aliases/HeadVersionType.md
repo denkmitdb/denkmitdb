@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / HeadVersionType
 
-# Type alias: HeadVersionType
+# Type Alias: HeadVersionType
 
-> **HeadVersionType**: *typeof* [`HEAD_VERSION`](../variables/HEAD_VERSION.md)
+> **HeadVersionType** = *typeof* [`HEAD_VERSION`](../variables/HEAD_VERSION.md)

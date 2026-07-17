@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -18,23 +18,27 @@ Represents a controller for interacting with the Helia storage, providing method
 
 ## Constructors
 
-### new HeliaController()
+### Constructor
 
-> **new HeliaController**(`helia`, `identity`): [`HeliaController`](HeliaController.md)
+> **new HeliaController**(`helia`, `identity`): `HeliaController`
 
 #### Parameters
 
-• **helia**: [`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+##### helia
 
-• **identity**: [`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+
+##### identity
+
+[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
 
 #### Returns
 
-[`HeliaController`](HeliaController.md)
+`HeliaController`
 
 #### Overrides
 
-[`HeliaStorage`](HeliaStorage.md).[`constructor`](HeliaStorage.md#constructors)
+[`HeliaStorage`](HeliaStorage.md).[`constructor`](HeliaStorage.md#constructor)
 
 ## Properties
 
@@ -64,53 +68,119 @@ Represents a controller for interacting with the Helia storage, providing method
 
 ### code
 
-> `get` `static` **code**(): `number`
+#### Get Signature
 
-#### Returns
+> **get** `static` **code**(): `number`
+
+##### Returns
 
 `number`
+
+#### Inherited from
+
+[`HeliaStorage`](HeliaStorage.md).[`code`](HeliaStorage.md#code)
 
 ***
 
 ### blockstore
 
-> `get` **blockstore**(): `Blocks`
+#### Get Signature
+
+> **get** **blockstore**(): `Blocks`
 
 Gets the blockstore.
 
-#### Returns
+##### Returns
 
 `Blocks`
 
 The blockstore.
 
+#### Inherited from
+
+[`HeliaStorage`](HeliaStorage.md).[`blockstore`](HeliaStorage.md#blockstore)
+
 ***
 
 ### datastore
 
-> `get` **datastore**(): `Datastore`\<`object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`\>
+#### Get Signature
+
+> **get** **datastore**(): `Datastore`\<\{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}\>
 
 Gets the datastore.
 
-#### Returns
+##### Returns
 
-`Datastore`\<`object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`\>
+`Datastore`\<\{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}, \{ \}\>
 
 The datastore.
+
+#### Implementation of
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`datastore`](../../types/interfaces/HeliaControllerInterface.md#datastore)
+
+#### Inherited from
+
+[`HeliaStorage`](HeliaStorage.md).[`datastore`](HeliaStorage.md#datastore)
+
+***
+
+### identityFetchCount
+
+#### Get Signature
+
+> **get** **identityFetchCount**(): `number`
+
+Count of identities actually fetched+verified (cache misses).
+
+##### Returns
+
+`number`
 
 ***
 
 ### libp2p
 
-> `get` **libp2p**(): [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
+#### Get Signature
+
+> **get** **libp2p**(): [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
 
 Gets the libp2p instance.
 
-#### Returns
+##### Returns
 
 [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
 
 The libp2p instance.
+
+#### Implementation of
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`libp2p`](../../types/interfaces/HeliaControllerInterface.md#libp2p)
+
+#### Inherited from
+
+[`HeliaStorage`](HeliaStorage.md).[`libp2p`](HeliaStorage.md#libp2p)
+
+***
+
+### logger
+
+#### Get Signature
+
+> **get** **logger**(): `ComponentLogger`
+
+Gets the logger instance.
+
+##### Returns
+
+`ComponentLogger`
+
+The logger instance.
+
+#### Inherited from
+
+[`HeliaStorage`](HeliaStorage.md).[`logger`](HeliaStorage.md#logger)
 
 ## Methods
 
@@ -120,15 +190,19 @@ The libp2p instance.
 
 Decodes the given Uint8Array data using the specified codec.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 The type of the decoded data.
 
 #### Parameters
 
-• **data**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+##### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
 
 The data to be decoded.
 
@@ -150,13 +224,17 @@ The decoded data.
 
 Encodes the given data into a Uint8Array.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 #### Parameters
 
-• **data**: `T`
+##### data
+
+`T`
 
 The data to be encoded.
 
@@ -180,7 +258,9 @@ Adds an object to the Helia database.
 
 #### Parameters
 
-• **data**: `unknown`
+##### data
+
+`unknown`
 
 The object to add.
 
@@ -200,75 +280,35 @@ A Promise that resolves to the CID of the added object.
 
 ***
 
-### addBytes()
-
-> **addBytes**(`buf`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
-
-#### Parameters
-
-• **buf**: [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
-
-#### Inherited from
-
-[`HeliaStorage`](HeliaStorage.md).[`addBytes`](HeliaStorage.md#addbytes)
-
-***
-
 ### addSigned()
 
-> **addSigned**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
+> **addSigned**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
 
-Adds the signed data to the database.
+Signs `data` with the local identity and stores the JWS as a dag-cbor block.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
 
-#### Parameters
-
-• **data**: [`OwnedDataType`](../../types/type-aliases/OwnedDataType.md)\<`T`\>
-
-The data to be added, along with the identity used for signing.
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
-
-The CID (Content Identifier) of the added data.
-
-#### Implementation of
-
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`addSigned`](../../types/interfaces/HeliaControllerInterface.md#addsigned)
-
-#### Throws
-
-Error if the identity is not provided.
-
-***
-
-### addSignedV2()
-
-> **addSignedV2**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
-
-#### Type parameters
-
-• **T**
+`T`
 
 #### Parameters
 
-• **data**: `T`
+##### data
+
+`T`
+
+The payload to sign and store.
 
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
 
+The stored payload with its CID and the signer's identity CID.
+
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`addSignedV2`](../../types/interfaces/HeliaControllerInterface.md#addsignedv2)
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`addSigned`](../../types/interfaces/HeliaControllerInterface.md#addsigned)
 
 ***
 
@@ -296,23 +336,27 @@ A Promise that resolves when the controller is closed.
 
 ### get()
 
-> **get**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+> **get**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 Retrieves an object from the Helia database.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
 
 The CID of the object to retrieve.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 A Promise that resolves to the retrieved object, or undefined if not found.
 
@@ -326,47 +370,34 @@ A Promise that resolves to the retrieved object, or undefined if not found.
 
 ***
 
-### getBytes()
-
-> **getBytes**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
-
-#### Parameters
-
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\>
-
-#### Inherited from
-
-[`HeliaStorage`](HeliaStorage.md).[`getBytes`](HeliaStorage.md#getbytes)
-
-***
-
 ### getSigned()
 
-> **getSigned**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`OwnedDataType`](../../types/type-aliases/OwnedDataType.md)\<`T`\>\>
+> **getSigned**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
 
-Retrieves a signed data object of type T from the specified CID.
+Fetches a JWS block, resolves and verifies the signer's identity (cached),
+and returns the decoded payload with its provenance.
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
 
-The type of the data object.
+`T`
+
+The type of the decoded payload.
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
 
-The CID of the data object.
+`CID`
+
+The CID of the signed block.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`OwnedDataType`](../../types/type-aliases/OwnedDataType.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
 
-A promise that resolves to the signed data object, or undefined if it doesn't exist or fails verification.
+The payload with CID and creator, or undefined if missing or invalid.
 
 #### Implementation of
 
@@ -374,22 +405,31 @@ A promise that resolves to the signed data object, or undefined if it doesn't ex
 
 ***
 
-### getSignedV2()
+### pin()
 
-> **getSignedV2**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
+> **pin**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
-#### Type parameters
-
-• **T**
+Pins a block so Helia garbage collection cannot drop it. Used for foreign
+blocks (entries, identities) accepted during merge — they were fetched, not
+added, so they are unpinned by default and a locally persisted head would not
+survive GC without this (KNOWN_ISSUES.md D4).
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
+
+The CID of the block to pin.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`getSignedV2`](../../types/interfaces/HeliaControllerInterface.md#getsignedv2)
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`pin`](../../types/interfaces/HeliaControllerInterface.md#pin)
+
+#### Inherited from
+
+[`HeliaStorage`](HeliaStorage.md).[`pin`](HeliaStorage.md#pin)

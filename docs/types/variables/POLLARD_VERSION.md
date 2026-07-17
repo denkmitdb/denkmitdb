@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -6,4 +6,4 @@
 
 # Variable: POLLARD\_VERSION
 
-> `const` **POLLARD\_VERSION**: `1` = `1`
+> `const` **POLLARD\_VERSION**: `2` = `2`

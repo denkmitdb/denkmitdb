@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -12,11 +12,15 @@ Creates a sync controller with the specified name and Helia controller.
 
 ## Parameters
 
-• **name**: `string`
+### name
+
+`string`
 
 The name of the sync controller.
 
-• **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+### heliaController
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
 
 The Helia controller to associate with the sync controller.
 

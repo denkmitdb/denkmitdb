@@ -1,16 +1,16 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / ManifestData
 
-# Type alias: ManifestData
+# Type Alias: ManifestData
 
-> **ManifestData**: `object`
+> **ManifestData** = `object`
 
 Represents the type of a Database manifest.
 
-## Type declaration
+## Properties
 
 ### access
 
@@ -18,11 +18,15 @@ Represents the type of a Database manifest.
 
 The access controller CID of the database.
 
+***
+
 ### consensus
 
 > `readonly` **consensus**: `CID`
 
 The consensus controller CID of the database.
+
+***
 
 ### name
 
@@ -30,15 +34,21 @@ The consensus controller CID of the database.
 
 The name of the database.
 
+***
+
 ### order
 
 > `readonly` **order**: `number`
 
 The Pollard order in the database.
 
+***
+
 ### timestamp
 
 > `readonly` **timestamp**: `number`
+
+***
 
 ### type
 
@@ -46,14 +56,18 @@ The Pollard order in the database.
 
 The type of the database.
 
+***
+
 ### version
 
 > `readonly` **version**: [`ManifestVersionType`](ManifestVersionType.md)
 
 The version of the manifest.
 
+***
+
 ### meta?
 
-> `optional` `readonly` **meta**: [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `unknown`\>
+> `readonly` `optional` **meta?**: [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `unknown`\>
 
 Additional metadata for the database.

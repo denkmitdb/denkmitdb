@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -12,23 +12,29 @@
 
 ## Constructors
 
-### new SortedItemsStore()
+### Constructor
 
-> **new SortedItemsStore**(): [`SortedItemsStore`](SortedItemsStore.md)
+> **new SortedItemsStore**(): `SortedItemsStore`
 
 #### Returns
 
-[`SortedItemsStore`](SortedItemsStore.md)
+`SortedItemsStore`
 
 ## Accessors
 
 ### size
 
-> `get` **size**(): `number`
+#### Get Signature
 
-#### Returns
+> **get** **size**(): `number`
+
+##### Returns
 
 `number`
+
+#### Implementation of
+
+[`SortedItemsStoreInterface`](../../types/interfaces/SortedItemsStoreInterface.md).[`size`](../../types/interfaces/SortedItemsStoreInterface.md#size)
 
 ## Methods
 
@@ -50,9 +56,15 @@
 
 > **find**(`sortField`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
 
+The index of the first record whose composite key is at or after
+`sortField` (interpreted as a timestamp lower bound). Used to locate where a
+tree rebuild must start. Returns `size` when nothing is at or after it.
+
 #### Parameters
 
-• **sortField**: `number`
+##### sortField
+
+`number`
 
 #### Returns
 
@@ -64,31 +76,15 @@
 
 ***
 
-### findPrevious()
-
-> **findPrevious**(`sortField`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
-
-#### Parameters
-
-• **sortField**: `number`
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
-
-#### Implementation of
-
-[`SortedItemsStoreInterface`](../../types/interfaces/SortedItemsStoreInterface.md).[`findPrevious`](../../types/interfaces/SortedItemsStoreInterface.md#findprevious)
-
-***
-
 ### getByIndex()
 
 > **getByIndex**(`index`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
 
 #### Parameters
 
-• **index**: `number`
+##### index
+
+`number`
 
 #### Returns
 
@@ -102,15 +98,17 @@
 
 ### getByKey()
 
-> **getByKey**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
+> **getByKey**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md) \| `undefined`\>
 
 #### Parameters
 
-• **key**: `string`
+##### key
+
+`string`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md) \| `undefined`\>
 
 #### Implementation of
 
@@ -120,11 +118,11 @@
 
 ### iterator()
 
-> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md), `any`, `unknown`\>
+> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
 
 #### Returns
 
-[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md), `any`, `unknown`\>
+[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
 
 #### Implementation of
 
@@ -132,39 +130,66 @@
 
 ***
 
-### iteratorFrom()
+### iteratorFromIndex()
 
-> **iteratorFrom**(`sortField`): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md), `any`, `unknown`\>
+> **iteratorFromIndex**(`startIndex`): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
+
+Iterates records in composite-key order starting at position `startIndex`.
 
 #### Parameters
 
-• **sortField**: `number`
+##### startIndex
+
+`number`
 
 #### Returns
 
-[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md), `any`, `unknown`\>
+[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../../types/type-aliases/SortedItemType.md)\>
 
 #### Implementation of
 
-[`SortedItemsStoreInterface`](../../types/interfaces/SortedItemsStoreInterface.md).[`iteratorFrom`](../../types/interfaces/SortedItemsStoreInterface.md#iteratorfrom)
+[`SortedItemsStoreInterface`](../../types/interfaces/SortedItemsStoreInterface.md).[`iteratorFromIndex`](../../types/interfaces/SortedItemsStoreInterface.md#iteratorfromindex)
 
 ***
 
 ### set()
 
-> **set**(`sortField`, `key`, `cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **set**(`sortField`, `key`, `cid`, `creator`, `deleted?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SetResult`](../../types/type-aliases/SetResult.md)\>
+
+Inserts a record for `key`, resolving conflicts by last-write-wins on the
+composite key (KNOWN_ISSUES.md #2). The winner is the record with the
+greatest `(timestamp, cid)`.
 
 #### Parameters
 
-• **sortField**: `number`
+##### sortField
 
-• **key**: `string`
+`number`
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### key
+
+`string`
+
+##### cid
+
+`CID`
+
+##### creator
+
+`CID`
+
+##### deleted?
+
+`boolean`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SetResult`](../../types/type-aliases/SetResult.md)\>
+
+`applied` — whether this record is now the live record for `key`.
+  When it wins over a previous record, `previousTimestamp` carries that
+  record's timestamp so callers can rebuild the tree from the earlier of
+  the two positions.
 
 #### Implementation of
 

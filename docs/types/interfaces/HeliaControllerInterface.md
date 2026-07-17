@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -14,7 +14,7 @@
 
 ### datastore
 
-> `readonly` **datastore**: `Datastore`\<`object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`, `object`\>
+> `readonly` **datastore**: `Datastore`
 
 #### Inherited from
 
@@ -54,7 +54,9 @@
 
 #### Parameters
 
-• **data**: `unknown`
+##### data
+
+`unknown`
 
 #### Returns
 
@@ -68,33 +70,19 @@
 
 ### addSigned()
 
-> **addSigned**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
+> **addSigned**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>\>
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
 
-#### Parameters
-
-• **data**: [`OwnedDataType`](../type-aliases/OwnedDataType.md)\<`T`\>
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`CID`\<`unknown`, `number`, `number`, `Version`\>\>
-
-***
-
-### addSignedV2()
-
-> **addSignedV2**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>\>
-
-#### Type parameters
-
-• **T**
+`T`
 
 #### Parameters
 
-• **data**: `T`
+##### data
+
+`T`
 
 #### Returns
 
@@ -118,19 +106,23 @@
 
 ### get()
 
-> **get**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+> **get**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 #### Inherited from
 
@@ -140,34 +132,40 @@
 
 ### getSigned()
 
-> **getSigned**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`OwnedDataType`](../type-aliases/OwnedDataType.md)\<`T`\>\>
+> **getSigned**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
 
-#### Type parameters
+#### Type Parameters
 
-• **T**
+##### T
+
+`T`
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`OwnedDataType`](../type-aliases/OwnedDataType.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
 
 ***
 
-### getSignedV2()
+### pin()
 
-> **getSignedV2**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>\>
-
-#### Type parameters
-
-• **T**
+> **pin**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+#### Inherited from
+
+[`HeliaStorageInterface`](HeliaStorageInterface.md).[`pin`](HeliaStorageInterface.md#pin)

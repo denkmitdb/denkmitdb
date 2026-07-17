@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / LeafType
 
-# Type alias: LeafType
+# Type Alias: LeafType
 
-> **LeafType**: [[`LeafTypes`](../enumerations/LeafTypes.md), [`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array), `number`[], `string`]
+> **LeafType** = [`EmptyLeaf`](EmptyLeaf.md) \| [`HashLeaf`](HashLeaf.md) \| [`PollardLeaf`](PollardLeaf.md) \| [`EntryLeaf`](EntryLeaf.md) \| [`IdentityLeaf`](IdentityLeaf.md) \| [`SortedEntryLeaf`](SortedEntryLeaf.md)

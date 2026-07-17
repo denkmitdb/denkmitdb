@@ -1,34 +1,44 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / HeadData
 
-# Type alias: HeadData
+# Type Alias: HeadData
 
-> **HeadData**: `object`
+> **HeadData** = `object`
 
-## Type declaration
+## Properties
 
 ### layers
 
 > `readonly` **layers**: `number`
 
+***
+
 ### manifest
 
 > `readonly` **manifest**: `CID`
+
+***
 
 ### root
 
 > `readonly` **root**: `CID`
 
+***
+
 ### size
 
 > `readonly` **size**: `number`
 
+***
+
 ### timestamp
 
 > `readonly` **timestamp**: `number`
+
+***
 
 ### version
 

@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -10,9 +10,13 @@
 
 ## Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+### cid
 
-• **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+`CID`
+
+### heliaController
+
+[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
 
 ## Returns
 

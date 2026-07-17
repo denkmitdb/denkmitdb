@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -30,21 +30,9 @@
 
 #### Parameters
 
-• **sortField**: `number`
+##### sortField
 
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
-
-***
-
-### findPrevious()
-
-> **findPrevious**(`sortField`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
-
-#### Parameters
-
-• **sortField**: `number`
+`number`
 
 #### Returns
 
@@ -58,7 +46,9 @@
 
 #### Parameters
 
-• **index**: `number`
+##### index
+
+`number`
 
 #### Returns
 
@@ -68,54 +58,72 @@
 
 ### getByKey()
 
-> **getByKey**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`SortedItemType`](../type-aliases/SortedItemType.md)\>
+> **getByKey**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../type-aliases/SortedItemType.md) \| `undefined`\>
 
 #### Parameters
 
-• **key**: `string`
+##### key
+
+`string`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`SortedItemType`](../type-aliases/SortedItemType.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SortedItemType`](../type-aliases/SortedItemType.md) \| `undefined`\>
 
 ***
 
 ### iterator()
 
-> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md), `any`, `unknown`\>
+> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
 
 #### Returns
 
-[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md), `any`, `unknown`\>
+[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
 
 ***
 
-### iteratorFrom()
+### iteratorFromIndex()
 
-> **iteratorFrom**(`sortField`): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md), `any`, `unknown`\>
+> **iteratorFromIndex**(`startIndex`): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
 
 #### Parameters
 
-• **sortField**: `number`
+##### startIndex
+
+`number`
 
 #### Returns
 
-[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md), `any`, `unknown`\>
+[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
 
 ***
 
 ### set()
 
-> **set**(`sortField`, `key`, `cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **set**(`sortField`, `key`, `cid`, `creator`, `deleted?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SetResult`](../type-aliases/SetResult.md)\>
 
 #### Parameters
 
-• **sortField**: `number`
+##### sortField
 
-• **key**: `string`
+`number`
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### key
+
+`string`
+
+##### cid
+
+`CID`
+
+##### creator
+
+`CID`
+
+##### deleted?
+
+`boolean`
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SetResult`](../type-aliases/SetResult.md)\>

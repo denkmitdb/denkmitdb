@@ -149,3 +149,75 @@ describe("Late-joiner head re-announcement (#21)", () => {
         expect(headB.root.equals(headA.root)).toBe(true);
     });
 });
+
+/**
+ * Release-hardening invariant (specs/ordering.md §7): two replicas that write the
+ * SAME key concurrently converge on the same winner and the same Merkle root after
+ * exchanging heads — regardless of delivery order, and even if the two writes land
+ * in the same millisecond (the entry-CID tie-break decides deterministically).
+ * Requires a publicWrite database so both identities may write.
+ */
+describe("Concurrent same-key convergence", () => {
+    let nodeA: TestNode;
+    let nodeB: TestNode;
+    let dbA: DenkmitDatabaseInterface<Value>;
+    let dbB: DenkmitDatabaseInterface<Value>;
+    let topic: string;
+
+    beforeAll(async () => {
+        nodeA = await createTestNode("conflict-a");
+        nodeB = await createTestNode("conflict-b");
+        await connectNodes(nodeA, nodeB);
+
+        dbA = await createDenkmitDatabase<Value>("conflict-test", {
+            helia: nodeA.helia,
+            identity: nodeA.identity,
+            publicWrite: true,
+        });
+        dbB = await openDenkmitDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
+        topic = syncTopic(dbA.address);
+
+        await waitFor(
+            () =>
+                nodeA.helia.libp2p.services.pubsub.getSubscribers(topic).length > 0 &&
+                nodeB.helia.libp2p.services.pubsub.getSubscribers(topic).length > 0,
+            { message: "pubsub subscription for the conflict topic" },
+        );
+    }, 60_000);
+
+    afterAll(async () => {
+        await dbA.close();
+        await dbB.close();
+        await nodeA.stop();
+        await nodeB.stop();
+    });
+
+    it("both replicas converge on one winner and one root", { timeout: 60_000 }, async () => {
+        // Concurrent conflicting writes to the same key on both replicas, before any
+        // head exchange.
+        await Promise.all([dbA.set("contested", { value: "from A" }), dbB.set("contested", { value: "from B" })]);
+        await Promise.all([dbA.idle(), dbB.idle()]);
+
+        // Cross-announce (both directions), then wait for the roots to agree.
+        await dbA.announceHead();
+        await dbB.announceHead();
+        await waitFor(
+            async () => {
+                await Promise.all([dbA.idle(), dbB.idle()]);
+                const [headA, headB] = await Promise.all([dbA.createHead(), dbB.createHead()]);
+                return headA.root.equals(headB.root);
+            },
+            { message: "replicas to converge on one Merkle root", timeout: 20_000 },
+        );
+
+        // Same winner on both sides — whichever it is, it must be identical.
+        const winnerA = await dbA.get("contested");
+        const winnerB = await dbB.get("contested");
+        expect(winnerA).toBeDefined();
+        expect(winnerA).toEqual(winnerB);
+
+        // Exactly one live record for the key on each replica.
+        expect(dbA.size).toBe(1);
+        expect(dbB.size).toBe(1);
+    });
+});

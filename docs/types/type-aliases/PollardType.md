@@ -1,34 +1,48 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / PollardType
 
-# Type alias: PollardType
+# Type Alias: PollardType
 
-> **PollardType**: `object`
+> **PollardType** = `object`
 
-## Type declaration
+## Extended by
+
+- [`PollardInterface`](../interfaces/PollardInterface.md)
+
+## Properties
 
 ### cid
 
 > `readonly` **cid**: `CID`
 
+***
+
 ### layers
 
 > `readonly` **layers**: [`LeafType`](LeafType.md)[][]
+
+***
 
 ### length
 
 > `readonly` **length**: `number`
 
+***
+
 ### maxLength
 
 > `readonly` **maxLength**: `number`
 
+***
+
 ### order
 
 > `readonly` **order**: `number`
+
+***
 
 ### version
 

@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -10,19 +10,25 @@
 
 Creates a Denkmit database with the specified name and options.
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
+
+`T`
 
 The type of data stored in the database.
 
 ## Parameters
 
-• **name**: `string`
+### name
+
+`string`
 
 The name of the database.
 
-• **options**: [`DenkmitDatabaseOptions`](../../types/type-aliases/DenkmitDatabaseOptions.md)\<`T`\>
+### options
+
+[`DenkmitDatabaseOptions`](../../types/type-aliases/DenkmitDatabaseOptions.md)\<`T`\>
 
 The options for configuring the database.
 

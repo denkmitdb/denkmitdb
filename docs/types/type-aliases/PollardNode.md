@@ -1,15 +1,15 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / PollardNode
 
-# Type alias: PollardNode
+# Type Alias: PollardNode
 
-> **PollardNode**: [`PollardLocation`](PollardLocation.md) & `object`
+> **PollardNode** = [`PollardLocation`](PollardLocation.md) & `object`
 
-## Type declaration
+## Type Declaration
 
 ### pollard?
 
-> `optional` **pollard**: [`PollardInterface`](../interfaces/PollardInterface.md)
+> `optional` **pollard?**: [`PollardInterface`](../interfaces/PollardInterface.md)

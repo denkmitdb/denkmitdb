@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -12,15 +12,21 @@ Opens an identity with the given name and passphrase.
 
 ## Parameters
 
-• **name**: `string`
+### name
+
+`string`
 
 The name of the identity to open.
 
-• **passphrase**: `string`
+### passphrase
+
+`string`
 
 The passphrase to decrypt the identity's private key.
 
-• **helia**: [`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+### helia
+
+[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
 
 The Helia instance used for data retrieval.
 

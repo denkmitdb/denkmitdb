@@ -1,9 +1,9 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
 [@denkmitdb/denkmitdb](../../modules.md) / [types](../README.md) / PollardVersionType
 
-# Type alias: PollardVersionType
+# Type Alias: PollardVersionType
 
-> **PollardVersionType**: *typeof* [`POLLARD_VERSION`](../variables/POLLARD_VERSION.md)
+> **PollardVersionType** = *typeof* [`POLLARD_VERSION`](../variables/POLLARD_VERSION.md)

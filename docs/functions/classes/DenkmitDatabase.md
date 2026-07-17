@@ -1,4 +1,4 @@
-[**@denkmitdb/denkmitdb**](../../README.md) • **Docs**
+[**@denkmitdb/denkmitdb**](../../README.md)
 
 ***
 
@@ -8,9 +8,11 @@
 
 Represents a Denkmit Database.
 
-## Type parameters
+## Type Parameters
 
-• **T**
+### T
+
+`T`
 
 The type of values stored in the database.
 
@@ -20,17 +22,19 @@ The type of values stored in the database.
 
 ## Constructors
 
-### new DenkmitDatabase()
+### Constructor
 
-> **new DenkmitDatabase**\<`T`\>(`mdb`): [`DenkmitDatabase`](DenkmitDatabase.md)\<`T`\>
+> **new DenkmitDatabase**\<`T`\>(`mdb`): `DenkmitDatabase`\<`T`\>
 
 #### Parameters
 
-• **mdb**: [`DenkmitDatabaseInput`](../../types/type-aliases/DenkmitDatabaseInput.md)\<`T`\>
+##### mdb
+
+[`DenkmitDatabaseInput`](../../types/type-aliases/DenkmitDatabaseInput.md)\<`T`\>
 
 #### Returns
 
-[`DenkmitDatabase`](DenkmitDatabase.md)\<`T`\>
+`DenkmitDatabase`\<`T`\>
 
 ## Properties
 
@@ -46,7 +50,7 @@ The type of values stored in the database.
 
 ### keyValueStorage
 
-> `readonly` **keyValueStorage**: `Keyv`\<`T`, [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `T`\>\>
+> `readonly` **keyValueStorage**: `Keyv`\<`T`\>
 
 #### Implementation of
 
@@ -86,51 +90,101 @@ The type of values stored in the database.
 
 ### address
 
-> `get` **address**(): `CID`\<`unknown`, `number`, `number`, `Version`\>
+#### Get Signature
+
+> **get** **address**(): `CID`
 
 Gets the address of the denkmitdb.
 
-#### Returns
+##### Returns
 
-`CID`\<`unknown`, `number`, `number`, `Version`\>
+`CID`
 
 The CID (Content Identifier) of the denkmitdb.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`address`](../../types/interfaces/DenkmitDatabaseInterface.md#address)
 
 ***
 
 ### identity
 
-> `get` **identity**(): [`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+#### Get Signature
 
-#### Returns
+> **get** **identity**(): [`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+
+##### Returns
 
 [`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`identity`](../../types/interfaces/DenkmitDatabaseInterface.md#identity)
 
 ***
 
 ### order
 
-> `get` **order**(): `number`
+#### Get Signature
+
+> **get** **order**(): `number`
 
 Gets the pollard order in the database.
 
-#### Returns
+##### Returns
 
 `number`
 
 The pollard order.
 
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`order`](../../types/interfaces/DenkmitDatabaseInterface.md#order)
+
 ***
 
 ### size
 
-> `get` **size**(): `number`
+#### Get Signature
 
-#### Returns
+> **get** **size**(): `number`
+
+The number of records currently in the sorted index.
+
+##### Returns
 
 `number`
 
+The number of records currently in the sorted index.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`size`](../../types/interfaces/DenkmitDatabaseInterface.md#size)
+
 ## Methods
+
+### announceHead()
+
+> **announceHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+Re-announces the current head on the sync topic even when the root has not
+changed. `sendHead()` only publishes on a root change, so a peer that connects
+after the last change-triggered announcement would otherwise never learn the
+head (KNOWN_ISSUES.md #21). Builds a head first if one exists but hasn't been
+created yet; no-op for an empty database.
+
+#### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+A promise that resolves once the head (if any) has been published.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`announceHead`](../../types/interfaces/DenkmitDatabaseInterface.md#announcehead)
+
+***
 
 ### close()
 
@@ -152,29 +206,23 @@ A promise that resolves when the DenkmitDB instance is closed.
 
 ### compare()
 
-> **compare**(`head`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`object`\>
+> **compare**(`head`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../../types/type-aliases/LeafType.md)[], [`LeafType`](../../types/type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
 
 Compares the specified head with the current head in the database.
 
 #### Parameters
 
-• **head**: [`HeadInterface`](../../types/interfaces/HeadInterface.md)
+##### head
+
+[`HeadType`](../../types/type-aliases/HeadType.md)
 
 The head to compare.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`object`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../../types/type-aliases/LeafType.md)[], [`LeafType`](../../types/type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
 
 A promise that resolves with an object containing the comparison result.
-
-##### difference
-
-> **difference**: [[`LeafType`](../../types/type-aliases/LeafType.md)[], [`LeafType`](../../types/type-aliases/LeafType.md)[]]
-
-##### isEqual
-
-> **isEqual**: `boolean`
 
 #### Implementation of
 
@@ -184,13 +232,13 @@ A promise that resolves with an object containing the comparison result.
 
 ### createHead()
 
-> **createHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+> **createHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
 
 Creates a new head for the database.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
 
 A promise that resolves with the newly created head.
 
@@ -202,11 +250,11 @@ A promise that resolves with the newly created head.
 
 ### createOnlyNewHead()
 
-> **createOnlyNewHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+> **createOnlyNewHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md) \| `undefined`\>
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| [`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md) \| `undefined`\>
 
 ***
 
@@ -216,7 +264,9 @@ A promise that resolves with the newly created head.
 
 #### Parameters
 
-• **sortKey**: `number`
+##### sortKey
+
+`number`
 
 #### Returns
 
@@ -224,21 +274,53 @@ A promise that resolves with the newly created head.
 
 ***
 
+### delete()
+
+> **delete**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+Deletes a key by writing a signed tombstone (specs/ordering.md): the tombstone
+participates in the same composite last-write-wins order as puts, hides the
+key from `get`/`iterator` while it wins, and a newer `set` resurrects the key.
+The record remains in the Merkle tree and replicates like any entry; no block
+garbage collection is performed.
+
+#### Parameters
+
+##### key
+
+`string`
+
+The key to delete.
+
+#### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+A promise that resolves when the tombstone is indexed.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`delete`](../../types/interfaces/DenkmitDatabaseInterface.md#delete)
+
+***
+
 ### fetchHead()
 
-> **fetchHead**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+> **fetchHead**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
 
 Fetches the head with the specified CID (Content Identifier) from the database.
 
 #### Parameters
 
-• **cid**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+##### cid
+
+`CID`
 
 The CID of the head to fetch.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadInterface`](../../types/interfaces/HeadInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
 
 A promise that resolves with the fetched head.
 
@@ -250,7 +332,7 @@ A promise that resolves with the fetched head.
 
 ### get()
 
-> **get**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+> **get**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 Retrieves the value associated with the specified key.
 If the value is found in the key-value storage, it is returned.
@@ -260,13 +342,15 @@ Finally, it returns the retrieved value.
 
 #### Parameters
 
-• **key**: `string`
+##### key
+
+`string`
 
 The key to retrieve the value for.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`undefined` \| `T`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 The value associated with the key, or undefined if not found.
 
@@ -320,7 +404,9 @@ A promise that resolves with the manifest.
 
 #### Parameters
 
-• **\_\_namedParameters**: [`PollardLocation`](../../types/type-aliases/PollardLocation.md)
+##### \_\_namedParameters
+
+[`PollardLocation`](../../types/type-aliases/PollardLocation.md)
 
 #### Returns
 
@@ -328,58 +414,34 @@ A promise that resolves with the manifest.
 
 ***
 
-### getPollardTreeNodeChildren()
+### idle()
 
-> **getPollardTreeNodeChildren**(`node`): [`PollardNode`](../../types/type-aliases/PollardNode.md)[]
+> **idle**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
-#### Parameters
-
-• **node**: [`PollardNode`](../../types/type-aliases/PollardNode.md)
-
-#### Returns
-
-[`PollardNode`](../../types/type-aliases/PollardNode.md)[]
-
-***
-
-### getPollardTreeNodeLeft()
-
-> **getPollardTreeNodeLeft**(`node`): [`PollardNode`](../../types/type-aliases/PollardNode.md)
-
-#### Parameters
-
-• **node**: [`PollardNode`](../../types/type-aliases/PollardNode.md)
+Resolves once queued background work (tree rebuilds, merges) has drained.
+Writes are indexed synchronously, but the Merkle tree is rebuilt on the sync
+queue; await this to observe a settled tree/head after `set` or a merge.
 
 #### Returns
 
-[`PollardNode`](../../types/type-aliases/PollardNode.md)
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
-***
+#### Implementation of
 
-### getPollardTreeNodeParent()
-
-> **getPollardTreeNodeParent**(`node`): [`PollardNode`](../../types/type-aliases/PollardNode.md)
-
-#### Parameters
-
-• **node**: [`PollardNode`](../../types/type-aliases/PollardNode.md)
-
-#### Returns
-
-[`PollardNode`](../../types/type-aliases/PollardNode.md)
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`idle`](../../types/interfaces/DenkmitDatabaseInterface.md#idle)
 
 ***
 
 ### iterator()
 
-> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`string`, `T`], `any`, `unknown`\>
+> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<\[`string`, `T`\]\>
 
 Returns an async iterator that yields key-value pairs from the DenkmitDB instance.
 The key-value pairs are retrieved from the sortedItemsStore and filtered based on the availability of the value.
 
 #### Returns
 
-[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`string`, `T`], `any`, `unknown`\>
+[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<\[`string`, `T`\]\>
 
 An async generator that yields key-value pairs.
 
@@ -397,7 +459,9 @@ Loads the data from the given head into the database.
 
 #### Parameters
 
-• **head**: [`HeadInterface`](../../types/interfaces/HeadInterface.md)
+##### head
+
+[`HeadType`](../../types/type-aliases/HeadType.md)
 
 The head interface containing the root bytes.
 
@@ -425,7 +489,9 @@ and creates a task to update the layers based on the smallest timestamp.
 
 #### Parameters
 
-• **head**: [`HeadInterface`](../../types/interfaces/HeadInterface.md)
+##### head
+
+[`HeadType`](../../types/type-aliases/HeadType.md)
 
 The head to be merged with the current state of the database.
 
@@ -445,9 +511,17 @@ A promise that resolves when the merge operation is completed.
 
 > **sendHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
+Publishes the current head (if the root changed) on the sync topic.
+
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+A promise that resolves once the head has been handed to the sync controller.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`sendHead`](../../types/interfaces/DenkmitDatabaseInterface.md#sendhead)
 
 ***
 
@@ -459,11 +533,15 @@ Sets the value of a key in the database.
 
 #### Parameters
 
-• **key**: `string`
+##### key
+
+`string`
 
 The key to set.
 
-• **value**: `T`
+##### value
+
+`T`
 
 The value to set for the key.
 
@@ -485,7 +563,9 @@ A promise that resolves when the operation is complete.
 
 #### Parameters
 
-• **node**: [`PollardNode`](../../types/type-aliases/PollardNode.md)
+##### node
+
+[`PollardNode`](../../types/type-aliases/PollardNode.md)
 
 #### Returns
 
@@ -509,15 +589,28 @@ A Promise that resolves when the setup is complete.
 
 ### syncNewHead()
 
-> **syncNewHead**(`message`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **syncNewHead**(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+Handles an incoming head announcement (the encoded CID of a peer's head),
+queuing a load or merge of that head into this database.
 
 #### Parameters
 
-• **message**: [`CustomEvent`](https://developer.mozilla.org/docs/Web/API/CustomEvent)\<`Message`\>
+##### data
+
+[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)
+
+The encoded CID bytes received on the sync topic.
 
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+A promise that resolves once the task has been enqueued.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`syncNewHead`](../../types/interfaces/DenkmitDatabaseInterface.md#syncnewhead)
 
 ***
 
@@ -527,7 +620,9 @@ A Promise that resolves when the setup is complete.
 
 #### Parameters
 
-• **sortKey**: `number`
+##### sortKey
+
+`number`
 
 #### Returns
 
