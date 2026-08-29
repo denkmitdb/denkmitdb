@@ -127,6 +127,7 @@ After installation, you can start using DenkMitDB by following these steps:
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Data model, the pollard Merkle tree, write/read paths, sync protocol, trust model |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Verified bugs (several pinned by failing tests) and open design concerns |
 | [ROADMAP.md](ROADMAP.md) | Where the project is going: spec → correctness → upgrades → features → v2.0.0 |
+| [VISION.md](VISION.md) | Post-v2 strategy: verifiable shared memory for AI agents — the MCP server as the product |
 | [specs/ordering.md](specs/ordering.md) | Accepted v2 spec: composite sort key, last-write-wins, format versioning |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [CODEX_REVIEW.md](CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
