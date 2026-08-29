@@ -161,7 +161,7 @@ server.registerTool(
         annotations: { readOnlyHint: true },
     },
     async () => {
-        const peers = node.helia.libp2p.getPeers().map((p) => p.toString());
+        const peers = node.helia.libp2p.getPeers().map((p: { toString(): string }) => p.toString());
         return okJson({
             databaseAddress: db.address.toString(),
             databaseName: (await db.getManifest()).name,

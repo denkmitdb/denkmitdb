@@ -6,18 +6,18 @@
 
 # Function: createPolicy()
 
-> **createPolicy**(`consensus`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../../types/interfaces/PolicyInterface.md)\>
+> **createPolicy**(`consensus`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../interfaces/PolicyInterface.md)\>
 
 ## Parameters
 
 ### consensus
 
-[`PolicyData`](../../types/type-aliases/PolicyData.md)
+[`PolicyData`](../type-aliases/PolicyData.md)
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../../types/interfaces/PolicyInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../interfaces/PolicyInterface.md)\>

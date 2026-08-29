@@ -6,7 +6,7 @@
 
 # Function: createEmptyPollard()
 
-> **createEmptyPollard**(`order`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PollardInterface`](../../types/interfaces/PollardInterface.md)\>
+> **createEmptyPollard**(`order`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PollardInterface`](../interfaces/PollardInterface.md)\>
 
 Creates an empty Pollard with the specified order.
 
@@ -20,6 +20,6 @@ The order of the Pollard.
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PollardInterface`](../../types/interfaces/PollardInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PollardInterface`](../interfaces/PollardInterface.md)\>
 
 A Promise that resolves to a PollardInterface representing the empty Pollard.

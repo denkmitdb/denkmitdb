@@ -1,10 +1,54 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **helia 6 → 7 (breaking, pre-publish).** `DenkmitHeliaInterface` is now
+  `Helia & { libp2p: DenkmitLibp2pType }` and callers construct the node
+  themselves via the helia 7 mixins:
+  `withBitswap(withLibp2pLight(createHeliaLight({ codecs: [dagCbor] }), {…libp2p config…}))`
+  followed by `await node.start()` (`createHelia` is sync in 7; `helia.stop()`
+  stops the embedded libp2p). The library now depends on `@helia/interface`
+  rather than `helia`. Rode along: multiformats 14, `@ipld/dag-cbor` 10,
+  `@helia/dag-cbor` 6, interface-datastore unpinned at 10 (the 9.0.3 pnpm
+  override is gone); mcp moved to blockstore-fs 4 / datastore-fs 12. See
+  `examples/example.ts` for the new construction shape.
+
+### Fixed
+
+- **[Critical] The database hung permanently once its tree needed three layers
+  (KNOWN_ISSUES.md #22).** `updateLayers` reused one pollard accumulator across all
+  upper layers, so a partially-filled pollard was aliased into the layer above and
+  appended its own CID into itself; pinning the resulting self-referential block
+  never returned, and `db.idle()` never resolved. Triggered by size alone — the 65th
+  entry at the default `order: 3`, the 17th at `order: 2`. Affects `v2.0.0`.
+- **[High] Pinning ignored the 30 s write deadline (KNOWN_ISSUES.md #23).**
+  `HeliaStorage.add()`/`pin()` now pass the abort signal to `pins.add`, so an
+  unresolvable link fails instead of blocking forever.
+- **Test coverage:** `test/scale.test.ts` exercises multi-layer trees for the first
+  time — three- and four-layer builds, cross-layer pollard aliasing, and two-node
+  convergence over a three-layer tree.
+
+### Added
+
+- **`mcp/` — denkmit-mcp (prototype).** An MCP stdio server exposing the database
+  as shared, signed agent memory: `memory_set/get/delete/list/provenance/status`,
+  per-agent identities and data directories, mdns local peer discovery, and an
+  end-to-end smoke test (real MCP client over stdio) wired into CI.
+- **Additive API:** `DenkmitDatabase.provenance(key)` (entry CID, writer, timestamp,
+  tombstone flag); the package entry now re-exports the full public type surface.
+
 All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [2.0.0] — 2026-07-17
+
+The correctness/security release. Everything below happened between v1.0.0 and
+v2.0.0 across the phases in [ROADMAP.md](ROADMAP.md); the wire format is v2
+(`HEAD_VERSION`/`POLLARD_VERSION` = 2, composite-key ordering) and is **not**
+interoperable with v1 (which was never installable). Requires Node 22+.
 
 ### Phase 4 — access control, identity cache, persistence, delete, step-1 fixes
 

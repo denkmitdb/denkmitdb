@@ -3,8 +3,11 @@ import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import { identify } from "@libp2p/identify";
 import { tcp } from "@libp2p/tcp";
-import { createHelia } from "helia";
-import { createLibp2p, Libp2p } from "libp2p";
+import { withBitswap } from "@helia/bitswap";
+import { withLibp2pLight } from "@helia/libp2p";
+import * as dagCborCodec from "@ipld/dag-cbor";
+import { createHeliaLight } from "helia";
+import { Libp2p } from "libp2p";
 import { CID } from "multiformats/cid";
 import {
     createEmptyPollard,
@@ -33,17 +36,24 @@ export type TestNode = {
  * libp2p transport bound to localhost, plus a fresh identity.
  */
 export async function createTestNode(name: string): Promise<TestNode> {
-    const libp2p = await createLibp2p({
-        addresses: { listen: ["/ip4/127.0.0.1/tcp/0"] },
-        transports: [tcp()],
-        connectionEncrypters: [noise()],
-        streamMuxers: [yamux()],
-        services: {
-            identify: identify(),
-            pubsub: floodsub({ emitSelf: true }),
-        },
-    });
-    const helia = (await createHelia({ libp2p })) as unknown as DenkmitHeliaInterface;
+    // helia 7 shape: a light Helia (in-memory stores, dag-cbor codec) with the
+    // libp2p and bitswap mixins layered on. `withLibp2pLight` takes the exact
+    // libp2p config (no defaults merged) and exposes it as `helia.libp2p`;
+    // `helia.start()`/`stop()` manage the embedded libp2p.
+    const node = withBitswap(
+        withLibp2pLight(createHeliaLight({ codecs: [dagCborCodec] }), {
+            addresses: { listen: ["/ip4/127.0.0.1/tcp/0"] },
+            transports: [tcp()],
+            connectionEncrypters: [noise()],
+            streamMuxers: [yamux()],
+            services: {
+                identify: identify(),
+                pubsub: floodsub({ emitSelf: true }),
+            },
+        }),
+    );
+    await node.start();
+    const helia = node as unknown as DenkmitHeliaInterface;
     const identity = await createIdentity(name, "test-passphrase", helia);
 
     return {
@@ -51,7 +61,6 @@ export async function createTestNode(name: string): Promise<TestNode> {
         identity,
         stop: async () => {
             await helia.stop();
-            await libp2p.stop();
         },
     };
 }

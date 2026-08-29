@@ -1,4 +1,5 @@
 import { DAGCBOR, dagCbor } from "@helia/dag-cbor";
+import type { ComponentLogger } from "@libp2p/interface";
 import * as codec from "@ipld/dag-cbor";
 import drain from "it-drain";
 import * as jose from "jose";
@@ -85,7 +86,10 @@ export class HeliaStorage implements HeliaStorageInterface {
      * Gets the logger instance.
      * @returns The logger instance.
      */
-    get logger() {
+    get logger(): ComponentLogger {
+        // Explicit annotation: helia 7's logger type lives in a transitive package
+        // (birnam), which declaration emit cannot reference portably; the
+        // @libp2p/interface ComponentLogger shape is what callers consume.
         return this.helia.logger;
     }
 

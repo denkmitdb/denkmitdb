@@ -1,0 +1,37 @@
+[**@denkmitdb/denkmitdb**](../../README.md)
+
+***
+
+[@denkmitdb/denkmitdb](../../modules.md) / [functions](../README.md) / DataTypes
+
+# Enumeration: DataTypes
+
+## Enumeration Members
+
+### Entry
+
+> **Entry**: `0`
+
+***
+
+### Head
+
+> **Head**: `4`
+
+***
+
+### Identity
+
+> **Identity**: `2`
+
+***
+
+### Manifest
+
+> **Manifest**: `3`
+
+***
+
+### Pollard
+
+> **Pollard**: `1`

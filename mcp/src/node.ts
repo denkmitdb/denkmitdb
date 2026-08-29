@@ -8,14 +8,16 @@ import {
     openIdentity,
 } from "@denkmitdb/denkmitdb";
 import type { DenkmitDatabaseInterface, DenkmitHeliaInterface, IdentityInterface } from "@denkmitdb/denkmitdb";
+import { withBitswap } from "@helia/bitswap";
+import { withLibp2pLight } from "@helia/libp2p";
+import * as dagCborCodec from "@ipld/dag-cbor";
 import { floodsub } from "@libp2p/floodsub";
 import { identify } from "@libp2p/identify";
 import { mdns } from "@libp2p/mdns";
 import { tcp } from "@libp2p/tcp";
 import { FsBlockstore } from "blockstore-fs";
 import { FsDatastore } from "datastore-fs";
-import { createHelia } from "helia";
-import { createLibp2p } from "libp2p";
+import { createHeliaLight } from "helia";
 import { CID } from "multiformats/cid";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -73,23 +75,33 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
     const dir = join(config.dataDir, config.identityName);
     await mkdir(dir, { recursive: true });
 
-    const libp2p = await createLibp2p({
-        addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
-        transports: [tcp()],
-        connectionEncrypters: [noise()],
-        streamMuxers: [yamux()],
-        peerDiscovery: [mdns()],
-        services: {
-            identify: identify(),
-            pubsub: floodsub({ emitSelf: true }),
-        },
-    });
-
-    const helia = (await createHelia({
-        libp2p,
-        blockstore: new FsBlockstore(join(dir, "blocks")),
-        datastore: new FsDatastore(join(dir, "data")),
-    })) as unknown as DenkmitHeliaInterface;
+    // helia 7: a light Helia over the filesystem stores with the libp2p and
+    // bitswap mixins. withLibp2pLight passes the config verbatim to createLibp2p
+    // (defaulting its datastore to Helia's, so the peer store persists too) and
+    // exposes the node as helia.libp2p; start()/stop() manage both.
+    const node = withBitswap(
+        withLibp2pLight(
+            createHeliaLight({
+                codecs: [dagCborCodec],
+                blockstore: new FsBlockstore(join(dir, "blocks")),
+                datastore: new FsDatastore(join(dir, "data")),
+            }),
+            {
+                addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
+                transports: [tcp()],
+                connectionEncrypters: [noise()],
+                streamMuxers: [yamux()],
+                peerDiscovery: [mdns()],
+                services: {
+                    identify: identify(),
+                    pubsub: floodsub({ emitSelf: true }),
+                },
+            },
+        ),
+    );
+    await node.start();
+    const helia = node as unknown as DenkmitHeliaInterface;
+    const libp2p = helia.libp2p;
 
     const identity = (await hasIdentity(config.identityName, helia))
         ? await openIdentity(config.identityName, config.passphrase, helia)
@@ -171,8 +183,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         stop: async () => {
             clearInterval(rendezvousTimer);
             await db.close();
-            await helia.stop();
-            await libp2p.stop();
+            await helia.stop(); // stops the embedded libp2p via the mixin
         },
     };
 }

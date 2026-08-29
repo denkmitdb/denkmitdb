@@ -6,7 +6,7 @@
 
 # Function: createIdentity()
 
-> **createIdentity**(`name`, `passphrase`, `helia`, `alg?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+> **createIdentity**(`name`, `passphrase`, `helia`, `alg?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../interfaces/IdentityInterface.md)\>
 
 Creates a new identity with the given name and passphrase.
 
@@ -26,19 +26,19 @@ The passphrase to encrypt the identity's private key.
 
 ### helia
 
-[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+[`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 The Helia instance used for data storage.
 
 ### alg?
 
-[`IdentityAlgorithms`](../../types/type-aliases/IdentityAlgorithms.md)
+[`IdentityAlgorithms`](../type-aliases/IdentityAlgorithms.md)
 
 The algorithm to use for key generation.
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../interfaces/IdentityInterface.md)\>
 
 A Promise that resolves to the created IdentityInterface.
 

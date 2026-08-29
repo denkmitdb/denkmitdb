@@ -12,11 +12,11 @@
 
 ### leaf1
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ### leaf2
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Returns
 

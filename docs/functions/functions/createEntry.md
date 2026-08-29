@@ -6,7 +6,7 @@
 
 # Function: createEntry()
 
-> **createEntry**\<`T`\>(`key`, `value`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+> **createEntry**\<`T`\>(`key`, `value`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>\>
 
 Creates a new entry with the specified key and value.
 
@@ -34,12 +34,12 @@ The value of the entry.
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 The Helia controller interface.
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>\>
 
 A promise that resolves to the created entry.
