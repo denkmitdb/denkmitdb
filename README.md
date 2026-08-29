@@ -39,6 +39,24 @@ DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://git
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together.
 
+## 📈 Performance
+
+`node scripts/bench.mjs 10000` on one developer machine (Node 24, in-memory
+stores, single writer, ~40-byte values — orders of magnitude, not SLAs):
+
+| Operation | per-op | ops/s |
+|---|---:|---:|
+| `set()` — sign + index + Merkle rebuild (coalesced) | 4.1 ms | ~245 |
+| `get()` warm (cache) | 0.007 ms | ~144,000 |
+| `get()` cold (blockstore fetch + JWS verify) | 1.1 ms | ~890 |
+| `keys()` full walk (10k keys) | 0.001 ms | ~730,000 |
+| Reopen from persisted head (10k records, restore + reindex) | 0.55 ms | ~1,800 |
+| Full replication to a fresh peer (verify + index + rebuild) | 14.3 ms | ~70 |
+
+Bulk replication is the known wall (fetch-latency-bound and superlinear at
+depth; see ROADMAP.md — batch sync and the persisted materialized index are the
+follow-ups).
+
 ## 💾 Installation
 
 To set up DenkMitDB, follow these steps:

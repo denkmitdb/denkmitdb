@@ -14,16 +14,17 @@ to other agents holding a replica, resolves conflicts deterministically
 | `memory_set` | Store a JSON value under a key (signed, replicated) |
 | `memory_get` | Read the current value for a key |
 | `memory_delete` | Delete a key (signed tombstone; a later set resurrects) |
-| `memory_list` | List entries in write order, optional key prefix + limit |
+| `memory_list` | List entries in write order, optional key prefix + limit (reports `truncated`) |
 | `memory_provenance` | Who wrote the current record for a key, and when |
 | `memory_status` | Database address, identity, record count, connected peers |
 
 ## Setup
 
+The repo is a pnpm workspace — installing at the root covers `mcp/`:
+
 ```bash
-cd mcp
 pnpm install
-pnpm build
+cd mcp && pnpm build
 ```
 
 ### Claude Code
