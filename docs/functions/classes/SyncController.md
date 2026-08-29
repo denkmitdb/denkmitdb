@@ -10,7 +10,7 @@ Represents a SyncController that handles synchronization operations.
 
 ## Implements
 
-- [`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md)
+- [`SyncControllerInterface`](../interfaces/SyncControllerInterface.md)
 
 ## Constructors
 
@@ -22,7 +22,7 @@ Represents a SyncController that handles synchronization operations.
 
 ##### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ##### name
 
@@ -36,7 +36,7 @@ Represents a SyncController that handles synchronization operations.
 
 ### heliaController
 
-> **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+> **heliaController**: [`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ***
 
@@ -94,7 +94,7 @@ Represents a SyncController that handles synchronization operations.
 
 #### Implementation of
 
-[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`addRepetitiveTask`](../../types/interfaces/SyncControllerInterface.md#addrepetitivetask)
+[`SyncControllerInterface`](../interfaces/SyncControllerInterface.md).[`addRepetitiveTask`](../interfaces/SyncControllerInterface.md#addrepetitivetask)
 
 ***
 
@@ -114,7 +114,7 @@ Represents a SyncController that handles synchronization operations.
 
 #### Implementation of
 
-[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`addTask`](../../types/interfaces/SyncControllerInterface.md#addtask)
+[`SyncControllerInterface`](../interfaces/SyncControllerInterface.md).[`addTask`](../interfaces/SyncControllerInterface.md#addtask)
 
 ***
 
@@ -128,7 +128,7 @@ Represents a SyncController that handles synchronization operations.
 
 #### Implementation of
 
-[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`close`](../../types/interfaces/SyncControllerInterface.md#close)
+[`SyncControllerInterface`](../interfaces/SyncControllerInterface.md).[`close`](../interfaces/SyncControllerInterface.md#close)
 
 ***
 
@@ -160,7 +160,7 @@ Resolves when the task queue has drained.
 
 #### Implementation of
 
-[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`onIdle`](../../types/interfaces/SyncControllerInterface.md#onidle)
+[`SyncControllerInterface`](../interfaces/SyncControllerInterface.md).[`onIdle`](../interfaces/SyncControllerInterface.md#onidle)
 
 ***
 
@@ -172,7 +172,7 @@ Resolves when the task queue has drained.
 
 ##### head
 
-[`HeadType`](../../types/type-aliases/HeadType.md)
+[`HeadType`](../type-aliases/HeadType.md)
 
 #### Returns
 
@@ -180,7 +180,7 @@ Resolves when the task queue has drained.
 
 #### Implementation of
 
-[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`sendHead`](../../types/interfaces/SyncControllerInterface.md#sendhead)
+[`SyncControllerInterface`](../interfaces/SyncControllerInterface.md).[`sendHead`](../interfaces/SyncControllerInterface.md#sendhead)
 
 ***
 
@@ -200,4 +200,4 @@ Resolves when the task queue has drained.
 
 #### Implementation of
 
-[`SyncControllerInterface`](../../types/interfaces/SyncControllerInterface.md).[`start`](../../types/interfaces/SyncControllerInterface.md#start)
+[`SyncControllerInterface`](../interfaces/SyncControllerInterface.md).[`start`](../interfaces/SyncControllerInterface.md#start)

@@ -6,7 +6,7 @@
 
 # Function: fetchPolicy()
 
-> **fetchPolicy**(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../../types/interfaces/PolicyInterface.md)\>
+> **fetchPolicy**(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../interfaces/PolicyInterface.md)\>
 
 ## Parameters
 
@@ -16,8 +16,8 @@
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../../types/interfaces/PolicyInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`PolicyInterface`](../interfaces/PolicyInterface.md)\>

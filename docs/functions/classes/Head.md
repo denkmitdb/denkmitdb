@@ -8,7 +8,7 @@
 
 ## Implements
 
-- [`HeadInterface`](../../types/type-aliases/HeadInterface.md)
+- [`HeadInterface`](../type-aliases/HeadInterface.md)
 
 ## Constructors
 
@@ -20,7 +20,7 @@
 
 ##### head
 
-[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`HeadData`](../../types/type-aliases/HeadData.md)\>
+[`DenkmitData`](../type-aliases/DenkmitData.md)\<[`HeadData`](../type-aliases/HeadData.md)\>
 
 #### Returns
 

@@ -131,6 +131,32 @@ late-joiner integration tests (`test/sync.integration.test.ts`) — one pins the
 change-gated behavior, one proves re-announcement converges. The durable-pointer
 half (a reader with *no* live data-holding peer at all) remains D8.
 
+### 22. ✅ [Critical] Multi-layer tree rebuild aliased one layer's pollard into the next
+`updateLayers` created the upper-layer accumulator **once**, before the loop over
+layers, instead of once per layer. When a layer ended with a partially-filled
+pollard, `handlePollardCreation` saw `isFree() === true` and did not replace it, so
+the next layer up kept appending into the *same object already stored at*
+`layers[layerIndex - 1][last]` — including that pollard's own CID. The resulting
+self-referential block made recursive pinning walk a cycle and never return, so
+`db.idle()` never resolved and every later write and merge queued behind it forever.
+
+Triggered by database size alone, at the first count needing a third layer:
+**65 entries at the default `order: 3`** (17 at `order: 2`). Present in `v2.0.0`.
+**Fixed:** the accumulator is created fresh at the top of each layer iteration.
+Covered by `test/scale.test.ts` — three- and four-layer trees, an assertion that no
+pollard instance appears in two layers, and two-node convergence over a three-layer
+tree (the first test in the suite to exercise `compareNodes` recursion through
+intermediate layers at all).
+
+### 23. ✅ [High] Pinning ignored the write deadline
+`HeliaStorage.add()` passed its 30 s `TimeoutController` signal to
+`heliaDagCbor.add` but not to `drain(this.helia.pins.add(cid))`; `pin()` had no
+deadline at all. Recursive pinning walks the DAG and blocks on any link it cannot
+resolve locally, so an unresolvable link waited forever instead of failing. This is
+what turned #22 into a silent hang rather than a timeout, and it is reachable on its
+own whenever a pinned tree references a block that is not held locally.
+**Fixed:** both paths pass the abort signal.
+
 ## Packaging & tooling
 
 - **✅ [Fixed 0.5] Broken ESM output** — NodeNext resolution with explicit `.js`

@@ -6,18 +6,18 @@
 
 # Function: createManifest()
 
-> **createManifest**(`manifest`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../../types/interfaces/ManifestInterface.md)\>
+> **createManifest**(`manifest`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../interfaces/ManifestInterface.md)\>
 
 ## Parameters
 
 ### manifest
 
-[`ManifestData`](../../types/type-aliases/ManifestData.md)
+[`ManifestData`](../type-aliases/ManifestData.md)
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../../types/interfaces/ManifestInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../interfaces/ManifestInterface.md)\>

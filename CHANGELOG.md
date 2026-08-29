@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **helia 6 → 7 (breaking, pre-publish).** `DenkmitHeliaInterface` is now
+  `Helia & { libp2p: DenkmitLibp2pType }` and callers construct the node
+  themselves via the helia 7 mixins:
+  `withBitswap(withLibp2pLight(createHeliaLight({ codecs: [dagCbor] }), {…libp2p config…}))`
+  followed by `await node.start()` (`createHelia` is sync in 7; `helia.stop()`
+  stops the embedded libp2p). The library now depends on `@helia/interface`
+  rather than `helia`. Rode along: multiformats 14, `@ipld/dag-cbor` 10,
+  `@helia/dag-cbor` 6, interface-datastore unpinned at 10 (the 9.0.3 pnpm
+  override is gone); mcp moved to blockstore-fs 4 / datastore-fs 12. See
+  `examples/example.ts` for the new construction shape.
+
 ### Fixed
 
 - **[Critical] The database hung permanently once its tree needed three layers

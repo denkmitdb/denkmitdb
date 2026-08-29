@@ -8,7 +8,7 @@
 
 ## Implements
 
-- [`ManifestInterface`](../../types/interfaces/ManifestInterface.md)
+- [`ManifestInterface`](../interfaces/ManifestInterface.md)
 
 ## Constructors
 
@@ -20,7 +20,7 @@
 
 ##### manifest
 
-[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`ManifestData`](../../types/type-aliases/ManifestData.md)\>
+[`DenkmitData`](../type-aliases/DenkmitData.md)\<[`ManifestData`](../type-aliases/ManifestData.md)\>
 
 #### Returns
 
@@ -36,7 +36,7 @@ The access controller CID of the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`access`](../../types/interfaces/ManifestInterface.md#access)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`access`](../interfaces/ManifestInterface.md#access)
 
 ***
 
@@ -46,7 +46,7 @@ The access controller CID of the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`cid`](../../types/interfaces/ManifestInterface.md#cid)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`cid`](../interfaces/ManifestInterface.md#cid)
 
 ***
 
@@ -58,7 +58,7 @@ The consensus controller CID of the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`consensus`](../../types/interfaces/ManifestInterface.md#consensus)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`consensus`](../interfaces/ManifestInterface.md#consensus)
 
 ***
 
@@ -68,7 +68,7 @@ The consensus controller CID of the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`creator`](../../types/interfaces/ManifestInterface.md#creator)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`creator`](../interfaces/ManifestInterface.md#creator)
 
 ***
 
@@ -80,7 +80,7 @@ The name of the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`name`](../../types/interfaces/ManifestInterface.md#name)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`name`](../interfaces/ManifestInterface.md#name)
 
 ***
 
@@ -92,7 +92,7 @@ The Pollard order in the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`order`](../../types/interfaces/ManifestInterface.md#order)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`order`](../interfaces/ManifestInterface.md#order)
 
 ***
 
@@ -102,7 +102,7 @@ The Pollard order in the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`timestamp`](../../types/interfaces/ManifestInterface.md#timestamp)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`timestamp`](../interfaces/ManifestInterface.md#timestamp)
 
 ***
 
@@ -114,7 +114,7 @@ The type of the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`type`](../../types/interfaces/ManifestInterface.md#type)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`type`](../interfaces/ManifestInterface.md#type)
 
 ***
 
@@ -126,7 +126,7 @@ The version of the manifest.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`version`](../../types/interfaces/ManifestInterface.md#version)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`version`](../interfaces/ManifestInterface.md#version)
 
 ***
 
@@ -136,7 +136,7 @@ The version of the manifest.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`link`](../../types/interfaces/ManifestInterface.md#link)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`link`](../interfaces/ManifestInterface.md#link)
 
 ***
 
@@ -148,21 +148,21 @@ Additional metadata for the database.
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`meta`](../../types/interfaces/ManifestInterface.md#meta)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`meta`](../interfaces/ManifestInterface.md#meta)
 
 ## Methods
 
 ### toJSON()
 
-> **toJSON**(): [`ManifestData`](../../types/type-aliases/ManifestData.md)
+> **toJSON**(): [`ManifestData`](../type-aliases/ManifestData.md)
 
 #### Returns
 
-[`ManifestData`](../../types/type-aliases/ManifestData.md)
+[`ManifestData`](../type-aliases/ManifestData.md)
 
 #### Implementation of
 
-[`ManifestInterface`](../../types/interfaces/ManifestInterface.md).[`toJSON`](../../types/interfaces/ManifestInterface.md#tojson)
+[`ManifestInterface`](../interfaces/ManifestInterface.md).[`toJSON`](../interfaces/ManifestInterface.md#tojson)
 
 ***
 

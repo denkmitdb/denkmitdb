@@ -14,7 +14,7 @@
 
 ## Implements
 
-- [`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>
+- [`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>
 
 ## Constructors
 
@@ -26,7 +26,7 @@
 
 ##### entry
 
-[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`EntryData`](../../types/type-aliases/EntryData.md)\<`T`\>\>
+[`DenkmitData`](../type-aliases/DenkmitData.md)\<[`EntryData`](../type-aliases/EntryData.md)\<`T`\>\>
 
 #### Returns
 
@@ -40,7 +40,7 @@
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`cid`](../../types/interfaces/EntryInterface.md#cid)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`cid`](../interfaces/EntryInterface.md#cid)
 
 ***
 
@@ -50,7 +50,7 @@
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`creator`](../../types/interfaces/EntryInterface.md#creator)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`creator`](../interfaces/EntryInterface.md#creator)
 
 ***
 
@@ -60,7 +60,7 @@
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`key`](../../types/interfaces/EntryInterface.md#key)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`key`](../interfaces/EntryInterface.md#key)
 
 ***
 
@@ -70,7 +70,7 @@
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`timestamp`](../../types/interfaces/EntryInterface.md#timestamp)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`timestamp`](../interfaces/EntryInterface.md#timestamp)
 
 ***
 
@@ -80,7 +80,7 @@
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`version`](../../types/interfaces/EntryInterface.md#version)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`version`](../interfaces/EntryInterface.md#version)
 
 ***
 
@@ -92,7 +92,7 @@ True for tombstones.
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`deleted`](../../types/interfaces/EntryInterface.md#deleted)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`deleted`](../interfaces/EntryInterface.md#deleted)
 
 ***
 
@@ -102,7 +102,7 @@ True for tombstones.
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`link`](../../types/interfaces/EntryInterface.md#link)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`link`](../interfaces/EntryInterface.md#link)
 
 ***
 
@@ -114,18 +114,18 @@ Present for puts; undefined for tombstones.
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`value`](../../types/interfaces/EntryInterface.md#value)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`value`](../interfaces/EntryInterface.md#value)
 
 ## Methods
 
 ### toJSON()
 
-> **toJSON**(): [`EntryData`](../../types/type-aliases/EntryData.md)\<`T`\>
+> **toJSON**(): [`EntryData`](../type-aliases/EntryData.md)\<`T`\>
 
 #### Returns
 
-[`EntryData`](../../types/type-aliases/EntryData.md)\<`T`\>
+[`EntryData`](../type-aliases/EntryData.md)\<`T`\>
 
 #### Implementation of
 
-[`EntryInterface`](../../types/interfaces/EntryInterface.md).[`toJSON`](../../types/interfaces/EntryInterface.md#tojson)
+[`EntryInterface`](../interfaces/EntryInterface.md).[`toJSON`](../interfaces/EntryInterface.md#tojson)

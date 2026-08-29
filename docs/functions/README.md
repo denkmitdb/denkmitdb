@@ -6,6 +6,12 @@
 
 # functions
 
+## Enumerations
+
+- [DataTypes](enumerations/DataTypes.md)
+- [IdentityTypes](enumerations/IdentityTypes.md)
+- [LeafTypes](enumerations/LeafTypes.md)
+
 ## Classes
 
 - [DenkmitDatabase](classes/DenkmitDatabase.md)
@@ -18,9 +24,77 @@
 - [SortedItemsStore](classes/SortedItemsStore.md)
 - [SyncController](classes/SyncController.md)
 
+## Interfaces
+
+- [DenkmitDatabaseInterface](interfaces/DenkmitDatabaseInterface.md)
+- [DenkmitDataInterface](interfaces/DenkmitDataInterface.md)
+- [EntryInterface](interfaces/EntryInterface.md)
+- [HeliaControllerInterface](interfaces/HeliaControllerInterface.md)
+- [HeliaStorageInterface](interfaces/HeliaStorageInterface.md)
+- [IdentityInterface](interfaces/IdentityInterface.md)
+- [ManifestInterface](interfaces/ManifestInterface.md)
+- [PolicyInterface](interfaces/PolicyInterface.md)
+- [PollardInterface](interfaces/PollardInterface.md)
+- [SortedItemsStoreInterface](interfaces/SortedItemsStoreInterface.md)
+- [SyncControllerInterface](interfaces/SyncControllerInterface.md)
+
 ## Type Aliases
 
+- [ConsensusType](type-aliases/ConsensusType.md)
+- [DataType](type-aliases/DataType.md)
+- [DenkmitData](type-aliases/DenkmitData.md)
+- [DenkmitDatabaseInput](type-aliases/DenkmitDatabaseInput.md)
+- [DenkmitDatabaseOptions](type-aliases/DenkmitDatabaseOptions.md)
+- [DenkmitDatabaseType](type-aliases/DenkmitDatabaseType.md)
+- [DenkmitHeliaInterface](type-aliases/DenkmitHeliaInterface.md)
+- [DenkmitLibp2pType](type-aliases/DenkmitLibp2pType.md)
+- [DenkmitMetadata](type-aliases/DenkmitMetadata.md)
+- [EmptyLeaf](type-aliases/EmptyLeaf.md)
+- [EntryData](type-aliases/EntryData.md)
+- [EntryLeaf](type-aliases/EntryLeaf.md)
+- [EntryType](type-aliases/EntryType.md)
+- [EntryVersionType](type-aliases/EntryVersionType.md)
+- [HashLeaf](type-aliases/HashLeaf.md)
+- [HeadData](type-aliases/HeadData.md)
+- [HeadInterface](type-aliases/HeadInterface.md)
+- [HeadType](type-aliases/HeadType.md)
+- [HeadVersionType](type-aliases/HeadVersionType.md)
+- [IdentityAlgorithms](type-aliases/IdentityAlgorithms.md)
+- [IdentityData](type-aliases/IdentityData.md)
+- [IdentityJWS](type-aliases/IdentityJWS.md)
+- [IdentityLeaf](type-aliases/IdentityLeaf.md)
+- [IdentityType](type-aliases/IdentityType.md)
+- [IdentityVersionType](type-aliases/IdentityVersionType.md)
+- [KeyPair](type-aliases/KeyPair.md)
+- [LeafType](type-aliases/LeafType.md)
+- [ManifestData](type-aliases/ManifestData.md)
+- [ManifestType](type-aliases/ManifestType.md)
+- [ManifestVersionType](type-aliases/ManifestVersionType.md)
+- [PolicyData](type-aliases/PolicyData.md)
 - [PolicyInput](type-aliases/PolicyInput.md)
+- [PolicyVersionType](type-aliases/PolicyVersionType.md)
+- [PollardInput](type-aliases/PollardInput.md)
+- [PollardLeaf](type-aliases/PollardLeaf.md)
+- [PollardLocation](type-aliases/PollardLocation.md)
+- [PollardNode](type-aliases/PollardNode.md)
+- [PollardOptions](type-aliases/PollardOptions.md)
+- [PollardType](type-aliases/PollardType.md)
+- [PollardVersionType](type-aliases/PollardVersionType.md)
+- [PutEntryData](type-aliases/PutEntryData.md)
+- [SetResult](type-aliases/SetResult.md)
+- [SortedEntryLeaf](type-aliases/SortedEntryLeaf.md)
+- [SortedItemType](type-aliases/SortedItemType.md)
+- [TombstoneEntryData](type-aliases/TombstoneEntryData.md)
+
+## Variables
+
+- [DENKMITDB\_PREFIX](variables/DENKMITDB_PREFIX.md)
+- [ENTRY\_VERSION](variables/ENTRY_VERSION.md)
+- [HEAD\_VERSION](variables/HEAD_VERSION.md)
+- [IDENTITY\_VERSION](variables/IDENTITY_VERSION.md)
+- [MANIFEST\_VERSION](variables/MANIFEST_VERSION.md)
+- [POLICY\_VERSION](variables/POLICY_VERSION.md)
+- [POLLARD\_VERSION](variables/POLLARD_VERSION.md)
 
 ## Functions
 

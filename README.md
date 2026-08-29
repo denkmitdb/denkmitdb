@@ -66,27 +66,29 @@ After installation, you can start using DenkMitDB by following these steps:
     import { yamux } from "@chainsafe/libp2p-yamux";
     import { identify } from "@libp2p/identify";
     import { tcp } from "@libp2p/tcp";
-    import { createHelia } from "helia";
-    import { createLibp2p } from "libp2p";
+    import { withBitswap } from "@helia/bitswap";
+    import { withLibp2pLight } from "@helia/libp2p";
+    import * as dagCbor from "@ipld/dag-cbor";
+    import { createHeliaLight } from "helia";
     import { createDenkmitDatabase, createIdentity } from "@denkmitdb/denkmitdb";
     ```
 
-2. **Initialize libp2p & Helia**:
+2. **Initialize Helia (with the libp2p and bitswap mixins)**:
 
     ```typescript
-    const libp2pOptions = {
-        addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
-        transports: [tcp()],
-        connectionEncrypters: [noise()],
-        streamMuxers: [yamux()],
-        services: {
-            identify: identify(),
-            pubsub: floodsub({ emitSelf: true }),
-        },
-    };
-
-    const libp2p = await createLibp2p(libp2pOptions);
-    const helia = await createHelia({ libp2p });
+    const helia = withBitswap(
+        withLibp2pLight(createHeliaLight({ codecs: [dagCbor] }), {
+            addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
+            transports: [tcp()],
+            connectionEncrypters: [noise()],
+            streamMuxers: [yamux()],
+            services: {
+                identify: identify(),
+                pubsub: floodsub({ emitSelf: true }),
+            },
+        }),
+    );
+    await helia.start();
     ```
 
 3. **Create new Database Identity and new Database**:
@@ -117,7 +119,7 @@ After installation, you can start using DenkMitDB by following these steps:
 6. **Close Database**
     ```typescript
     await db.close();
-    await helia.stop();
+    await helia.stop(); // also stops the embedded libp2p
     ```
 
 ## 📚 Documentation

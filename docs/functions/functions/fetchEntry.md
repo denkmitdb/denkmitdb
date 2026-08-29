@@ -6,7 +6,7 @@
 
 # Function: fetchEntry()
 
-> **fetchEntry**\<`T`\>(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+> **fetchEntry**\<`T`\>(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>\>
 
 Fetches an entry from the database based on the given CID.
 
@@ -28,13 +28,13 @@ The CID of the entry to fetch.
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 The Helia controller instance.
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>\>
 
 - A promise that resolves to the fetched entry.
 

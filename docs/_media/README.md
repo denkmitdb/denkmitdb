@@ -1,167 +1,111 @@
-**@denkmitdb/denkmitdb**
+# denkmit-mcp
 
-***
+An [MCP](https://modelcontextprotocol.io) stdio server that exposes
+[DenkMitDB](https://github.com/denkmitdb/denkmitdb) as **shared, signed,
+peer-to-peer agent memory**. Any MCP-capable agent (Claude Code, Codex, …) gets a
+key-value memory where every write is signed by the agent's identity, replicates
+to other agents holding a replica, resolves conflicts deterministically
+(last-write-wins), and can be traced back to who wrote it and when.
 
-# 🧰 DenkMitDB
+## Tools
 
-<!-- all-shields/header-badges:START -->
-
-[![v1.0.0](https://img.shields.io/badge/version-v1.0.0-lightgray.svg?style=flat&logo=)](https://github.com/denkmitdb/denkmitdb/blob/main/CHANGELOG.md) [![License: MIT](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat&logo=license)](https://github.com/denkmitdb/denkmitdb/blob/main/LICENSE) [![Language: TypeScript](https://img.shields.io/badge/language-typescript-blue.svg?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-
-<!-- all-shields/header-badges:END -->
-
-[![CI](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml)
-
-DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over libp2p pubsub and diffing Merkle trees to fetch only what they are missing.
-
-> ⚠️ **Status: experimental, approaching v2.** Databases are **creator-only by
-> default** (only the creating identity may write; `publicWrite: true` opts into a
-> world-writable database), every merged entry is signature-verified before
-> indexing, records can be deleted via signed tombstones, and a database reopens
-> its own last state without a live peer. Remaining pre-release work (API freeze,
-> hardening) is tracked in [ROADMAP.md](_media/ROADMAP.md); open items in
-> [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md).
-
-## 🎁 Support: Donate
-
-> This project is **free**, **open source** and I try to provide excellent **free support**. Why donate? I work on this project several hours in my spare time and try to keep it up to date and working. **THANK YOU!**
-
-<!-- all-shields/sponsors-badges:START -->
-
-[![Donate Bitcoin](https://img.shields.io/badge/BTC-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-E38B29.svg?style=flat-square&logo=bitcoin)]()
-
-<!-- all-shields/sponsors-badges:END -->
-
-## 💡 Features
-
--   **Distributed storage**: all state lives in IPFS as signed, content-addressed dag-cbor blocks.
--   **Efficient replication**: peers exchange one head CID and Merkle-diff their trees, so sync cost scales with the difference, not the database size.
--   **Signed writes**: every entry is a JWS tied to a self-certifying identity (its CID).
--   **Access control**: a deterministic [json-logic](https://jsonlogic.com/) policy in the manifest — creator-only by default, world-writable by explicit opt-in — enforced on local writes and merged entries alike.
--   **Delete**: signed tombstones in the same last-write-wins order as puts; a newer write resurrects the key.
--   **Restart durability**: the last head is persisted and re-validated on open, so a node recovers its own state without a live peer.
-
-See [ARCHITECTURE.md](_media/ARCHITECTURE.md) for how the pieces fit together.
-
-## 💾 Installation
-
-To set up DenkMitDB, follow these steps:
-
-1. **Install module**:
-
-    ```bash
-    npm install --save @denkmitdb/denkmitdb
-    ```
-
-2. **Install dependencies**:
-    ```bash
-    npm install
-    ```
-
-## 🚀 Usage
-
-After installation, you can start using DenkMitDB by following these steps:
-
-1. **Import modules**:
-
-    ```typescript
-    import { floodsub } from "@libp2p/floodsub";
-    import { noise } from "@chainsafe/libp2p-noise";
-    import { yamux } from "@chainsafe/libp2p-yamux";
-    import { identify } from "@libp2p/identify";
-    import { tcp } from "@libp2p/tcp";
-    import { createHelia } from "helia";
-    import { createLibp2p } from "libp2p";
-    import { createDenkmitDatabase, createIdentity } from "@denkmitdb/denkmitdb";
-    ```
-
-2. **Initialize libp2p & Helia**:
-
-    ```typescript
-    const libp2pOptions = {
-        addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
-        transports: [tcp()],
-        connectionEncrypters: [noise()],
-        streamMuxers: [yamux()],
-        services: {
-            identify: identify(),
-            pubsub: floodsub({ emitSelf: true }),
-        },
-    };
-
-    const libp2p = await createLibp2p(libp2pOptions);
-    const helia = await createHelia({ libp2p });
-    ```
-
-3. **Create new Database Identity and new Database**:
-
-    ```typescript
-    const identity = await createIdentity("user", "password", helia);
-
-    const db = await createDenkmitDatabase("test", { helia, identity });
-    console.log("Database address: ", db.id);
-    ```
-
-4. **Add new data to Database**:
-
-    ```typescript
-    await db.set("key1", { value: "value1" });
-    await db.set("key2", { value: "value2" });
-
-    for await (const e of db.iterator()) {
-        console.log(e);
-    }
-    ```
-
-5. **Retrieve data from Database**:
-    ```typescript
-    const value1 = await db.get("key1");
-    console.log("Value 1: ", value1);
-    ```
-6. **Close Database**
-    ```typescript
-    await db.close();
-    await helia.stop();
-    ```
-
-## 📚 Documentation
-
-| Document | Contents |
+| Tool | Purpose |
 |---|---|
-| [ARCHITECTURE.md](_media/ARCHITECTURE.md) | Data model, the pollard Merkle tree, write/read paths, sync protocol, trust model |
-| [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) | Verified bugs (several pinned by failing tests) and open design concerns |
-| [ROADMAP.md](_media/ROADMAP.md) | Where the project is going: spec → correctness → upgrades → features → v2.0.0 |
-| [specs/ordering.md](_media/ordering.md) | Accepted v2 spec: composite sort key, last-write-wins, format versioning |
-| [CHANGELOG.md](_media/CHANGELOG.md) | Release history |
-| [CODEX_REVIEW.md](_media/CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
-| [PHASE_PRIORITIES.md](_media/PHASE_PRIORITIES.md) | Independent prioritization review of the remaining Phase 4 work (July 2026) |
-| [docs/](_media/README.md) | Generated API reference (typedoc) |
+| `memory_set` | Store a JSON value under a key (signed, replicated) |
+| `memory_get` | Read the current value for a key |
+| `memory_delete` | Delete a key (signed tombstone; a later set resurrects) |
+| `memory_list` | List entries in write order, optional key prefix + limit |
+| `memory_provenance` | Who wrote the current record for a key, and when |
+| `memory_status` | Database address, identity, record count, connected peers |
 
-## 🛠️ Development
+## Setup
 
 ```bash
-corepack enable        # provides the pinned pnpm version
+cd mcp
 pnpm install
-pnpm test              # vitest: unit + integration (real libp2p nodes over TCP)
-pnpm lint              # eslint over src, test, examples and configs
-pnpm typecheck         # tsc over tests/configs (tsconfig.test.json)
 pnpm build
-pnpm test:package      # packs the tarball and smoke-imports the packed code
 ```
 
-Notes:
+### Claude Code
 
--   Tests marked `it.fails` document known bugs (see [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md)); when you fix one, flip its test to a normal `it`.
--   Requires **Node 22+** (helia 5 uses `Promise.withResolvers`). CI runs lint, typecheck, build, tests, and the package smoke test on Node 22 and 24 for every push and pull request.
+```bash
+claude mcp add denkmit \
+  --env DENKMIT_IDENTITY=claude \
+  --env DENKMIT_PASSPHRASE='choose-a-secret' \
+  -- node /path/to/denkmitdb/mcp/dist/index.js
+```
 
-## 👨‍💻 Contributing
+Or in `.mcp.json`:
 
-We welcome contributions! Please fork the repository and submit pull requests. For major changes, please open an issue to discuss what you would like to change. Good starting points are the items in [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) with test pins.
+```json
+{
+    "mcpServers": {
+        "denkmit": {
+            "command": "node",
+            "args": ["/path/to/denkmitdb/mcp/dist/index.js"],
+            "env": {
+                "DENKMIT_IDENTITY": "claude",
+                "DENKMIT_PASSPHRASE": "choose-a-secret"
+            }
+        }
+    }
+}
+```
 
-## 💫 License
+### Sharing memory between agents
 
-This project is licensed under the MIT License. See the [LICENSE](_media/LICENSE) file for details.
+Each agent runs its **own** server process with its **own identity** (and its own
+data directory — derived automatically from the identity name). To share one
+memory:
 
-## 🦄 Contact
+1. Start the first agent's server; it creates the database and logs its address
+   (also visible via `memory_status` → `databaseAddress`).
+2. Give every other agent that address via `DENKMIT_DB`, e.g. for Codex:
 
-For more information, please contact the project maintainer at [askar@zhakenov.pro](mailto:askar@zhakenov.pro).
+```toml
+# ~/.codex/config.toml
+[mcp_servers.denkmit]
+command = "node"
+args = ["/path/to/denkmitdb/mcp/dist/index.js"]
+env = { DENKMIT_IDENTITY = "codex", DENKMIT_PASSPHRASE = "another-secret", DENKMIT_DB = "<address>" }
+```
+
+Servers on the same machine that share a `DENKMIT_DATADIR` root find each other
+via a **file rendezvous** (each advertises its listen addresses under the data
+root and dials its siblings — works even where mdns multicast is blocked); mdns
+additionally discovers LAN peers where multicast works, and remote peers can be
+dialed explicitly via `DENKMIT_PEERS`.
+
+> **First join:** the first time an agent opens a database by address, a peer
+> holding the data must be reachable (the manifest travels over bitswap). After
+> that the agent persists its own replica and reopens it with no peers online.
+
+> **Write access:** databases are **creator-only by default** — other agents can
+> read/replicate but their writes are rejected. For a fleet where every agent
+> writes, create the database with `DENKMIT_PUBLIC_WRITE=true` (any identity may
+> write; provenance still attributes every record to its writer).
+
+## Configuration
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `DENKMIT_DATADIR` | `~/.denkmit-mcp` | Root data directory (per-identity subdirs) |
+| `DENKMIT_IDENTITY` | `agent` | Identity name (also namespaces the data dir) |
+| `DENKMIT_PASSPHRASE` | insecure dev default | Encrypts the signing key at rest — set it |
+| `DENKMIT_DB` | — | Database address to open; absent → create once and remember |
+| `DENKMIT_DB_NAME` | `agent-memory` | Name when creating |
+| `DENKMIT_PUBLIC_WRITE` | `false` | Created database accepts writes from any identity |
+| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial |
+
+State (blocks, identity key, head pointer) persists in the data directory, so an
+agent's memory survives restarts even with no peers online.
+
+## Notes
+
+- Prototype status: local stdio for personal/team use. If this graduates to
+  distribution, the sanctioned path is an MCPB bundle (runtime included).
+- `pnpm smoke` runs an end-to-end test (real MCP client over stdio against a
+  throwaway data directory); `node dist/smoke-sync.js` runs a two-agent
+  replication test (two server processes, rendezvous discovery, bidirectional
+  sync with provenance) — kept out of CI because it exercises timing-sensitive
+  peer discovery.

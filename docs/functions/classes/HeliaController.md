@@ -14,7 +14,7 @@ Represents a controller for interacting with the Helia storage, providing method
 
 ## Implements
 
-- [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+- [`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ## Constructors
 
@@ -26,11 +26,11 @@ Represents a controller for interacting with the Helia storage, providing method
 
 ##### helia
 
-[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+[`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 ##### identity
 
-[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+[`IdentityInterface`](../interfaces/IdentityInterface.md)
 
 #### Returns
 
@@ -44,11 +44,11 @@ Represents a controller for interacting with the Helia storage, providing method
 
 ### helia
 
-> `readonly` **helia**: [`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+> `readonly` **helia**: [`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`helia`](../../types/interfaces/HeliaControllerInterface.md#helia)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`helia`](../interfaces/HeliaControllerInterface.md#helia)
 
 #### Inherited from
 
@@ -58,11 +58,11 @@ Represents a controller for interacting with the Helia storage, providing method
 
 ### identity
 
-> `readonly` **identity**: [`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+> `readonly` **identity**: [`IdentityInterface`](../interfaces/IdentityInterface.md)
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`identity`](../../types/interfaces/HeliaControllerInterface.md#identity)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`identity`](../interfaces/HeliaControllerInterface.md#identity)
 
 ## Accessors
 
@@ -118,7 +118,7 @@ The datastore.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`datastore`](../../types/interfaces/HeliaControllerInterface.md#datastore)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`datastore`](../interfaces/HeliaControllerInterface.md#datastore)
 
 #### Inherited from
 
@@ -144,19 +144,19 @@ Count of identities actually fetched+verified (cache misses).
 
 #### Get Signature
 
-> **get** **libp2p**(): [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
+> **get** **libp2p**(): [`DenkmitLibp2pType`](../type-aliases/DenkmitLibp2pType.md)
 
 Gets the libp2p instance.
 
 ##### Returns
 
-[`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
+[`DenkmitLibp2pType`](../type-aliases/DenkmitLibp2pType.md)
 
 The libp2p instance.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`libp2p`](../../types/interfaces/HeliaControllerInterface.md#libp2p)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`libp2p`](../interfaces/HeliaControllerInterface.md#libp2p)
 
 #### Inherited from
 
@@ -272,7 +272,7 @@ A Promise that resolves to the CID of the added object.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`add`](../../types/interfaces/HeliaControllerInterface.md#add)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`add`](../interfaces/HeliaControllerInterface.md#add)
 
 #### Inherited from
 
@@ -282,7 +282,7 @@ A Promise that resolves to the CID of the added object.
 
 ### addSigned()
 
-> **addSigned**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
+> **addSigned**\<`T`\>(`data`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>\>
 
 Signs `data` with the local identity and stores the JWS as a dag-cbor block.
 
@@ -302,13 +302,13 @@ The payload to sign and store.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>\>
 
 The stored payload with its CID and the signer's identity CID.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`addSigned`](../../types/interfaces/HeliaControllerInterface.md#addsigned)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`addSigned`](../interfaces/HeliaControllerInterface.md#addsigned)
 
 ***
 
@@ -326,7 +326,7 @@ A Promise that resolves when the controller is closed.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`close`](../../types/interfaces/HeliaControllerInterface.md#close)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`close`](../interfaces/HeliaControllerInterface.md#close)
 
 #### Inherited from
 
@@ -362,7 +362,7 @@ A Promise that resolves to the retrieved object, or undefined if not found.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`get`](../../types/interfaces/HeliaControllerInterface.md#get)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`get`](../interfaces/HeliaControllerInterface.md#get)
 
 #### Inherited from
 
@@ -372,7 +372,7 @@ A Promise that resolves to the retrieved object, or undefined if not found.
 
 ### getSigned()
 
-> **getSigned**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
+> **getSigned**\<`T`\>(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
 
 Fetches a JWS block, resolves and verifies the signer's identity (cached),
 and returns the decoded payload with its provenance.
@@ -395,13 +395,13 @@ The CID of the signed block.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\> \| `undefined`\>
 
 The payload with CID and creator, or undefined if missing or invalid.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`getSigned`](../../types/interfaces/HeliaControllerInterface.md#getsigned)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`getSigned`](../interfaces/HeliaControllerInterface.md#getsigned)
 
 ***
 
@@ -428,7 +428,7 @@ The CID of the block to pin.
 
 #### Implementation of
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md).[`pin`](../../types/interfaces/HeliaControllerInterface.md#pin)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md).[`pin`](../interfaces/HeliaControllerInterface.md#pin)
 
 #### Inherited from
 
