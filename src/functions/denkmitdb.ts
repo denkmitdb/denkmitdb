@@ -629,8 +629,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         await this.handlePollardUpdate(pollard, layerIndex, position);
 
-        pollard = await createEmptyPollard(this.order);
         for (layerIndex++; this.layers[layerIndex - 1].length > 1; layerIndex++) {
+            // A fresh accumulator per layer. Carrying one across layers aliases the
+            // partially-filled pollard already stored at layers[layerIndex - 1], so the
+            // layer above appends into it — including its own CID — producing a
+            // self-referential block that pinning never finishes walking.
+            pollard = await createEmptyPollard(this.order);
             if (this.layers.length === layerIndex) this.layers.push([]);
             position = this.calculatePositionInLayer(startPosition, layerIndex);
             const startIndexInLowerLayer = position * this.maxPollardLength;

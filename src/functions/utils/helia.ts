@@ -98,8 +98,11 @@ export class HeliaStorage implements HeliaStorageInterface {
         const controller = new TimeoutController(DefaultTimeout);
         try {
             const cid = await this.heliaDagCbor.add(data, { signal: controller.signal });
+            // Pinning walks the DAG and blocks on any link it cannot resolve locally,
+            // so it needs the same deadline as the write — without the signal a
+            // missing or unreachable linked block waits forever.
             if (!(await this.helia.pins.isPinned(cid))) {
-                await drain(this.helia.pins.add(cid));
+                await drain(this.helia.pins.add(cid, { signal: controller.signal }));
             }
             return cid;
         } finally {
@@ -115,8 +118,13 @@ export class HeliaStorage implements HeliaStorageInterface {
      * @param cid - The CID of the block to pin.
      */
     async pin(cid: CID): Promise<void> {
-        if (!(await this.helia.pins.isPinned(cid))) {
-            await drain(this.helia.pins.add(cid));
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            if (!(await this.helia.pins.isPinned(cid))) {
+                await drain(this.helia.pins.add(cid, { signal: controller.signal }));
+            }
+        } finally {
+            controller.clear();
         }
     }
 
