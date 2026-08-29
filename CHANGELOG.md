@@ -1,10 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [3.0.0] — 2026-08-29
 
-Targeting **v3.0.0** (first npm publish): the helia 7 interface change below is
-breaking relative to the v2.0.0 git tag, so the version is bumped honestly even
-though v2 was never on npm. `@denkmitdb/mcp` moves to 0.2.0.
+First npm publish (`@denkmitdb/denkmitdb@3.0.0`, `@denkmitdb/mcp@0.2.0`). The
+helia 7 interface change below is breaking relative to the v2.0.0 git tag, so
+the version is bumped honestly even though v2 was never on npm.
 
 ### Performance (scripts/bench.mjs is new; numbers in the README)
 
