@@ -6,7 +6,7 @@
 
 # Function: fetchHead()
 
-> **fetchHead**(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+> **fetchHead**(`cid`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
 
 ## Parameters
 
@@ -16,8 +16,8 @@
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>

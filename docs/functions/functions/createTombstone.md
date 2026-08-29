@@ -6,7 +6,7 @@
 
 # Function: createTombstone()
 
-> **createTombstone**\<`T`\>(`key`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+> **createTombstone**\<`T`\>(`key`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>\>
 
 Creates a signed tombstone for the specified key: a delete record that
 participates in the same composite last-write-wins order as puts. A winning
@@ -28,12 +28,12 @@ The key to delete.
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 The Helia controller interface.
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../../types/interfaces/EntryInterface.md)\<`T`\>\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EntryInterface`](../interfaces/EntryInterface.md)\<`T`\>\>
 
 A promise that resolves to the created tombstone entry.

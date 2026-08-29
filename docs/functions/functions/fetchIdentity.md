@@ -6,7 +6,7 @@
 
 # Function: fetchIdentity()
 
-> **fetchIdentity**(`cid`, `heliaStorage`, `keys?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+> **fetchIdentity**(`cid`, `heliaStorage`, `keys?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../interfaces/IdentityInterface.md)\>
 
 ## Parameters
 
@@ -24,4 +24,4 @@
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../interfaces/IdentityInterface.md)\>

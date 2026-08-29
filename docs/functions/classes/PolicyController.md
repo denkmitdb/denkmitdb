@@ -8,7 +8,7 @@
 
 ## Implements
 
-- [`PolicyInterface`](../../types/interfaces/PolicyInterface.md)
+- [`PolicyInterface`](../interfaces/PolicyInterface.md)
 
 ## Constructors
 
@@ -20,7 +20,7 @@
 
 ##### consensus
 
-[`DenkmitData`](../../types/type-aliases/DenkmitData.md)\<[`PolicyData`](../../types/type-aliases/PolicyData.md)\>
+[`DenkmitData`](../type-aliases/DenkmitData.md)\<[`PolicyData`](../type-aliases/PolicyData.md)\>
 
 #### Returns
 
@@ -34,7 +34,7 @@
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`cid`](../../types/interfaces/PolicyInterface.md#cid)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`cid`](../interfaces/PolicyInterface.md#cid)
 
 ***
 
@@ -44,7 +44,7 @@
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`creator`](../../types/interfaces/PolicyInterface.md#creator)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`creator`](../interfaces/PolicyInterface.md#creator)
 
 ***
 
@@ -56,7 +56,7 @@ The description of the consensus.
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`description`](../../types/interfaces/PolicyInterface.md#description)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`description`](../interfaces/PolicyInterface.md#description)
 
 ***
 
@@ -68,7 +68,7 @@ The consensus logic.
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`logic`](../../types/interfaces/PolicyInterface.md#logic)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`logic`](../interfaces/PolicyInterface.md#logic)
 
 ***
 
@@ -80,7 +80,7 @@ The name of the consensus.
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`name`](../../types/interfaces/PolicyInterface.md#name)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`name`](../interfaces/PolicyInterface.md#name)
 
 ***
 
@@ -92,7 +92,7 @@ The version of the consensus.
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`version`](../../types/interfaces/PolicyInterface.md#version)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`version`](../interfaces/PolicyInterface.md#version)
 
 ## Methods
 
@@ -112,18 +112,18 @@ The version of the consensus.
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`execute`](../../types/interfaces/PolicyInterface.md#execute)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`execute`](../interfaces/PolicyInterface.md#execute)
 
 ***
 
 ### toJSON()
 
-> **toJSON**(): [`PolicyData`](../../types/type-aliases/PolicyData.md)
+> **toJSON**(): [`PolicyData`](../type-aliases/PolicyData.md)
 
 #### Returns
 
-[`PolicyData`](../../types/type-aliases/PolicyData.md)
+[`PolicyData`](../type-aliases/PolicyData.md)
 
 #### Implementation of
 
-[`PolicyInterface`](../../types/interfaces/PolicyInterface.md).[`toJSON`](../../types/interfaces/PolicyInterface.md#tojson)
+[`PolicyInterface`](../interfaces/PolicyInterface.md).[`toJSON`](../interfaces/PolicyInterface.md#tojson)

@@ -8,35 +8,35 @@
 
 ## Call Signature
 
-> **createLeaf**(): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Call Signature
 
-> **createLeaf**(`type`): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(`type`): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Parameters
 
 #### type
 
-[`Empty`](../../types/enumerations/LeafTypes.md#empty)
+[`Empty`](../enumerations/LeafTypes.md#empty)
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Call Signature
 
-> **createLeaf**(`type`, `data`): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(`type`, `data`): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Parameters
 
 #### type
 
-[`Hash`](../../types/enumerations/LeafTypes.md#hash)
+[`Hash`](../enumerations/LeafTypes.md#hash)
 
 #### data
 
@@ -44,17 +44,17 @@
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Call Signature
 
-> **createLeaf**(`type`, `data`): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(`type`, `data`): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Parameters
 
 #### type
 
-[`Pollard`](../../types/enumerations/LeafTypes.md#pollard)
+[`Pollard`](../enumerations/LeafTypes.md#pollard)
 
 #### data
 
@@ -62,17 +62,17 @@
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Call Signature
 
-> **createLeaf**(`type`, `data`, `creator`): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(`type`, `data`, `creator`): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Parameters
 
 #### type
 
-[`Entry`](../../types/enumerations/LeafTypes.md#entry)
+[`Entry`](../enumerations/LeafTypes.md#entry)
 
 #### data
 
@@ -84,17 +84,17 @@
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Call Signature
 
-> **createLeaf**(`type`, `data`): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(`type`, `data`): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Parameters
 
 #### type
 
-[`Identity`](../../types/enumerations/LeafTypes.md#identity)
+[`Identity`](../enumerations/LeafTypes.md#identity)
 
 #### data
 
@@ -102,17 +102,17 @@
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)
 
 ## Call Signature
 
-> **createLeaf**(`type`, `data`, `creator`, `sort`, `key`): [`LeafType`](../../types/type-aliases/LeafType.md)
+> **createLeaf**(`type`, `data`, `creator`, `sort`, `key`): [`LeafType`](../type-aliases/LeafType.md)
 
 ### Parameters
 
 #### type
 
-[`SortedEntry`](../../types/enumerations/LeafTypes.md#sortedentry)
+[`SortedEntry`](../enumerations/LeafTypes.md#sortedentry)
 
 #### data
 
@@ -132,4 +132,4 @@
 
 ### Returns
 
-[`LeafType`](../../types/type-aliases/LeafType.md)
+[`LeafType`](../type-aliases/LeafType.md)

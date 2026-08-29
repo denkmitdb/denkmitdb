@@ -14,7 +14,7 @@ Represents a Storage for interacting with the Helia IPFS.
 
 ## Implements
 
-- [`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md)
+- [`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md)
 
 ## Constructors
 
@@ -28,7 +28,7 @@ Creates a new instance of the HeliaStorage class.
 
 ##### helia
 
-[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+[`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 The Helia database interface.
 
@@ -40,11 +40,11 @@ The Helia database interface.
 
 ### helia
 
-> `readonly` **helia**: [`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+> `readonly` **helia**: [`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`helia`](../../types/interfaces/HeliaStorageInterface.md#helia)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`helia`](../interfaces/HeliaStorageInterface.md#helia)
 
 ## Accessors
 
@@ -92,7 +92,7 @@ The datastore.
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`datastore`](../../types/interfaces/HeliaStorageInterface.md#datastore)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`datastore`](../interfaces/HeliaStorageInterface.md#datastore)
 
 ***
 
@@ -100,19 +100,19 @@ The datastore.
 
 #### Get Signature
 
-> **get** **libp2p**(): [`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
+> **get** **libp2p**(): [`DenkmitLibp2pType`](../type-aliases/DenkmitLibp2pType.md)
 
 Gets the libp2p instance.
 
 ##### Returns
 
-[`DenkmitLibp2pType`](../../types/type-aliases/DenkmitLibp2pType.md)
+[`DenkmitLibp2pType`](../type-aliases/DenkmitLibp2pType.md)
 
 The libp2p instance.
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`libp2p`](../../types/interfaces/HeliaStorageInterface.md#libp2p)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`libp2p`](../interfaces/HeliaStorageInterface.md#libp2p)
 
 ***
 
@@ -212,7 +212,7 @@ A Promise that resolves to the CID of the added object.
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`add`](../../types/interfaces/HeliaStorageInterface.md#add)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`add`](../interfaces/HeliaStorageInterface.md#add)
 
 ***
 
@@ -230,7 +230,7 @@ A Promise that resolves when the controller is closed.
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`close`](../../types/interfaces/HeliaStorageInterface.md#close)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`close`](../interfaces/HeliaStorageInterface.md#close)
 
 ***
 
@@ -262,7 +262,7 @@ A Promise that resolves to the retrieved object, or undefined if not found.
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`get`](../../types/interfaces/HeliaStorageInterface.md#get)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`get`](../interfaces/HeliaStorageInterface.md#get)
 
 ***
 
@@ -289,4 +289,4 @@ The CID of the block to pin.
 
 #### Implementation of
 
-[`HeliaStorageInterface`](../../types/interfaces/HeliaStorageInterface.md).[`pin`](../../types/interfaces/HeliaStorageInterface.md#pin)
+[`HeliaStorageInterface`](../interfaces/HeliaStorageInterface.md).[`pin`](../interfaces/HeliaStorageInterface.md#pin)

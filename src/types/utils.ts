@@ -1,7 +1,7 @@
 import { FloodSub } from "@libp2p/floodsub";
 import { Identify } from "@libp2p/identify";
 import { Libp2p } from "@libp2p/interface";
-import { Helia } from "helia";
+import { Helia } from "@helia/interface";
 import { CID } from "multiformats/cid";
 import { IdentityInterface } from "./identity.js";
 import { Datastore } from "interface-datastore";
@@ -23,7 +23,13 @@ export type DenkmitLibp2pType = Libp2p<{
     pubsub: FloodSub;
 }>;
 
-export type DenkmitHeliaInterface = Helia<DenkmitLibp2pType>;
+/**
+ * The node DenkMitDB runs on: a Helia 7 instance augmented with a libp2p that
+ * provides identify + pubsub (the `@helia/libp2p` mixin shape). Helia 7 removed
+ * the libp2p generic from `Helia` itself; the intersection keeps the
+ * `helia.libp2p.services.pubsub` surface the sync layer uses.
+ */
+export type DenkmitHeliaInterface = Helia & { libp2p: DenkmitLibp2pType };
 
 export type SortedItemType = {
     readonly sortField: number;

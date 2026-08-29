@@ -1,0 +1,67 @@
+[**@denkmitdb/denkmitdb**](../../README.md)
+
+***
+
+[@denkmitdb/denkmitdb](../../modules.md) / [functions](../README.md) / DenkmitDataInterface
+
+# Interface: DenkmitDataInterface\<T\>
+
+## Extends
+
+- [`DenkmitData`](../type-aliases/DenkmitData.md)\<`T`\>
+
+## Type Parameters
+
+### T
+
+`T`
+
+## Properties
+
+### cid
+
+> **cid**: `CID`
+
+#### Inherited from
+
+`DenkmitData.cid`
+
+***
+
+### creator
+
+> **creator**: `CID`
+
+#### Inherited from
+
+`DenkmitData.creator`
+
+***
+
+### data
+
+> **data**: `T`
+
+#### Inherited from
+
+`DenkmitData.data`
+
+***
+
+### link?
+
+> `optional` **link?**: `CID`\<`unknown`, `number`, `number`, `Version`\>
+
+#### Inherited from
+
+`DenkmitData.link`
+
+## Methods
+
+### toJSON()
+
+> **toJSON**(): `T`
+
+#### Returns
+
+`T`

@@ -128,24 +128,34 @@ at 13 (helia 6 requires it); `interface-datastore` deduped to 9.0.3 via
 **Bonus:** the `node-datachannel` native build is a non-issue — helia uses
 `@ipshipyard/node-datachannel` (prebuilt binaries), no stub or override needed.
 
-### ⛔ helia 7 blocked by an architecture change (not gossipsub)
+### ✅ helia 6 → 7 (August 2026)
 
-helia 7 removed `helia.libp2p` — its `Helia` interface exposes only
-`blockstore`/`datastore`/`pins`/`routing`, decoupling from libp2p entirely. The
-whole codebase reaches pubsub through `helia.libp2p.services.pubsub`, so helia 7
-needs a refactor: construct libp2p separately and carry it alongside helia (the
-`DenkmitHeliaInterface` abstraction would hold both). helia 6 keeps `helia.libp2p`
-and already runs libp2p 3, so it's the right stopping point until that refactor is
-worth doing — best paired with the **durable head pointer** in Phase 4, which is
-what makes libp2p pubsub optional in the first place (and could let an HTTP-only
-helia 7 node sync with no libp2p at all).
+The recorded blocker ("helia 7 removed `helia.libp2p`") dissolved by 7.1: the
+`@helia/libp2p` mixin (`withLibp2pLight`) attaches a caller-configured libp2p to
+the node and re-exposes it as `helia.libp2p`, and `@helia/bitswap`'s
+`withBitswap` restores block exchange — so the sync layer's
+`helia.libp2p.services.pubsub` surface survives unchanged. Library changes were
+two types and one annotation: `DenkmitHeliaInterface` is now
+`Helia & { libp2p: DenkmitLibp2pType }` (breaking, done pre-publish), the
+library depends on `@helia/interface` instead of `helia`, and
+`HeliaStorage.logger` gained an explicit `ComponentLogger` annotation
+(declaration emit could not portably name helia 7's transitive birnam type).
+Node construction (tests, example, mcp) moved to
+`withBitswap(withLibp2pLight(createHeliaLight({ codecs: [dagCbor] }), {…}))` +
+`await node.start()` — createHelia is sync in 7, and the mixin stops the
+embedded libp2p on `helia.stop()`. Rode along: multiformats 13 → 14,
+`@ipld/dag-cbor` 9 → 10, `@helia/dag-cbor` 5 → 6, interface-datastore
+**unpinned** (helia 7 and libp2p 3 both use 10 — the 9.0.3 pnpm override is
+gone), mcp's blockstore-fs 3 → 4 / datastore-fs 11 → 12. Verified: 75 tests
+(incl. two-node replication and multi-layer convergence), package smoke, both
+MCP smokes (stdio end-to-end + two-agent sync).
 
 ### Still open (independent of the cluster)
 
 - Topic = manifest CID (D5) and the listener/teardown remnants (#4/#9) — moved to
   the access-control work.
 - keyv ownership semantics (D4) — with the Phase 4 persistence work.
-- multiformats 13 → 14 — deferred until helia adopts it.
+- ~~multiformats 13 → 14~~ — landed with helia 7.
 
 ## Phase 4 — Features & v2.0.0
 

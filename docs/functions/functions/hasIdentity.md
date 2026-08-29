@@ -20,7 +20,7 @@ The name of the identity.
 
 ### helia
 
-[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+[`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 The instance of Helia.
 

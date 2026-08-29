@@ -6,7 +6,7 @@
 
 # Function: openIdentity()
 
-> **openIdentity**(`name`, `passphrase`, `helia`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+> **openIdentity**(`name`, `passphrase`, `helia`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../interfaces/IdentityInterface.md)\>
 
 Opens an identity with the given name and passphrase.
 
@@ -26,13 +26,13 @@ The passphrase to decrypt the identity's private key.
 
 ### helia
 
-[`DenkmitHeliaInterface`](../../types/type-aliases/DenkmitHeliaInterface.md)
+[`DenkmitHeliaInterface`](../type-aliases/DenkmitHeliaInterface.md)
 
 The Helia instance used for data retrieval.
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`IdentityInterface`](../interfaces/IdentityInterface.md)\>
 
 A Promise that resolves to the opened IdentityInterface.
 

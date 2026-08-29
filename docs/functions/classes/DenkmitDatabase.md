@@ -18,7 +18,7 @@ The type of values stored in the database.
 
 ## Implements
 
-- [`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md)\<`T`\>
+- [`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md)\<`T`\>
 
 ## Constructors
 
@@ -30,7 +30,7 @@ The type of values stored in the database.
 
 ##### mdb
 
-[`DenkmitDatabaseInput`](../../types/type-aliases/DenkmitDatabaseInput.md)\<`T`\>
+[`DenkmitDatabaseInput`](../type-aliases/DenkmitDatabaseInput.md)\<`T`\>
 
 #### Returns
 
@@ -40,11 +40,11 @@ The type of values stored in the database.
 
 ### heliaController
 
-> `readonly` **heliaController**: [`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+> `readonly` **heliaController**: [`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`heliaController`](../../types/interfaces/DenkmitDatabaseInterface.md#heliacontroller)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`heliaController`](../interfaces/DenkmitDatabaseInterface.md#heliacontroller)
 
 ***
 
@@ -54,27 +54,27 @@ The type of values stored in the database.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`keyValueStorage`](../../types/interfaces/DenkmitDatabaseInterface.md#keyvaluestorage)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`keyValueStorage`](../interfaces/DenkmitDatabaseInterface.md#keyvaluestorage)
 
 ***
 
 ### layers
 
-> `readonly` **layers**: [`PollardInterface`](../../types/interfaces/PollardInterface.md)[][]
+> `readonly` **layers**: [`PollardInterface`](../interfaces/PollardInterface.md)[][]
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`layers`](../../types/interfaces/DenkmitDatabaseInterface.md#layers)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`layers`](../interfaces/DenkmitDatabaseInterface.md#layers)
 
 ***
 
 ### manifest
 
-> `readonly` **manifest**: [`ManifestInterface`](../../types/interfaces/ManifestInterface.md)
+> `readonly` **manifest**: [`ManifestInterface`](../interfaces/ManifestInterface.md)
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`manifest`](../../types/interfaces/DenkmitDatabaseInterface.md#manifest)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`manifest`](../interfaces/DenkmitDatabaseInterface.md#manifest)
 
 ***
 
@@ -84,7 +84,7 @@ The type of values stored in the database.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`maxPollardLength`](../../types/interfaces/DenkmitDatabaseInterface.md#maxpollardlength)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`maxPollardLength`](../interfaces/DenkmitDatabaseInterface.md#maxpollardlength)
 
 ## Accessors
 
@@ -104,7 +104,7 @@ The CID (Content Identifier) of the denkmitdb.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`address`](../../types/interfaces/DenkmitDatabaseInterface.md#address)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`address`](../interfaces/DenkmitDatabaseInterface.md#address)
 
 ***
 
@@ -112,15 +112,15 @@ The CID (Content Identifier) of the denkmitdb.
 
 #### Get Signature
 
-> **get** **identity**(): [`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+> **get** **identity**(): [`IdentityInterface`](../interfaces/IdentityInterface.md)
 
 ##### Returns
 
-[`IdentityInterface`](../../types/interfaces/IdentityInterface.md)
+[`IdentityInterface`](../interfaces/IdentityInterface.md)
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`identity`](../../types/interfaces/DenkmitDatabaseInterface.md#identity)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`identity`](../interfaces/DenkmitDatabaseInterface.md#identity)
 
 ***
 
@@ -140,7 +140,7 @@ The pollard order.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`order`](../../types/interfaces/DenkmitDatabaseInterface.md#order)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`order`](../interfaces/DenkmitDatabaseInterface.md#order)
 
 ***
 
@@ -160,7 +160,7 @@ The number of records currently in the sorted index.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`size`](../../types/interfaces/DenkmitDatabaseInterface.md#size)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`size`](../interfaces/DenkmitDatabaseInterface.md#size)
 
 ## Methods
 
@@ -182,7 +182,7 @@ A promise that resolves once the head (if any) has been published.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`announceHead`](../../types/interfaces/DenkmitDatabaseInterface.md#announcehead)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`announceHead`](../interfaces/DenkmitDatabaseInterface.md#announcehead)
 
 ***
 
@@ -200,13 +200,13 @@ A promise that resolves when the DenkmitDB instance is closed.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`close`](../../types/interfaces/DenkmitDatabaseInterface.md#close)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`close`](../interfaces/DenkmitDatabaseInterface.md#close)
 
 ***
 
 ### compare()
 
-> **compare**(`head`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../../types/type-aliases/LeafType.md)[], [`LeafType`](../../types/type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
+> **compare**(`head`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../type-aliases/LeafType.md)[], [`LeafType`](../type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
 
 Compares the specified head with the current head in the database.
 
@@ -214,47 +214,47 @@ Compares the specified head with the current head in the database.
 
 ##### head
 
-[`HeadType`](../../types/type-aliases/HeadType.md)
+[`HeadType`](../type-aliases/HeadType.md)
 
 The head to compare.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../../types/type-aliases/LeafType.md)[], [`LeafType`](../../types/type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `difference`: \[[`LeafType`](../type-aliases/LeafType.md)[], [`LeafType`](../type-aliases/LeafType.md)[]\]; `isEqual`: `boolean`; \}\>
 
 A promise that resolves with an object containing the comparison result.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`compare`](../../types/interfaces/DenkmitDatabaseInterface.md#compare)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`compare`](../interfaces/DenkmitDatabaseInterface.md#compare)
 
 ***
 
 ### createHead()
 
-> **createHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+> **createHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
 
 Creates a new head for the database.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
 
 A promise that resolves with the newly created head.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`createHead`](../../types/interfaces/DenkmitDatabaseInterface.md#createhead)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`createHead`](../interfaces/DenkmitDatabaseInterface.md#createhead)
 
 ***
 
 ### createOnlyNewHead()
 
-> **createOnlyNewHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md) \| `undefined`\>
+> **createOnlyNewHead**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md) \| `undefined`\>
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md) \| `undefined`\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md) \| `undefined`\>
 
 ***
 
@@ -300,13 +300,13 @@ A promise that resolves when the tombstone is indexed.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`delete`](../../types/interfaces/DenkmitDatabaseInterface.md#delete)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`delete`](../interfaces/DenkmitDatabaseInterface.md#delete)
 
 ***
 
 ### fetchHead()
 
-> **fetchHead**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+> **fetchHead**(`cid`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
 
 Fetches the head with the specified CID (Content Identifier) from the database.
 
@@ -320,13 +320,13 @@ The CID of the head to fetch.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
 
 A promise that resolves with the fetched head.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`fetchHead`](../../types/interfaces/DenkmitDatabaseInterface.md#fetchhead)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`fetchHead`](../interfaces/DenkmitDatabaseInterface.md#fetchhead)
 
 ***
 
@@ -356,7 +356,7 @@ The value associated with the key, or undefined if not found.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`get`](../../types/interfaces/DenkmitDatabaseInterface.md#get)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`get`](../interfaces/DenkmitDatabaseInterface.md#get)
 
 ***
 
@@ -372,45 +372,45 @@ The value associated with the key, or undefined if not found.
 
 ### getLayers()
 
-> **getLayers**(): [`PollardInterface`](../../types/interfaces/PollardInterface.md)[][]
+> **getLayers**(): [`PollardInterface`](../interfaces/PollardInterface.md)[][]
 
 #### Returns
 
-[`PollardInterface`](../../types/interfaces/PollardInterface.md)[][]
+[`PollardInterface`](../interfaces/PollardInterface.md)[][]
 
 ***
 
 ### getManifest()
 
-> **getManifest**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../../types/interfaces/ManifestInterface.md)\>
+> **getManifest**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../interfaces/ManifestInterface.md)\>
 
 Retrieves the manifest associated with the database.
 
 #### Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../../types/interfaces/ManifestInterface.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`ManifestInterface`](../interfaces/ManifestInterface.md)\>
 
 A promise that resolves with the manifest.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`getManifest`](../../types/interfaces/DenkmitDatabaseInterface.md#getmanifest)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`getManifest`](../interfaces/DenkmitDatabaseInterface.md#getmanifest)
 
 ***
 
 ### getPollardTreeNode()
 
-> **getPollardTreeNode**(`__namedParameters`): [`PollardNode`](../../types/type-aliases/PollardNode.md)
+> **getPollardTreeNode**(`__namedParameters`): [`PollardNode`](../type-aliases/PollardNode.md)
 
 #### Parameters
 
 ##### \_\_namedParameters
 
-[`PollardLocation`](../../types/type-aliases/PollardLocation.md)
+[`PollardLocation`](../type-aliases/PollardLocation.md)
 
 #### Returns
 
-[`PollardNode`](../../types/type-aliases/PollardNode.md)
+[`PollardNode`](../type-aliases/PollardNode.md)
 
 ***
 
@@ -428,7 +428,7 @@ queue; await this to observe a settled tree/head after `set` or a merge.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`idle`](../../types/interfaces/DenkmitDatabaseInterface.md#idle)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`idle`](../interfaces/DenkmitDatabaseInterface.md#idle)
 
 ***
 
@@ -447,7 +447,7 @@ An async generator that yields key-value pairs.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`iterator`](../../types/interfaces/DenkmitDatabaseInterface.md#iterator)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`iterator`](../interfaces/DenkmitDatabaseInterface.md#iterator)
 
 ***
 
@@ -461,7 +461,7 @@ Loads the data from the given head into the database.
 
 ##### head
 
-[`HeadType`](../../types/type-aliases/HeadType.md)
+[`HeadType`](../type-aliases/HeadType.md)
 
 The head interface containing the root bytes.
 
@@ -473,7 +473,7 @@ A promise that resolves when the loading is complete.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`load`](../../types/interfaces/DenkmitDatabaseInterface.md#load)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`load`](../interfaces/DenkmitDatabaseInterface.md#load)
 
 ***
 
@@ -491,7 +491,7 @@ and creates a task to update the layers based on the smallest timestamp.
 
 ##### head
 
-[`HeadType`](../../types/type-aliases/HeadType.md)
+[`HeadType`](../type-aliases/HeadType.md)
 
 The head to be merged with the current state of the database.
 
@@ -503,7 +503,35 @@ A promise that resolves when the merge operation is completed.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`merge`](../../types/interfaces/DenkmitDatabaseInterface.md#merge)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`merge`](../interfaces/DenkmitDatabaseInterface.md#merge)
+
+***
+
+### provenance()
+
+> **provenance**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `cid`: `CID`; `creator`: `CID`; `deleted`: `boolean`; `timestamp`: `number`; \} \| `undefined`\>
+
+Returns the provenance of the current record for a key: the signed entry's
+CID, its writer identity CID, the write timestamp, and whether it is a
+tombstone. Undefined when the key has never been written.
+
+#### Parameters
+
+##### key
+
+`string`
+
+The key to inspect.
+
+#### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<\{ `cid`: `CID`; `creator`: `CID`; `deleted`: `boolean`; `timestamp`: `number`; \} \| `undefined`\>
+
+The provenance record, or undefined if the key is unknown.
+
+#### Implementation of
+
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`provenance`](../interfaces/DenkmitDatabaseInterface.md#provenance)
 
 ***
 
@@ -521,7 +549,7 @@ A promise that resolves once the head has been handed to the sync controller.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`sendHead`](../../types/interfaces/DenkmitDatabaseInterface.md#sendhead)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`sendHead`](../interfaces/DenkmitDatabaseInterface.md#sendhead)
 
 ***
 
@@ -553,7 +581,7 @@ A promise that resolves when the operation is complete.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`set`](../../types/interfaces/DenkmitDatabaseInterface.md#set)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`set`](../interfaces/DenkmitDatabaseInterface.md#set)
 
 ***
 
@@ -565,7 +593,7 @@ A promise that resolves when the operation is complete.
 
 ##### node
 
-[`PollardNode`](../../types/type-aliases/PollardNode.md)
+[`PollardNode`](../type-aliases/PollardNode.md)
 
 #### Returns
 
@@ -610,7 +638,7 @@ A promise that resolves once the task has been enqueued.
 
 #### Implementation of
 
-[`DenkmitDatabaseInterface`](../../types/interfaces/DenkmitDatabaseInterface.md).[`syncNewHead`](../../types/interfaces/DenkmitDatabaseInterface.md#syncnewhead)
+[`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`syncNewHead`](../interfaces/DenkmitDatabaseInterface.md#syncnewhead)
 
 ***
 

@@ -6,18 +6,18 @@
 
 # Function: createHead()
 
-> **createHead**(`head`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+> **createHead**(`head`, `heliaController`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
 
 ## Parameters
 
 ### head
 
-[`HeadData`](../../types/type-aliases/HeadData.md)
+[`HeadData`](../type-aliases/HeadData.md)
 
 ### heliaController
 
-[`HeliaControllerInterface`](../../types/interfaces/HeliaControllerInterface.md)
+[`HeliaControllerInterface`](../interfaces/HeliaControllerInterface.md)
 
 ## Returns
 
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../../types/type-aliases/HeadType.md)\>
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`HeadType`](../type-aliases/HeadType.md)\>
