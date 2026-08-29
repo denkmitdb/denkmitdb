@@ -85,6 +85,111 @@ product. Per-value encryption to a recipient identity gives *shared memory where
 peers replicate facts they cannot read* — verifiable **and** confidential P2P
 agent memory, a combination that exists nowhere. Small feature, existing code.
 
+## Positioning vs. CRDTs
+
+Formally, DenkMitDB **is** a CRDT — a state-based LWW-map with a deterministic
+merge function (composite key: timestamp + entry-CID tie-break; commutative,
+associative, idempotent — `specs/ordering.md` proves the convergence
+properties a CRDT paper would ask for). So the frame is not "DenkMitDB vs.
+CRDTs"; it is *which species*. Use their vocabulary: **an authenticated
+LWW-map CRDT for untrusted networks.**
+
+Concede fast what Automerge/Yjs win: fine-grained concurrent editing — text,
+JSON trees, offline edits interleaving without loss, a mature ecosystem. If
+the problem is collaborative editing, Yjs wins; our own docs should say so.
+(This is also why the out-of-scope list below bans rich merge types.)
+
+Where they are structurally weak — and it is this project's entire
+architecture:
+
+1. **Byzantine peers break them.** Automerge/Yjs assume honest replicas: ops
+   are unsigned, so any peer can forge operations as anyone. (Retrofitting
+   auth — Ink & Switch's Keyhive line — is research-stage.) DenkMitDB
+   verifies every entry's signature *before indexing* and enforces
+   manifest-bound ACLs on the merge path; it can accept data from strangers.
+2. **No provenance.** A merged CRDT doc is an undifferentiated soup;
+   attribution is forgeable metadata. `provenance()` is a cryptographic
+   answer.
+3. **Full-state replication.** A CRDT replica holds the whole document plus
+   history (Automerge docs grow without bound; tombstone GC is an open sore).
+   DenkMitDB is content-addressed: sync cost scales with the Merkle diff, and
+   a replica can hold the index and fetch values lazily. (Honesty: our blocks
+   accumulate too — that is the tombstone-GC roadmap item.)
+4. **Closed-group design.** CRDTs sync among a known set of trusted replicas,
+   usually via a relay server. DenkMitDB is built for open networks with
+   per-write authorization.
+
+**The positioning sentence:** *CRDTs solve concurrent editing among trusted
+peers; DenkMitDB solves attributable state among untrusted peers.* For the
+agent-memory wedge, the trust axis is the one that matters.
+
+**The judo move — carry them, don't fight them.** A value is just dag-cbor
+bytes, so a value can *be* a CRDT document: store an Automerge doc (or update
+batches) under a key; DenkMitDB gives it signed, serverless, P2P replication
+and provenance; Automerge gives that key rich merge semantics. Today
+`automerge-repo` needs a sync server — DenkMitDB can be the *authenticated,
+serverless sync substrate for CRDTs*. Cheap to prototype: one example and a
+doc page, no core changes (a merge-hook API later only if it earns it).
+
+**LWW's honest cost, and its mitigations (already on the roadmap under other
+names):** concurrent writes to one key lose one side. Per-writer namespace
+ACLs structurally eliminate most same-key races; HLC upgrades "fast clock
+wins" to causally-plausible ordering; a future `history(key)` (superseded
+records are still in the block store, signed) turns "LWW lost data" into
+"LWW chose a winner, losers auditable" — a story no CRDT can tell, because
+their losers merge into anonymity.
+
+## The third axis: policy — the database carries its own constitution
+
+Every manifest embeds two json-logic programs — validation and access —
+**signed, content-addressed, and evaluated identically by every replica at
+ingest**. That combination is rare:
+
+- **CRDTs have nothing here.** No concept of "this document rejects your op";
+  admission control means putting a server in front, which reintroduces the
+  server.
+- **Blockchains have custom logic** only by paying for global ordering:
+  consensus rounds, gas, a halting-problem workaround. DenkMitDB gets
+  programmable admission *for free* because it never needs agreement —
+  acceptance is a pure function of `(manifest, signed entry)`, so every
+  honest replica computes the same verdict independently.
+- json-logic's weakness — no loops, no recursion — is here a feature:
+  **policies are total functions.** They always terminate, so there is no gas
+  metering and no adversarial policy that can wedge a replica.
+
+The positioning trilogy: **authenticity** (signed entries), **attribution**
+(provenance), **admission** (replicated programmable policy). CRDTs have none
+of the three; centralized memory services have them only by fiat of the
+server.
+
+Expressible **today**, zero changes, just undocumented: an identity allowlist
+— `{"in": [{"var": "entryCreator"}, ["<cid1>", "<cid2>"]]}` — i.e. "shared
+memory for exactly these N agents."
+
+**Honest audit before selling it** (feeds the sequence below):
+
+1. **The policy cannot see the key or value yet.** The check inputs are
+   creator/timestamp fields only — so per-writer prefix ownership is not
+   expressible until `entryKey` (and value byte-size) join the input surface.
+   Small change, outsized payoff: prefix ACLs, key-schema enforcement, and
+   size caps all become pure json-logic.
+2. **Two inputs are convergence footguns.** `currentTimestamp` and
+   `currentIdentity` are node-local; the built-in policies avoid them by the
+   D3 discipline, but a *custom* policy has no guardrail — one comparison
+   against `currentTimestamp` and replicas silently diverge on what they
+   accept. Remove node-local fields from the replicated-policy input (or
+   split them into an explicitly local-only admission hook) before
+   advertising custom policies.
+3. **Policies are immutable** — manifest-bound at creation. A feature
+   (rules are content-addressed and can never change silently) and a
+   governance gap (no adding writers later). Delegation entries resolve it
+   without breaking the model: the policy stays immutable but says "or the
+   entry creator holds a grant signed by the database creator."
+
+Plus a cheap, high-leverage deliverable: a **policy cookbook** (creator-only,
+public, allowlist, prefix-per-writer, key-schema) — presets are how users
+actually consume a policy engine.
+
 ## What we deliberately do not build
 
 - **Semantic/vector search.** The loudest request and the wrong one: it drags in
@@ -104,7 +209,8 @@ agent memory, a combination that exists nowhere. Small feature, existing code.
 3. npm publish — both packages.
 4. Benchmark numbers in the README.
 5. Demo + launch post.
-6. Namespace ACLs.
+6. Policy input hardening (+`entryKey`, drop node-local fields) — then
+   namespace ACLs land as a preset policy, with the policy cookbook.
 7. HTTP head-rendezvous.
 8. Encrypted values.
 

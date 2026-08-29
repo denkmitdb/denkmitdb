@@ -247,10 +247,15 @@ features. Sequence, each step shippable on its own:
    index).
 4. **Demo + launch post (S):** two machines, no server, provenance on a shared
    fact, node-kill survival.
-5. **Namespace ACLs (M):** per-identity key-prefix ownership
-   (`agents/<identity-cid>/…`) via the existing json-logic policy engine, under
-   the D1/D3 rule (acceptance = pure function of manifest + signed entry).
-   Delegation entries later.
+5. **Policy hardening, then namespace ACLs (M).** First harden the policy
+   input surface (VISION.md "third axis"): add `entryKey` (+ value byte-size)
+   so key-aware rules are expressible, and remove the node-local
+   `currentTimestamp`/`currentIdentity` fields from the *replicated* policy
+   input — a custom policy referencing them makes replicas silently diverge
+   (the D3 hazard, now user-reachable). Then per-identity key-prefix ownership
+   (`agents/<identity-cid>/…`) lands as a **preset policy**, shipped with a
+   policy cookbook (creator-only, public, identity allowlist — expressible
+   today — prefix-per-writer, key-schema). Delegation entries later.
 6. **HTTP head-rendezvous (M) — the cheap 80% of D8.** A URL agents GET/PUT the
    signed head CID to; heads are validated on ingest, so the rendezvous is
    trusted for availability/freshness only (the trust analysis already written
