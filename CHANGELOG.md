@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **[Critical] The database hung permanently once its tree needed three layers
+  (KNOWN_ISSUES.md #22).** `updateLayers` reused one pollard accumulator across all
+  upper layers, so a partially-filled pollard was aliased into the layer above and
+  appended its own CID into itself; pinning the resulting self-referential block
+  never returned, and `db.idle()` never resolved. Triggered by size alone — the 65th
+  entry at the default `order: 3`, the 17th at `order: 2`. Affects `v2.0.0`.
+- **[High] Pinning ignored the 30 s write deadline (KNOWN_ISSUES.md #23).**
+  `HeliaStorage.add()`/`pin()` now pass the abort signal to `pins.add`, so an
+  unresolvable link fails instead of blocking forever.
+- **Test coverage:** `test/scale.test.ts` exercises multi-layer trees for the first
+  time — three- and four-layer builds, cross-layer pollard aliasing, and two-node
+  convergence over a three-layer tree.
+
+### Added
+
 - **`mcp/` — denkmit-mcp (prototype).** An MCP stdio server exposing the database
   as shared, signed agent memory: `memory_set/get/delete/list/provenance/status`,
   per-agent identities and data directories, mdns local peer discovery, and an
