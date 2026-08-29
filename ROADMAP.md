@@ -223,18 +223,59 @@ Sequence (each builds on the previous):
    tombstone replication/restart, plus the package smoke test and benchmarks.
 8. **Publish v2.0.0 (S).** With the Phase 1 wire-format version gate.
 
-### Post-v2 (its own project)
+### Post-v2 — the agent-memory wedge
 
-- **Remote durable discovery (D8 network layer):** IPNS / HTTP delegated routing and
-  the helia 7 revisit. Under-specified today and larger than a v2 feature — see the
-  caveats in `PHASE_PRIORITIES.md`: an IPNS name is one keypair = one publisher (the
-  "resolve all writers" plan needs a writer-name discovery mechanism); DenkMitDB's
-  ES384 identities vs IPNS's Ed25519 mandate; record expiry / republish ownership;
-  `@helia/ipns` pulls the helia-7 cluster; an HTTP router can withhold or replay
-  stale (but still signature-valid) records, so its trust boundary is
-  availability/freshness/privacy, not authenticity.
-- **HLC and hard skew enforcement**, persisted materialized index, tombstone
-  GC/compaction, dynamic ACL updates.
+The strategic frame is [VISION.md](VISION.md): **`denkmit-mcp` is the product;
+DenkMitDB is its engine.** The differentiator is trust (signed entries,
+provenance, deterministic conflict resolution, no server), not database
+features. Sequence, each step shippable on its own:
+
+1. **helia 7 + API-break cleanup (M), before first publish.** The original
+   blocker ("helia 7 removed `helia.libp2p`") is smaller than recorded: helia
+   7.1's `HeliaInit` takes `blockBrokers`/`routers`/`components`, so libp2p is
+   constructed separately and injected. Production coupling is 7 lines in
+   `sync.ts` plus the `HeliaStorage.libp2p` passthrough; the real change is
+   `DenkmitHeliaInterface` becoming `{ helia, libp2p }` — a **breaking public
+   type**, which is why it lands while the package is still unpublished. Budget
+   for re-verifying hand-wired bitswap and updating `test/helpers.ts` /
+   `mcp/src/node.ts` / `examples/`.
+2. **npm publish (S)** — both packages; `npx @denkmitdb/mcp` must work in a
+   `claude mcp add` one-liner.
+3. **Benchmarks & soak (M):** ≥10k keys, N writers, reopen time; numbers in the
+   README. Watch-list from #22's post-mortem: O(n) tree rebuild on
+   early-timestamp merges, and reopen replay cost (→ persisted materialized
+   index).
+4. **Demo + launch post (S):** two machines, no server, provenance on a shared
+   fact, node-kill survival.
+5. **Policy hardening, then namespace ACLs (M).** First harden the policy
+   input surface (VISION.md "third axis"): add `entryKey` (+ value byte-size)
+   so key-aware rules are expressible, and remove the node-local
+   `currentTimestamp`/`currentIdentity` fields from the *replicated* policy
+   input — a custom policy referencing them makes replicas silently diverge
+   (the D3 hazard, now user-reachable). Then per-identity key-prefix ownership
+   (`agents/<identity-cid>/…`) lands as a **preset policy**, shipped with a
+   policy cookbook (creator-only, public, identity allowlist — expressible
+   today — prefix-per-writer, key-schema). Delegation entries later.
+6. **HTTP head-rendezvous (M) — the cheap 80% of D8.** A URL agents GET/PUT the
+   signed head CID to; heads are validated on ingest, so the rendezvous is
+   trusted for availability/freshness only (the trust analysis already written
+   for delegated routing). Sidesteps IPNS entirely for now and delivers
+   pluggable head discovery (loosening the pubsub/libp2p coupling). Full
+   IPNS/delegated routing stays a separate, later project with the caveats in
+   `PHASE_PRIORITIES.md` (one keypair = one publisher; ES384 vs Ed25519;
+   republish ownership; `@helia/ipns` cluster).
+7. **Encrypted values (S/M):** per-value JWE to a recipient identity using the
+   existing, tested, unused `Identity.encrypt`/`decrypt` — replicate facts peers
+   cannot read.
+
+Still-relevant engine work, slotted where it pays for the wedge: **persisted
+materialized index** (reopen time — with 3), **tombstone GC/compaction**
+(long-lived memory — after 3's numbers say when), **HLC + local skew admission**
+(D3 — when multi-writer usage is real, i.e. after 5).
+
+Deliberately not built, per VISION.md: semantic/vector search (the agent does
+retrieval; DenkMitDB does trust and sync), and anything that grows the
+general-purpose-database identity.
 
 ## Deliberately out of scope for v2
 
