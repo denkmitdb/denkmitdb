@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+Targeting **v3.0.0** (first npm publish): the helia 7 interface change below is
+breaking relative to the v2.0.0 git tag, so the version is bumped honestly even
+though v2 was never on npm. `@denkmitdb/mcp` moves to 0.2.0.
+
+### Pre-publish hardening
+
+- **Denied writes no longer persist anything.** `set()`/`delete()` authorize the
+  local identity *before* the entry is signed, stored, and pinned — a rejected
+  write used to leave a pinned block behind on every attempt.
+- **`load()` respects Keyv ownership.** A caller-supplied (possibly shared or
+  persistent) Keyv is no longer `clear()`ed when a remote head triggers a full
+  reload; only the keys this database indexed are invalidated. Same D4 ownership
+  rule `close()` already followed.
+- **Reads tolerate missing blocks.** `get()` returns `undefined` (and
+  `iterator()` skips the key) when an indexed entry's block is unfetchable,
+  instead of throwing and aborting iteration; `provenance()` is now served
+  entirely from the verified index (no fetch at all — creator/timestamp/deleted
+  were recorded from the signed entry at index time).
+- **Additive API: `keys()`** — iterates live keys in write-time order without
+  fetching values; tombstoned keys are skipped. Listings and prefix filters
+  should prefer it over `iterator()`.
+- **denkmit-mcp fails closed on `DENKMIT_PASSPHRASE`.** The server refuses to
+  start without a passphrase instead of silently using an insecure development
+  default; `memory_list` walks `keys()` (no value fetches for non-matching
+  prefixes, values only up to `limit`) and reports `truncated`.
+- Regression tests for all of the above (`test/hardening.test.ts`, verified
+  failing against the previous behavior); the two long-standing tsdoc lint
+  warnings are gone.
+
 ### Changed
 
 - **helia 6 → 7 (breaking, pre-publish).** `DenkmitHeliaInterface` is now
