@@ -20,12 +20,7 @@ to other agents holding a replica, resolves conflicts deterministically
 
 ## Setup
 
-The repo is a pnpm workspace — installing at the root covers `mcp/`:
-
-```bash
-pnpm install
-cd mcp && pnpm build
-```
+Published as [`@denkmitdb/mcp`](https://www.npmjs.com/package/@denkmitdb/mcp) — no checkout needed.
 
 ### Claude Code
 
@@ -33,7 +28,7 @@ cd mcp && pnpm build
 claude mcp add denkmit \
   --env DENKMIT_IDENTITY=claude \
   --env DENKMIT_PASSPHRASE='choose-a-secret' \
-  -- node /path/to/denkmitdb/mcp/dist/index.js
+  -- npx -y @denkmitdb/mcp
 ```
 
 Or in `.mcp.json`:
@@ -42,8 +37,8 @@ Or in `.mcp.json`:
 {
     "mcpServers": {
         "denkmit": {
-            "command": "node",
-            "args": ["/path/to/denkmitdb/mcp/dist/index.js"],
+            "command": "npx",
+            "args": ["-y", "@denkmitdb/mcp"],
             "env": {
                 "DENKMIT_IDENTITY": "claude",
                 "DENKMIT_PASSPHRASE": "choose-a-secret"
@@ -51,6 +46,15 @@ Or in `.mcp.json`:
         }
     }
 }
+```
+
+### From a checkout (development)
+
+The repo is a pnpm workspace — installing at the root covers `mcp/`:
+
+```bash
+pnpm install
+cd mcp && pnpm build   # then: node mcp/dist/index.js
 ```
 
 ### Sharing memory between agents
@@ -66,8 +70,8 @@ memory:
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.denkmit]
-command = "node"
-args = ["/path/to/denkmitdb/mcp/dist/index.js"]
+command = "npx"
+args = ["-y", "@denkmitdb/mcp"]
 env = { DENKMIT_IDENTITY = "codex", DENKMIT_PASSPHRASE = "another-secret", DENKMIT_DB = "<address>" }
 ```
 
