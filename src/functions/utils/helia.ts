@@ -115,6 +115,25 @@ export class HeliaStorage implements HeliaStorageInterface {
     }
 
     /**
+     * Stores a dag-cbor block WITHOUT pinning it. Interior tree nodes (pollards)
+     * are stored this way on every rebuild: pinning them individually walks the
+     * whole DAG below each node (O(database) per write — measured as the write
+     * throughput collapse in scripts/bench.mjs). The tree is pinned once per
+     * head instead: the signed head goes through add(), whose recursive pin
+     * covers the root pollard and everything under it.
+     * @param data - The object to store.
+     * @returns A Promise that resolves to the CID of the stored object.
+     */
+    async put(data: unknown): Promise<CID> {
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            return await this.heliaDagCbor.add(data, { signal: controller.signal });
+        } finally {
+            controller.clear();
+        }
+    }
+
+    /**
      * Pins a block so Helia garbage collection cannot drop it. Used for foreign
      * blocks (entries, identities) accepted during merge — they were fetched, not
      * added, so they are unpinned by default and a locally persisted head would not

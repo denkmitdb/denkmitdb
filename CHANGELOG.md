@@ -6,6 +6,20 @@ Targeting **v3.0.0** (first npm publish): the helia 7 interface change below is
 breaking relative to the v2.0.0 git tag, so the version is bumped honestly even
 though v2 was never on npm. `@denkmitdb/mcp` moves to 0.2.0.
 
+### Performance (scripts/bench.mjs is new; numbers in the README)
+
+- **Write throughput ~35× (7 → ~245 ops/s at 10k entries).** Two fixes found by
+  the new benchmark: tree rebuilds are **coalesced** (a burst of writes lowers
+  the start key of the one queued rebuild instead of enqueueing N rebuilds), and
+  interior pollards are stored **unpinned** (pinning each rebuilt pollard walked
+  the entire DAG below it on every write — O(database) per write; the signed
+  head's recursive pin covers the whole current tree instead).
+- **Bulk replication ~16× at 1k entries** (20.3 s → 1.3 s): `load()` fetches
+  each level's pollards and verifies entries with bounded concurrency (batches
+  of 64) instead of one sequential await per leaf. Still fetch-latency-bound and
+  superlinear at depth — batch sync remains on the roadmap.
+- Reopen from the persisted head: ~0.55 ms/record at 10k.
+
 ### Pre-publish hardening
 
 - **Denied writes no longer persist anything.** `set()`/`delete()` authorize the

@@ -210,6 +210,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     private sortedItemsStore: SortedItemsStore;
     private readonly syncController: SyncControllerInterface;
     private head?: HeadInterface;
+    // Start key of the queued-but-not-yet-running tree rebuild, if any — the
+    // coalescing state for createTaskUpdateLayers.
+    private pendingRebuildFrom?: number;
     private validationPolicy: PolicyInterface;
     private accessPolicy: PolicyInterface;
     // Whether this instance created keyValueStorage (vs. caller-supplied). Only an
@@ -620,9 +623,25 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return Math.min(timestamp, result.previousTimestamp ?? timestamp);
     }
 
+    /**
+     * Schedules a tree rebuild from `sortKey`, coalescing with any rebuild already
+     * queued: while one is pending, later requests only lower its start key instead
+     * of enqueueing another full rebuild. A burst of N writes costs one rebuild
+     * from the earliest change, not N rebuilds — without this, sequential write
+     * throughput collapses (measured ~7 ops/s at 1k entries, scripts/bench.mjs).
+     */
     async createTaskUpdateLayers(sortKey: number): Promise<void> {
+        if (this.pendingRebuildFrom !== undefined) {
+            this.pendingRebuildFrom = Math.min(this.pendingRebuildFrom, sortKey);
+            return;
+        }
+        this.pendingRebuildFrom = sortKey;
         this.syncController.addTask(async () => {
-            await this.updateLayers(sortKey);
+            const from = this.pendingRebuildFrom ?? sortKey;
+            // Reset before running: writes landing while the rebuild runs must
+            // schedule a fresh task (they are not covered by this pass).
+            this.pendingRebuildFrom = undefined;
+            await this.updateLayers(from);
         });
     }
 
@@ -689,7 +708,11 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     private async handlePollardUpdate(pollard: PollardInterface, layerIndex: number, position: number) {
         await pollard.updateLayers();
-        await this.heliaController.add(pollard.toJSON());
+        // Stored unpinned: pinning every rebuilt pollard walks the whole DAG below
+        // it on every write (O(database) per write). The signed head pins the root
+        // pollard recursively, covering the entire current tree (see
+        // HeliaStorage.put / createOnlyNewHead).
+        await this.heliaController.put(pollard.toJSON());
         this.setPollardTreeNode({ layerIndex, position, pollard });
     }
 
@@ -739,16 +762,33 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         let links: CID[] = [head.root];
 
+        // Each level's pollard fetches and each pollard's entry verifications run
+        // concurrently (bounded by the level's fan-out): the work items are
+        // independent — processLeafMerging verifies and LWW-indexes one signed
+        // entry, which is order-insensitive by construction — and the bulk-load
+        // path is fetch-latency-bound, so sequential awaits made full replication
+        // scale with round-trips × entries (scripts/bench.mjs).
         while (links.length > 0) {
+            const pollards = await Promise.all(links.map((link) => this.getPollard(link)));
             const next: CID[] = [];
+            const leafWork: Promise<unknown>[] = [];
 
-            for (const link of links) {
-                const pollard = await this.getPollard(link);
+            const leaves: LeafType[] = [];
+            for (const pollard of pollards) {
                 if (!pollard) continue; // missing or wrong version — skip
                 for (const leaf of pollard.iterator()) {
                     if (leaf.type === LeafTypes.Pollard) next.push(leaf.link);
-                    else if (leaf.type === LeafTypes.SortedEntry) await this.processLeafMerging(leaf);
+                    else if (leaf.type === LeafTypes.SortedEntry) leaves.push(leaf);
                 }
+            }
+            // Bounded concurrency: an unbounded Promise.all over a whole level
+            // (10k+ entries) floods bitswap/pinning and scales superlinearly;
+            // batches keep the pipeline full without the thundering herd.
+            const BATCH = 64;
+            for (let i = 0; i < leaves.length; i += BATCH) {
+                leafWork.length = 0;
+                for (const leaf of leaves.slice(i, i + BATCH)) leafWork.push(this.processLeafMerging(leaf));
+                await Promise.all(leafWork);
             }
             links = next;
         }

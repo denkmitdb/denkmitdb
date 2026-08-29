@@ -70,6 +70,8 @@ export interface HeliaStorageInterface {
     readonly libp2p: DenkmitLibp2pType;
 
     add(data: unknown): Promise<CID>;
+    /** Stores a dag-cbor block without pinning it (interior tree nodes; the signed head's recursive pin covers them). */
+    put(data: unknown): Promise<CID>;
     get<T>(cid: CID): Promise<T | undefined>;
     pin(cid: CID): Promise<void>;
     close(): Promise<void>;
