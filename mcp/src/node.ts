@@ -54,7 +54,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv): MemoryNodeConfig {
     return {
         dataDir: env.DENKMIT_DATADIR ?? join(homedir(), ".denkmit-mcp"),
         identityName: env.DENKMIT_IDENTITY ?? "agent",
-        passphrase: env.DENKMIT_PASSPHRASE ?? "denkmit-dev-passphrase",
+        passphrase: env.DENKMIT_PASSPHRASE ?? "", // empty = refuse to start (fail closed)
         databaseAddress: env.DENKMIT_DB || undefined,
         databaseName: env.DENKMIT_DB_NAME ?? "agent-memory",
         publicWrite: env.DENKMIT_PUBLIC_WRITE === "true",

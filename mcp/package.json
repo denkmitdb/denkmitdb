@@ -1,10 +1,10 @@
 {
     "name": "@denkmitdb/mcp",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "MCP server exposing DenkMitDB as shared, signed, syncable agent memory",
     "type": "module",
     "bin": {
-        "denkmit-mcp": "./dist/index.js"
+        "denkmit-mcp": "dist/index.js"
     },
     "main": "./dist/index.js",
     "files": [
@@ -24,7 +24,7 @@
     "dependencies": {
         "@chainsafe/libp2p-noise": "^17.0.0",
         "@chainsafe/libp2p-yamux": "^8.0.1",
-        "@denkmitdb/denkmitdb": "file:..",
+        "@denkmitdb/denkmitdb": "workspace:^",
         "@helia/bitswap": "^4.0.14",
         "@helia/libp2p": "^2.1.3",
         "@libp2p/floodsub": "^11",

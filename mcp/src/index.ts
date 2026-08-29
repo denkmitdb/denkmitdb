@@ -12,11 +12,16 @@ import { z } from "zod";
 import { configFromEnv, startMemoryNode } from "./node.js";
 
 const config = configFromEnv(process.env);
-if (!process.env.DENKMIT_PASSPHRASE) {
+if (!config.passphrase) {
+    // Fail closed: the passphrase encrypts this agent's signing key at rest, and
+    // every fact this server writes is attributed to that key. A silent default
+    // would make the attribution story a fiction.
     console.error(
-        "[denkmit-mcp] WARNING: DENKMIT_PASSPHRASE not set — using an insecure development default. " +
-            "Set it to protect this agent's signing key at rest.",
+        "[denkmit-mcp] DENKMIT_PASSPHRASE is not set. It encrypts this agent's signing key at rest; " +
+            "refusing to start without one. Set it in the MCP server's env, e.g.\n" +
+            '  "env": { "DENKMIT_PASSPHRASE": "<a strong secret>" }',
     );
+    process.exit(1);
 }
 
 const node = await startMemoryNode(config);
@@ -114,12 +119,20 @@ server.registerTool(
     async ({ prefix, limit }) => {
         const max = limit ?? 50;
         const entries: Array<{ key: string; value: unknown }> = [];
-        for await (const [key, value] of db.iterator()) {
+        let truncated = false;
+        // keys() walks the index without fetching values; only matches up to the
+        // limit are fetched — a large memory with a narrow prefix stays cheap.
+        for await (const key of db.keys()) {
             if (prefix && !key.startsWith(prefix)) continue;
+            if (entries.length >= max) {
+                truncated = true;
+                break;
+            }
+            const value = await db.get(key);
+            if (value === undefined) continue; // unfetchable value — skip, don't fail the listing
             entries.push({ key, value });
-            if (entries.length >= max) break;
         }
-        return okJson({ count: entries.length, entries });
+        return okJson({ count: entries.length, truncated, entries });
     },
 );
 

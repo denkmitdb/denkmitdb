@@ -263,12 +263,14 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A promise that resolves when the operation is complete.
      */
     async set(key: string, value: T): Promise<void> {
-        const entry = await createEntry<T>(key, value, this.heliaController);
-
-        // Authorization: is this writer allowed to write to this database?
-        if (!(await this.isAuthorized(entry.creator))) {
+        // Authorization first: createEntry signs, stores, and pins a block, so an
+        // unauthorized writer must be rejected before anything is persisted —
+        // otherwise every denied write still grows the local store.
+        if (!(await this.isAuthorized(this.identity.cid))) {
             throw new Error("Access denied: this identity is not authorized to write to this database");
         }
+
+        const entry = await createEntry<T>(key, value, this.heliaController);
 
         const check = {
             currentTimestamp: Date.now(),
@@ -299,11 +301,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A promise that resolves when the tombstone is indexed.
      */
     async delete(key: string): Promise<void> {
-        const entry = await createTombstone<T>(key, this.heliaController);
-
-        if (!(await this.isAuthorized(entry.creator))) {
+        // Authorization before the tombstone is signed/stored/pinned (see set()).
+        if (!(await this.isAuthorized(this.identity.cid))) {
             throw new Error("Access denied: this identity is not authorized to write to this database");
         }
+
+        const entry = await createTombstone<T>(key, this.heliaController);
 
         const check = {
             currentTimestamp: Date.now(),
@@ -339,7 +342,17 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         if (value !== undefined) return value;
         const item = await this.sortedItemsStore.getByKey(key);
         if (!item || item.deleted) return; // absent, or hidden by a winning tombstone
-        const entry = await fetchEntry<T>(item.cid, this.heliaController);
+        let entry;
+        try {
+            entry = await fetchEntry<T>(item.cid, this.heliaController);
+        } catch {
+            // The index references the entry but the block is missing or invalid
+            // (not replicated yet, GC'd, unreachable peer). An unfetchable value
+            // reads as absent rather than throwing — and, in iterator(), rather
+            // than aborting the whole iteration.
+            this.log("get(%s): entry %s unfetchable", key, item.cid.toString());
+            return;
+        }
         if (!entry || entry.deleted || entry.value === undefined) return;
         await this.keyValueStorage.set(key, entry.value);
         return entry.value;
@@ -356,10 +369,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     async provenance(
         key: string,
     ): Promise<{ cid: CID; creator: CID; timestamp: number; deleted: boolean } | undefined> {
+        // Served entirely from the index: creator/timestamp/deleted were taken from
+        // the SIGNED entry when it was verified and indexed, so no refetch is needed
+        // — and a missing block cannot make provenance throw.
         const item = await this.sortedItemsStore.getByKey(key);
         if (!item) return undefined;
-        const entry = await fetchEntry<T>(item.cid, this.heliaController);
-        return { cid: item.cid, creator: entry.creator, timestamp: entry.timestamp, deleted: entry.deleted === true };
+        return { cid: item.cid, creator: item.creator, timestamp: item.sortField, deleted: item.deleted === true };
     }
 
     /**
@@ -371,6 +386,18 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         for await (const { key } of this.sortedItemsStore.iterator()) {
             const value = await this.get(key);
             if (value !== undefined) yield [key, value];
+        }
+    }
+
+    /**
+     * Iterates live keys in write-time order without fetching values: tombstoned
+     * keys are skipped, everything else comes straight from the index. Listings
+     * and prefix filters should use this instead of `iterator()`, which fetches
+     * (and caches) every value it passes.
+     */
+    async *keys(): AsyncGenerator<string> {
+        for await (const { key, deleted } of this.sortedItemsStore.iterator()) {
+            if (!deleted) yield key;
         }
     }
 
@@ -696,8 +723,18 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // discover entries; the honest tree is rebuilt from the verified index, so
         // forged leaf structure/metadata cannot survive.
         this.layers.length = 0;
+        // Invalidate the value cache. An owned store is cleared outright; a
+        // caller-supplied (possibly shared/persistent) Keyv only has the keys THIS
+        // database indexed deleted from it — clear() would destroy whatever else
+        // the caller keeps there (same ownership rule as close(), D4).
+        if (this.ownsKeyValueStorage) {
+            await this.keyValueStorage.clear();
+        } else {
+            for await (const { key } of this.sortedItemsStore.iterator()) {
+                await this.keyValueStorage.delete(key);
+            }
+        }
         await this.sortedItemsStore.clear();
-        await this.keyValueStorage.clear();
         this.head = undefined;
 
         let links: CID[] = [head.root];

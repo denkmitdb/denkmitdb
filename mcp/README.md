@@ -91,7 +91,7 @@ dialed explicitly via `DENKMIT_PEERS`.
 |---|---|---|
 | `DENKMIT_DATADIR` | `~/.denkmit-mcp` | Root data directory (per-identity subdirs) |
 | `DENKMIT_IDENTITY` | `agent` | Identity name (also namespaces the data dir) |
-| `DENKMIT_PASSPHRASE` | insecure dev default | Encrypts the signing key at rest — set it |
+| `DENKMIT_PASSPHRASE` | **required** (server refuses to start without it) | Encrypts the signing key at rest |
 | `DENKMIT_DB` | — | Database address to open; absent → create once and remember |
 | `DENKMIT_DB_NAME` | `agent-memory` | Name when creating |
 | `DENKMIT_PUBLIC_WRITE` | `false` | Created database accepts writes from any identity |

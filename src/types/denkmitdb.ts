@@ -86,6 +86,13 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     iterator(): AsyncGenerator<[key: string, value: T]>;
 
     /**
+     * Iterates live keys (tombstoned keys are skipped) in write-time order
+     * without fetching any values — unlike {@link DenkmitDatabaseInterface.iterator | iterator},
+     * which loads every value it yields. Use for listings and prefix filters.
+     */
+    keys(): AsyncGenerator<string>;
+
+    /**
      * Retrieves the manifest associated with the database.
      * @returns A promise that resolves with the manifest.
      */

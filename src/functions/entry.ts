@@ -98,7 +98,7 @@ export async function createTombstone<T>(
  * @param cid - The CID of the entry to fetch.
  * @param heliaController - The Helia controller instance.
  * @returns - A promise that resolves to the fetched entry.
- * @throws {ReferenceError} - If the entry is not found or the entry data is not found.
+ * @throws ReferenceError - If the entry is not found or the entry data is not found.
  */
 export async function fetchEntry<T>(cid: CID, heliaController: HeliaControllerInterface): Promise<EntryInterface<T>> {
     log("Fetching entry with CID: ", cid);
