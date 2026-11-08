@@ -1,3 +1,4 @@
+import type { RulesLogic } from "json-logic-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPolicy, fetchPolicy, HeliaController } from "../src/functions";
 import { PolicyData } from "../src/types";
@@ -57,5 +58,22 @@ describe("PolicyController", () => {
         };
         const controller = await createPolicy(consensus, heliaController);
         expect(await controller.execute({ anything: "goes" })).toBe(true);
+    });
+
+    it("supports the deterministic startsWith operation", async () => {
+        const policy = await createPolicy(
+            {
+                version: 1,
+                name: "prefix-test",
+                description: "startsWith works",
+                logic: { startsWith: [{ var: "entryKey" }, "agents/"] } as unknown as RulesLogic,
+            },
+            heliaController,
+        );
+        expect(await policy.execute({ entryKey: "agents/abc/x" })).toBe(true);
+        expect(await policy.execute({ entryKey: "notes/abc" })).toBe(false);
+        // Non-strings never match (no coercion of numbers or missing vars).
+        expect(await policy.execute({ entryKey: 7 })).toBe(false);
+        expect(await policy.execute({})).toBe(false);
     });
 });

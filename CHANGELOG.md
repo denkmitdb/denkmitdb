@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Access presets & policy hardening
+
+- **`access` option on `createDenkmitDatabase`:** `"creator-only"` (default),
+  `"public"`, `"prefix-per-writer"` (the creator writes anywhere; every other
+  identity writes and deletes only under `agents/<its-identity-cid>/`), or
+  `{ allowlist: [cid, …] }` (validated and normalized at create time).
+  `publicWrite: true` stays as a deprecated alias; conflicting combinations throw.
+- **`entryKey`** is a policy input for both access and validation policies, and
+  policies may use the deterministic `startsWith(value, prefix)` operation.
+- **MCP:** `DENKMIT_ACCESS` selects the preset (`allowlist:<cid>,…` too; unknown
+  values refuse to start); `memory_status` reports the access policy and the
+  agent's own namespace. `@ipld/dag-cbor` is now a declared dependency.
+- **Docs:** [docs/policies.md](docs/policies.md) — the policy cookbook. The typedoc
+  API reference moved to `docs/api/`; `pnpm docs` previously wiped all of `docs/`,
+  including hand-written files.
+
 ### Security & correctness — November 2026 review (KNOWN_ISSUES.md #24–#29)
 
 Six defects from an independent Codex + Gemini review, each verified in the code

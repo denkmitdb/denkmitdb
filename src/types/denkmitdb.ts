@@ -165,6 +165,19 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     syncNewHead(data: Uint8Array): Promise<void>;
 }
 
+/**
+ * Access preset for a NEW database (create only — open always reads the policy
+ * from the signed manifest). Compiles to a json-logic access policy:
+ * - "creator-only" (default): only the creating identity writes.
+ * - "public": any identity writes (provenance still attributes every record).
+ * - "prefix-per-writer": the creator writes anywhere; any other identity writes
+ *   (and deletes) only under `agents/<its-identity-cid>/…`.
+ * - `{ allowlist }`: exactly the listed identity CIDs write.
+ *
+ * See docs/policies.md.
+ */
+export type AccessPreset = "creator-only" | "public" | "prefix-per-writer" | { allowlist: string[] };
+
 export type DenkmitDatabaseOptions<T> = {
     helia: DenkmitHeliaInterface;
     identity: IdentityInterface;
@@ -179,7 +192,12 @@ export type DenkmitDatabaseOptions<T> = {
     /**
      * Access policy for new databases (create only; open reads the manifest).
      * Default is **creator-only** — only the identity that created the database may
-     * write. Set `publicWrite: true` to opt into a world-writable database.
+     * write. See {@link AccessPreset}.
+     */
+    access?: AccessPreset;
+    /**
+     * @deprecated Use `access: "public"`. `publicWrite: true` is kept as an alias;
+     * combining it with a different `access` preset is an error.
      */
     publicWrite?: boolean;
 };

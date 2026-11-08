@@ -11,8 +11,9 @@
 DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over libp2p pubsub and diffing Merkle trees to fetch only what they are missing.
 
 > ⚠️ **Status: experimental, approaching v2.** Databases are **creator-only by
-> default** (only the creating identity may write; `publicWrite: true` opts into a
-> world-writable database), every merged entry is signature-verified before
+> default** (only the creating identity may write; the `access` option selects
+> `public`, `prefix-per-writer` or an identity allowlist — see
+> [docs/policies.md](docs/policies.md)), every merged entry is signature-verified before
 > indexing, records can be deleted via signed tombstones, and a database reopens
 > its own last state without a live peer. Remaining pre-release work (API freeze,
 > hardening) is tracked in [ROADMAP.md](ROADMAP.md); open items in
@@ -153,7 +154,8 @@ After installation, you can start using DenkMitDB by following these steps:
 | [CODEX_REVIEW.md](CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
 | [PHASE_PRIORITIES.md](PHASE_PRIORITIES.md) | Independent prioritization review of the remaining Phase 4 work (July 2026) |
 | [mcp/](mcp/README.md) | MCP server: DenkMitDB as shared, signed agent memory for Claude Code/Codex/any MCP client |
-| [docs/](docs/README.md) | Generated API reference (typedoc) |
+| [docs/policies.md](docs/policies.md) | Policy cookbook: access presets, policy inputs, determinism rules |
+| [docs/api/](docs/api/README.md) | Generated API reference (typedoc; `pnpm docs` regenerates only this folder) |
 
 ## 🛠️ Development
 
