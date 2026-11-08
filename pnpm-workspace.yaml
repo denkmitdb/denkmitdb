@@ -1,2 +1,12 @@
 packages:
     - "mcp"
+
+# pnpm >= 10 does not run dependency install scripts unless allowed here.
+# esbuild (via vite/tsx) uses its postinstall to verify its platform binary.
+allowBuilds:
+    esbuild: true
+
+overrides:
+    # eslint-plugin-tsdoc pins @typescript-eslint/utils 8.56, whose peer range
+    # stops below TypeScript 6; lift it to the version typescript-eslint uses.
+    "@typescript-eslint/utils": "^8.72.1"

@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Dependencies — everything on latest
+
+- **Runtime:** helia 7.1.16, libp2p 3.5.1 (+ matching `@libp2p/*`, `@helia/*`
+  patch releases), multiformats 14.0.5, jose 6.2.15, keyv 6, p-queue 10.
+- **MCP:** `@modelcontextprotocol/sdk` 1.32, zod 4. Behaviour change:
+  `memory_set` now advertises `value` as **required** and rejects a call
+  without it at input validation (zod 3 inferred `z.unknown()` as optional).
+- **TypeScript 7 (native compiler) builds and typechecks** both packages, run
+  side by side with the TS 6 API as Microsoft recommends:
+  `"@typescript/native": "npm:typescript@^7"` provides `tsc`,
+  `"typescript": "npm:@typescript/typescript6@^6"` keeps typescript-eslint and
+  typedoc working (neither supports the TS 7 API yet). tsconfigs set `rootDir`
+  and `types: ["node"]` explicitly (TS 7 defaults: `./` and `[]`).
+- **Tooling:** vitest 5, ESLint 10 (+ `@eslint/js` 10, eslint-config-prettier
+  10, globals 17, eslint-plugin-tsdoc 0.5), `@types/node` 26, tsx, prettier.
+  Removed unused `ts-node`, `@eslint/eslintrc` and the `@types/eslint__js` stub.
+- **pnpm 12.** Its default supply-chain policies are kept: no package younger
+  than the minimum release age (jose is held at 6.2.15 — 6.2.16 was hours old),
+  and dependency install scripts run only when allowed (`allowBuilds: esbuild`).
+
 ## [3.0.0] — 2026-08-29
 
 First npm publish (`@denkmitdb/denkmitdb@3.0.0`, `@denkmitdb/mcp@0.2.0`). The
