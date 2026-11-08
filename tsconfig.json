@@ -4,6 +4,7 @@
         "target": "ES2022",
         "sourceMap": true,
         "outDir": "./dist/",
+        "rootDir": "./src",
         "lib": ["ES2022", "DOM"],
         "resolveJsonModule": true,
         "moduleResolution": "NodeNext",
@@ -18,11 +19,7 @@
         "strictFunctionTypes": true,
         "forceConsistentCasingInFileNames": true,
         "removeComments": false,
-        "typeRoots": ["src/**/types", "node_modules/@types"]
-    },
-    "ts-node": {
-        "esm": true,
-        "experimentalSpecifierResolution": "node"
+        "types": ["node"]
     },
     "include": ["src/**/*"],
     "exclude": ["node_modules/*", "dist/*", "scripts/*", "examples/*"]
