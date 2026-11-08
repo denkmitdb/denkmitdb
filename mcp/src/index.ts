@@ -9,6 +9,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { fetchPolicy } from "@denkmitdb/denkmitdb";
 import { configFromEnv, startMemoryNode } from "./node.js";
 
 const config = configFromEnv(process.env);
@@ -169,16 +170,27 @@ server.registerTool(
         title: "Memory node status",
         description:
             "Show this memory node's status: the database address (share it as DENKMIT_DB to give " +
-            "other agents a replica), this agent's identity CID, record count, and connected peers.",
+            "other agents a replica), this agent's identity CID, the database's write-access policy " +
+            "(and this agent's own key namespace), record count, and connected peers.",
         inputSchema: {},
         annotations: { readOnlyHint: true },
     },
     async () => {
         const peers = node.helia.libp2p.getPeers().map((p: { toString(): string }) => p.toString());
+        const manifest = await db.getManifest();
+        const access = await fetchPolicy(manifest.access, db.heliaController);
+        const isCreator = manifest.creator.equals(identity.cid);
         return okJson({
             databaseAddress: db.address.toString(),
-            databaseName: (await db.getManifest()).name,
+            databaseName: manifest.name,
             identity: { name: config.identityName, cid: identity.cid.toString() },
+            access: {
+                policy: access.name,
+                description: access.description,
+                isDatabaseCreator: isCreator,
+                // Where this agent may write under prefix-per-writer (creators write anywhere).
+                ownNamespace: `agents/${identity.cid.toString()}/`,
+            },
             records: db.size,
             connectedPeers: peers,
         });

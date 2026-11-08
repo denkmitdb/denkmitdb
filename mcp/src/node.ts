@@ -7,7 +7,12 @@ import {
     openDenkmitDatabase,
     openIdentity,
 } from "@denkmitdb/denkmitdb";
-import type { DenkmitDatabaseInterface, DenkmitHeliaInterface, IdentityInterface } from "@denkmitdb/denkmitdb";
+import type {
+    AccessPreset,
+    DenkmitDatabaseInterface,
+    DenkmitHeliaInterface,
+    IdentityInterface,
+} from "@denkmitdb/denkmitdb";
 import { withBitswap } from "@helia/bitswap";
 import { withLibp2pLight } from "@helia/libp2p";
 import * as dagCborCodec from "@ipld/dag-cbor";
@@ -44,8 +49,8 @@ export type MemoryNodeConfig = {
     databaseAddress?: string;
     /** Database name when creating. */
     databaseName: string;
-    /** Whether a created database accepts writes from any identity. */
-    publicWrite: boolean;
+    /** Access preset for a created database (ignored when opening by address). */
+    access: AccessPreset;
     /** Multiaddrs to dial for sync (mdns also discovers local peers automatically). */
     peers: string[];
 };
@@ -57,12 +62,43 @@ export function configFromEnv(env: NodeJS.ProcessEnv): MemoryNodeConfig {
         passphrase: env.DENKMIT_PASSPHRASE ?? "", // empty = refuse to start (fail closed)
         databaseAddress: env.DENKMIT_DB || undefined,
         databaseName: env.DENKMIT_DB_NAME ?? "agent-memory",
-        publicWrite: env.DENKMIT_PUBLIC_WRITE === "true",
+        access: accessFromEnv(env),
         peers: (env.DENKMIT_PEERS ?? "")
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
     };
+}
+
+/**
+ * Reads the access preset for a database this server creates. `DENKMIT_ACCESS` is
+ * `creator-only` (default), `public`, `prefix-per-writer`, or
+ * `allowlist:<identity-cid>,<identity-cid>…`; `DENKMIT_PUBLIC_WRITE=true` is a
+ * deprecated alias for `public`. Anything else refuses to start rather than falling
+ * back to a different policy — the preset is signed into the manifest for good.
+ *
+ * @param env - The process environment.
+ * @returns The access preset.
+ */
+export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
+    const raw = env.DENKMIT_ACCESS?.trim();
+    const legacyPublic = env.DENKMIT_PUBLIC_WRITE === "true";
+    if (!raw) return legacyPublic ? "public" : "creator-only";
+    if (legacyPublic && raw !== "public") {
+        throw new Error(`DENKMIT_PUBLIC_WRITE=true conflicts with DENKMIT_ACCESS=${raw}`);
+    }
+    if (raw === "creator-only" || raw === "public" || raw === "prefix-per-writer") return raw;
+    if (raw.startsWith("allowlist:")) {
+        const allowlist = raw
+            .slice("allowlist:".length)
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        return { allowlist };
+    }
+    throw new Error(
+        `Unknown DENKMIT_ACCESS=${raw} (expected creator-only, public, prefix-per-writer, or allowlist:<cid>,…)`,
+    );
 }
 
 /**
@@ -169,7 +205,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         db = await createDenkmitDatabase<MemoryValue>(config.databaseName, {
             helia,
             identity,
-            publicWrite: config.publicWrite,
+            access: config.access,
         });
         await writeFile(addressFile, db.address.toString());
         created = true;

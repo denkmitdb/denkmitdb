@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: json-logic programs may use `{"startsWith": [str, prefix]}`; `PolicyController.execute()` returns `true` only for a literal `true` result (truthy non-booleans no longer pass).
 
-- [ ] **Step 1: Write the failing tests** (append to `test/policy.test.ts`)
+- [x] **Step 1: Write the failing tests** (append to `test/policy.test.ts`)
 
 ```typescript
 it("supports the deterministic startsWith operation", async () => {
@@ -56,12 +56,12 @@ it("execute() is strictly boolean — truthy non-true results do not authorize",
 
 (`RulesLogic` is already imported in `src/functions/policy.ts`; in the test file import it from `json-logic-js`. Reuse the file's existing `heliaController` fixture.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run test/policy.test.ts`
 Expected: FAIL — `startsWith` unknown operation / truthy string passes.
 
-- [ ] **Step 3: Implement in `src/functions/policy.ts`**
+- [x] **Step 3: Implement in `src/functions/policy.ts`**
 
 Below the imports, before the class:
 
@@ -86,12 +86,12 @@ And change `execute`:
     }
 ```
 
-- [ ] **Step 4: Run tests to verify pass, plus the full suite** (existing built-ins return literal `true`/`false`, so nothing else moves)
+- [x] **Step 4: Run tests to verify pass, plus the full suite** (existing built-ins return literal `true`/`false`, so nothing else moves)
 
 Run: `npx vitest run`
 Expected: all pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/functions/policy.ts test/policy.test.ts
@@ -113,7 +113,7 @@ git commit -m "policy: startsWith operation + strict boolean execute()"
   - Validation-policy input shrinks to `{ databaseCreator, entryTimestamp, entryCreator, entryKey }` (node-local `currentTimestamp`/`currentIdentity` removed).
   - Prefix rule: non-creators may write only under `agents/<their-identity-cid>/`.
 
-- [ ] **Step 1: Write the failing tests** (append to `test/access.test.ts`; the file already has `node` = creator, `other` identity, `otherController`, and `createDb`)
+- [x] **Step 1: Write the failing tests** (append to `test/access.test.ts`; the file already has `node` = creator, `other` identity, `otherController`, and `createDb`)
 
 ```typescript
 describe("Access presets", () => {
@@ -184,12 +184,12 @@ describe("Access presets", () => {
 
 (Add `putSignedEntry`, `buildHead` to the helpers import and `HeliaController` to the functions import at the top of `test/access.test.ts` if not present.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run test/access.test.ts`
 Expected: FAIL — `access` option unknown.
 
-- [ ] **Step 3: Implement the type** in `src/types/denkmitdb.ts`
+- [x] **Step 3: Implement the type** in `src/types/denkmitdb.ts`
 
 Above `DenkmitDatabaseOptions`:
 
@@ -212,7 +212,7 @@ and inside `DenkmitDatabaseOptions`, next to `publicWrite`:
     access?: AccessPreset;
 ```
 
-- [ ] **Step 4: Implement in `src/functions/denkmitdb.ts`**
+- [x] **Step 4: Implement in `src/functions/denkmitdb.ts`**
 
 Replace `accessPolicyRule(publicWrite: boolean)` with:
 
@@ -289,12 +289,12 @@ Update the three call sites: `set()` / `delete()` → `this.isAuthorized(this.id
 
 (Delete the `currentTimestamp`/`currentIdentity` lines — they are the node-local divergence footgun VISION.md documents.)
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `npx vitest run && npm run typecheck`
 Expected: all pass (including the new describe block).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/types/denkmitdb.ts src/functions/denkmitdb.ts test/access.test.ts
@@ -311,7 +311,7 @@ git commit -m "policy: key-aware deterministic inputs + access presets (prefix-p
 - Consumes: `AccessPreset` from Task B2.
 - Produces: `DENKMIT_ACCESS` env (`creator-only` | `public` | `prefix-per-writer`) on the MCP server.
 
-- [ ] **Step 1: Write `docs/policies.md`**
+- [x] **Step 1: Write `docs/policies.md`**
 
 ```markdown
 # Policy cookbook
@@ -374,7 +374,7 @@ Shared memory for exactly these N identities.
   entries are on the roadmap.)
 ```
 
-- [ ] **Step 2: Wire `DENKMIT_ACCESS` in `mcp/src/node.ts`**
+- [x] **Step 2: Wire `DENKMIT_ACCESS` in `mcp/src/node.ts`**
 
 In `MemoryNodeConfig` add `access: "creator-only" | "public" | "prefix-per-writer";` and in `configFromEnv`:
 
@@ -389,16 +389,16 @@ In `MemoryNodeConfig` add `access: "creator-only" | "public" | "prefix-per-write
 
 and in the create call replace `publicWrite: config.publicWrite` with `access: config.access` (drop the `publicWrite` field from the config type). Update `mcp/README.md`: env table row `DENKMIT_ACCESS` (default `creator-only`; `DENKMIT_PUBLIC_WRITE=true` remains a deprecated alias for `public`), and extend the "Write access" note with the `prefix-per-writer` fleet recommendation.
 
-- [ ] **Step 3: CHANGELOG + README docs row**
+- [x] **Step 3: CHANGELOG + README docs row**
 
 CHANGELOG `[Unreleased]`: an "Access presets & policy hardening" entry — additive `access` option, `startsWith`, strict-boolean `execute()`, and a **Changed** note: validation policies no longer receive `currentTimestamp`/`currentIdentity` (built-ins unaffected; the fields were a replica-divergence hazard). README docs table: add `| [docs/policies.md](docs/policies.md) | Policy cookbook: presets, inputs, determinism rules |`.
 
-- [ ] **Step 4: Full gates + mcp smoke**
+- [x] **Step 4: Full gates + mcp smoke**
 
 Run: `pnpm lint && pnpm typecheck && pnpm build && pnpm test && pnpm test:package && cd mcp && pnpm build && pnpm smoke`
 Expected: all green (smoke-sync still uses `DENKMIT_PUBLIC_WRITE=true` — the alias keeps it working).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/policies.md mcp/src/node.ts mcp/README.md README.md CHANGELOG.md

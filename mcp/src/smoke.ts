@@ -49,9 +49,13 @@ try {
     const status = firstText(await client.callTool({ name: "memory_status", arguments: {} })) as {
         databaseAddress: string;
         identity: { cid: string };
+        access: { policy: string; isDatabaseCreator: boolean; ownNamespace: string };
         records: number;
     };
     assert(status.databaseAddress.startsWith("ba"), "status has no database address");
+    assert(status.access.policy === "denkmit-access-creator-only", `unexpected access policy ${status.access.policy}`);
+    assert(status.access.isDatabaseCreator, "the creating agent should be the database creator");
+    assert(status.access.ownNamespace === `agents/${status.identity.cid}/`, "wrong own namespace");
     assert(status.records === 0, "fresh database should be empty");
 
     firstText(await client.callTool({ name: "memory_set", arguments: { key: "task/1", value: { state: "open" } } }));

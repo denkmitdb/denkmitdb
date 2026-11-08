@@ -87,8 +87,13 @@ dialed explicitly via `DENKMIT_PEERS`.
 
 > **Write access:** databases are **creator-only by default** — other agents can
 > read/replicate but their writes are rejected. For a fleet where every agent
-> writes, create the database with `DENKMIT_PUBLIC_WRITE=true` (any identity may
-> write; provenance still attributes every record to its writer).
+> writes, create the database with `DENKMIT_ACCESS=prefix-per-writer`: each agent
+> then owns `agents/<its-identity-cid>/…` (shown as `ownNamespace` by
+> `memory_status`) and no agent can overwrite or delete another's facts.
+> `DENKMIT_ACCESS=public` lets any identity write anything (provenance still
+> attributes every record); `allowlist:<cid>,<cid>` admits exactly those identities.
+> The preset is signed into the database when it is created — see
+> [docs/policies.md](../docs/policies.md).
 
 ## Configuration
 
@@ -99,7 +104,8 @@ dialed explicitly via `DENKMIT_PEERS`.
 | `DENKMIT_PASSPHRASE` | **required** (server refuses to start without it) | Encrypts the signing key at rest |
 | `DENKMIT_DB` | — | Database address to open; absent → create once and remember |
 | `DENKMIT_DB_NAME` | `agent-memory` | Name when creating |
-| `DENKMIT_PUBLIC_WRITE` | `false` | Created database accepts writes from any identity |
+| `DENKMIT_ACCESS` | `creator-only` | Access preset for a created database: `creator-only`, `public`, `prefix-per-writer`, or `allowlist:<cid>,<cid>…` (unknown values refuse to start) |
+| `DENKMIT_PUBLIC_WRITE` | `false` | Deprecated alias for `DENKMIT_ACCESS=public` |
 | `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial |
 
 State (blocks, identity key, head pointer) persists in the data directory, so an

@@ -173,6 +173,8 @@ memory for exactly these N agents."
    expressible until `entryKey` (and value byte-size) join the input surface.
    Small change, outsized payoff: prefix ACLs, key-schema enforcement, and
    size caps all become pure json-logic.
+   *(`entryKey` and the prefix/allowlist presets shipped November 2026 —
+   docs/policies.md; value size is still not an input.)*
 2. **Two inputs are convergence footguns.** `currentTimestamp` and
    `currentIdentity` are node-local; the built-in policies avoid them by the
    D3 discipline, but a *custom* policy has no guardrail — one comparison

@@ -7,7 +7,7 @@
     "excludeProtected": true,
     "gitRevision": "main",
     "hideGenerator": true,
-    "out": "docs",
+    "out": "docs/api",
     "readme": "README.md",
     "plugin": ["typedoc-plugin-markdown", "typedoc-plugin-mdn-links"],
     "sort": ["kind", "static-first", "required-first", "alphabetical"],

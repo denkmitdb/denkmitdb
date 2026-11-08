@@ -1,9 +1,11 @@
 import type { Logger } from "@libp2p/interface";
+import type { RulesLogic } from "json-logic-js";
 import { Key } from "interface-datastore";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { createEmptyPollard, createEntry, createPollard, createTombstone, fetchEntry } from "./index.js";
 import {
+    AccessPreset,
     PolicyInterface,
     PolicyData,
     DENKMITDB_PREFIX,
@@ -129,10 +131,10 @@ export async function createDenkmitDatabase<T>(
     const validationPolicy = await createPolicy(consensus, heliaController);
 
     // Access (authorization) policy — separate from consensus (validation). Default
-    // is creator-only; opt into world-writable with `publicWrite`. The rule uses only
-    // deterministic inputs (the signed entry's creator vs. the manifest creator), so
-    // every replica reaches the same decision (KNOWN_ISSUES.md D1, specs/ordering.md).
-    const accessPolicy = await createPolicy(accessPolicyRule(options.publicWrite ?? false), heliaController);
+    // is creator-only; presets compile to json-logic over deterministic inputs only
+    // (signed entry creator and key, manifest creator), so every replica reaches the
+    // same decision (KNOWN_ISSUES.md D1, specs/ordering.md, docs/policies.md).
+    const accessPolicy = await createPolicy(accessPolicyRule(resolveAccess(options)), heliaController);
 
     const order = options.order ?? 3;
     if (!Number.isInteger(order) || order < 1 || order > 8) {
@@ -216,17 +218,73 @@ export async function openDenkmitDatabase<T>(
 }
 
 /**
- * Builds the access-policy rule for a new database.
- * @param publicWrite - When true, any identity may write; otherwise creator-only.
- * @returns The consensus/access data describing the policy.
+ * Resolves the access preset for a new database from its options. `publicWrite`
+ * is a deprecated alias for `access: "public"`; giving both with different
+ * meanings is an error rather than a silent precedence rule. Allowlist entries
+ * must be identity CIDs and are normalized to the string form `entryCreator`
+ * takes at evaluation time, so a differently encoded CID cannot silently fail to
+ * match.
+ *
+ * @param options - The create options.
+ * @returns The validated preset.
  */
-function accessPolicyRule(publicWrite: boolean): PolicyData {
-    if (publicWrite) {
+function resolveAccess(options: { access?: AccessPreset; publicWrite?: boolean }): AccessPreset {
+    const { access, publicWrite } = options;
+    if (access !== undefined && publicWrite !== undefined && (access === "public") !== publicWrite) {
+        throw new Error('Conflicting access options: publicWrite is a deprecated alias for access: "public"');
+    }
+    const preset: AccessPreset = access ?? (publicWrite ? "public" : "creator-only");
+    if (typeof preset === "object") {
+        if (!Array.isArray(preset.allowlist) || preset.allowlist.length === 0) {
+            throw new Error("access.allowlist must list at least one identity CID");
+        }
+        const normalized = preset.allowlist.map((entry) => {
+            try {
+                return CID.parse(entry).toString();
+            } catch {
+                throw new Error(`access.allowlist entry is not an identity CID: ${entry}`);
+            }
+        });
+        return { allowlist: [...new Set(normalized)] };
+    }
+    if (!["creator-only", "public", "prefix-per-writer"].includes(preset)) {
+        throw new Error(`Unknown access preset: ${String(preset)}`);
+    }
+    return preset;
+}
+
+/**
+ * Compiles an access preset to the json-logic access policy stored in the
+ * manifest. Inputs available to the rule: entryCreator, databaseCreator,
+ * entryKey — all taken from the signed entry / manifest, never node-local
+ * (D1/D3), so every replica reaches the same verdict.
+ *
+ * @param access - The validated preset.
+ * @returns The policy data to sign into the manifest.
+ */
+function accessPolicyRule(access: AccessPreset): PolicyData {
+    if (access === "public") {
+        return { version: 1, name: "denkmit-access-public", description: "Any identity may write", logic: true };
+    }
+    if (access === "prefix-per-writer") {
         return {
             version: 1,
-            name: "denkmit-access-public",
-            description: "Any identity may write",
-            logic: true,
+            name: "denkmit-access-prefix-per-writer",
+            description: "Creator writes anywhere; others only under agents/<their-cid>/",
+            logic: {
+                or: [
+                    { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
+                    { startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }] },
+                ],
+            } as unknown as RulesLogic,
+        };
+    }
+    if (typeof access === "object") {
+        return {
+            version: 1,
+            name: "denkmit-access-allowlist",
+            description: "Only listed identities may write",
+            logic: { in: [{ var: "entryCreator" }, access.allowlist] } as unknown as RulesLogic,
         };
     }
     return {
@@ -275,14 +333,15 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     }
 
     /**
-     * Evaluates the manifest-bound access (authorization) policy for a writer.
-     * Uses only deterministic inputs — the entry's signed creator vs. the database
-     * creator — so every replica reaches the same decision.
+     * Evaluates the manifest-bound access (authorization) policy for a write.
+     * Uses only deterministic inputs — the entry's signed creator and key vs. the
+     * database creator — so every replica reaches the same decision.
      */
-    private async isAuthorized(entryCreator: CID): Promise<boolean> {
+    private async isAuthorized(entryCreator: CID, entryKey: string): Promise<boolean> {
         return this.accessPolicy.execute({
             entryCreator: entryCreator.toString(),
             databaseCreator: this.manifest.creator.toString(),
+            entryKey,
         });
     }
 
@@ -292,11 +351,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * wall clock, no local identity — so every replica reaches the same verdict
      * for the same entry (specs/ordering.md §4, KNOWN_ISSUES.md #25).
      */
-    private async isValid(entry: { timestamp: number; creator: CID }): Promise<boolean> {
+    private async isValid(entry: { timestamp: number; creator: CID; key: string }): Promise<boolean> {
         return this.validationPolicy.execute({
             databaseCreator: this.manifest.creator.toString(),
             entryTimestamp: entry.timestamp,
             entryCreator: entry.creator.toString(),
+            entryKey: entry.key,
         });
     }
 
@@ -334,7 +394,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // Authorization first: createEntry signs, stores, and pins a block, so an
         // unauthorized writer must be rejected before anything is persisted —
         // otherwise every denied write still grows the local store.
-        if (!(await this.isAuthorized(this.identity.cid))) {
+        if (!(await this.isAuthorized(this.identity.cid, key))) {
             throw new Error("Access denied: this identity is not authorized to write to this database");
         }
 
@@ -362,7 +422,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      */
     async delete(key: string): Promise<void> {
         // Authorization before the tombstone is signed/stored/pinned (see set()).
-        if (!(await this.isAuthorized(this.identity.cid))) {
+        if (!(await this.isAuthorized(this.identity.cid, key))) {
             throw new Error("Access denied: this identity is not authorized to write to this database");
         }
 
@@ -725,7 +785,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // Authorization on the merge/load path — the signed creator must be allowed
         // to write, or a peer could inject entries the local writer couldn't
         // (KNOWN_ISSUES.md D1). Deterministic, so replicas agree on what they ingest.
-        if (!(await this.isAuthorized(creator))) {
+        if (!(await this.isAuthorized(creator, key))) {
             this.log("Rejected leaf %s: writer %s not authorized", cid.toString(), creator.toString());
             return;
         }

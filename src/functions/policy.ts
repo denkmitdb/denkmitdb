@@ -6,6 +6,14 @@ import { PolicyData, PolicyInterface, PolicyVersionType } from "../types/policy.
 
 export type PolicyInput = Record<string, number | string>;
 
+// Deterministic custom operations available to manifest policies. Every replica
+// registers the same set at module load, so evaluation stays a pure function of
+// (manifest, signed entry) — the D1/D3 rule. Keep this list total and
+// side-effect-free; never register anything that reads node-local state.
+jsonLogic.add_operation("startsWith", (value: unknown, prefix: unknown): boolean => {
+    return typeof value === "string" && typeof prefix === "string" && value.startsWith(prefix);
+});
+
 export class PolicyController implements PolicyInterface {
     version: PolicyVersionType;
     name: string;

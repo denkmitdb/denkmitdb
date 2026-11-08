@@ -257,7 +257,11 @@ features. Sequence, each step shippable on its own:
    index).
 4. **Demo + launch post (S):** two machines, no server, provenance on a shared
    fact, node-kill survival.
-5. **Policy hardening, then namespace ACLs (M).** First harden the policy
+5. ✅ **Policy hardening, then namespace ACLs (M)** — done November 2026: `entryKey`
+   input, `startsWith`, strict-boolean evaluation, node-local inputs removed, and
+   the `access` presets (creator-only, public, prefix-per-writer, allowlist) with
+   [docs/policies.md](docs/policies.md). Value byte-size as an input and
+   key-schema presets remain open. *Original scope:* first harden the policy
    input surface (VISION.md "third axis"): add `entryKey` (+ value byte-size)
    so key-aware rules are expressible, and remove the node-local
    `currentTimestamp`/`currentIdentity` fields from the *replicated* policy
