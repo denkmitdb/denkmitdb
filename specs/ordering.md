@@ -131,7 +131,28 @@ silently interoperate.
   only ordering/equality semantics (and #12: equality must compare all fields).
 - `POLLARD_VERSION = 2`, `HEAD_VERSION = 2`, plus version guards in
   `fetchHead`/`getPollard`/merge/load.
-- Default consensus rule gains the future-timestamp bound of §4.
+- ~~Default consensus rule gains the future-timestamp bound of §4.~~ Superseded by
+  §4's own decision: no node-local input (clock or identity) may reach a
+  replicated policy (KNOWN_ISSUES.md #25).
+
+## 6a. Entry binding and payload validation (post-v3.0.0)
+
+Accepted November 2026 (KNOWN_ISSUES.md #24, #26).
+
+- `ENTRY_VERSION = 2`: the signed entry payload carries `manifest`, the address
+  (manifest CID) of the database it was written to. `MANIFEST_VERSION = 2`
+  databases accept an entry only if it is v2 **and** `entry.manifest` equals their
+  own address. Tree, head and pollard formats are unchanged.
+- Legacy: a `MANIFEST_VERSION = 1` database (created by 3.0.0) also accepts v1
+  entries, which carry no binding, so 3.0.0 data stays readable. v2 entries in a
+  v1 database must still be bound to it.
+- Every signed payload is shape-checked before use: entries (version, binding,
+  non-negative integer timestamp, string key, exactly one of put/tombstone),
+  manifests (version, order in [1, 8], policy CIDs), heads (integer `layers` in
+  `[1, ceil(40 / order) + 1]`, `1 ≤ size ≤ 2^(order · layers)`).
+- Remote tree walks (`compare`, `load`) reject a head whose tree repeats a
+  pollard, contains a pollard of another order or wider than the fan-out, or
+  holds more pollards than `2 · ceil(size / 2^order) + layers + 1`.
 
 ## 7. Invariants (what the adversarial pins assert)
 
@@ -143,3 +164,6 @@ silently interoperate.
    local state.
 5. Index metadata that disagrees with its signed entry never enters the index
    (KNOWN_ISSUES.md #10 — authenticated merge).
+6. An entry signed for one database never enters another database's index
+   (KNOWN_ISSUES.md #24), and accepting an entry depends only on manifest +
+   signed-entry data (#25).

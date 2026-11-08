@@ -1,12 +1,26 @@
+import { CID } from "multiformats/cid";
 import { DenkmitMetadata } from "./utils.js";
 
-export const ENTRY_VERSION = 1;
+/**
+ * Current entry format. v2 entries carry the address (manifest CID) of the
+ * database they were written to, inside the signed payload, so an entry cannot be
+ * replayed into another database that shares a writer (KNOWN_ISSUES.md #24).
+ */
+export const ENTRY_VERSION = 2;
 
-export type EntryVersionType = typeof ENTRY_VERSION;
+/**
+ * The 3.0.0 entry format: no database binding. Accepted only by legacy (v1
+ * manifest) databases, so data written by 3.0.0 stays readable.
+ */
+export const LEGACY_ENTRY_VERSION = 1;
+
+export type EntryVersionType = typeof ENTRY_VERSION | typeof LEGACY_ENTRY_VERSION;
 
 /** A put: the key holds `value`. */
 export type PutEntryData<T> = {
     readonly version: EntryVersionType;
+    /** Database address the entry is bound to. Required from v2; absent in v1. */
+    readonly manifest?: CID;
     readonly timestamp: number;
     readonly key: string;
     readonly value: T;
@@ -19,6 +33,8 @@ export type PutEntryData<T> = {
  */
 export type TombstoneEntryData = {
     readonly version: EntryVersionType;
+    /** Database address the entry is bound to. Required from v2; absent in v1. */
+    readonly manifest?: CID;
     readonly timestamp: number;
     readonly key: string;
     readonly deleted: true;
@@ -30,6 +46,8 @@ export type EntryType<T> = EntryData<T> & DenkmitMetadata;
 
 export interface EntryInterface<T> {
     readonly version: EntryVersionType;
+    /** Database the entry is bound to (v2+); undefined for legacy v1 entries. */
+    readonly manifest?: CID;
     readonly timestamp: number;
     readonly key: string;
     /** Present for puts; undefined for tombstones. */

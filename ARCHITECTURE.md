@@ -106,8 +106,8 @@ equality so the diff can't hide a difference.
 
 ## Write path (`db.set`)
 
-1. Create and sign an `Entry` block; add + pin it in the blockstore.
-2. Run the consensus rule against `{currentTimestamp, databaseCreator, currentIdentity, entryTimestamp, entryCreator}`; reject the write if it fails.
+1. Check the access policy for the local identity; create and sign an `Entry` block bound to this database's address (`manifest`, entry v2); add + pin it in the blockstore.
+2. Run the validation rule against `{databaseCreator, entryTimestamp, entryCreator}` — deterministic inputs only, the same ones every replica sees on merge; reject the write unless it returns literal `true`.
 3. Insert `(timestamp → key, entryCID, creator)` into `SortedItemsStore` and the value into the Keyv cache.
 4. Enqueue a `updateLayers(timestamp)` task on the single-concurrency sync queue (tree building is asynchronous — readers see the entry immediately, the tree catches up).
 

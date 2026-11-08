@@ -2,6 +2,38 @@
 
 ## [Unreleased]
 
+### Security & correctness — November 2026 review (KNOWN_ISSUES.md #24–#29)
+
+Six defects from an independent Codex + Gemini review, each verified in the code
+and pinned by a test in `test/integrity.test.ts` that fails on the old code.
+
+- **Entries are bound to their database (#24, critical).** New entries
+  (`ENTRY_VERSION` 2) sign the database address into their payload; new
+  databases (`MANIFEST_VERSION` 2) reject entries — including tombstones —
+  replayed from another database that shares a writer. Signed entries,
+  manifests and heads are shape-checked before use.
+- **Deterministic, strictly boolean policies (#25).** Validation policies no
+  longer receive the node-local `currentTimestamp` / `currentIdentity`, and only
+  a literal `true` authorizes.
+- **Bounded, aligned tree comparison (#26).** Fixed `compareNodes` passing the
+  parent CID for absent children and computing child positions from pollard
+  length instead of fan-out; a shorter peer tree is now aligned by its height.
+  Heads with implausible layers/size, misshapen pollards and DAGs that repeat a
+  pollard are rejected — previously a 12-layer repeating DAG exhausted the heap.
+- **Linear rebuilds (#27).** `iteratorFromIndex` no longer does an O(position)
+  lookup per record.
+- **`close()` persists acknowledged writes (#28)** — it drains the queue and
+  persists a head first.
+- **Identity blocks bind their signing key (#29).**
+
+**Compatibility (protocol change — release as 4.0.0).** Databases created by
+3.0.0 (v1 manifest) keep accepting their legacy unbound entries, so existing data
+stays readable, but only new databases get replay protection. In a new database,
+writers still on 3.0.0 produce unbound entries that upgraded replicas reject:
+upgrade every writer before relying on a new database. `createEntry` /
+`createTombstone` take an optional `manifest` argument (omitting it yields a
+legacy v1 entry).
+
 ### Dependencies — everything on latest
 
 - **Runtime:** helia 7.1.16, libp2p 3.5.1 (+ matching `@libp2p/*`, `@helia/*`

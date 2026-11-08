@@ -36,7 +36,7 @@ describe("Identity cache (D6)", () => {
         const base = Date.now();
         const leaves: ForgedLeaf[] = [];
         for (let i = 0; i < count; i++) {
-            const entry = await putSignedEntry(bController, `k${i}`, { value: `v${i}` }, base + i);
+            const entry = await putSignedEntry(bController, `k${i}`, { value: `v${i}` }, base + i, db.address);
             leaves.push({ cid: entry.cid, creator: entry.creator, sort: [entry.timestamp], key: entry.key });
         }
         const head = await buildHead(bController, db.address, leaves);

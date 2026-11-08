@@ -1,8 +1,16 @@
 import { CID } from "multiformats/cid";
 import { DenkmitMetadata } from "./utils.js";
 
-export const MANIFEST_VERSION = 1;
-export type ManifestVersionType = typeof MANIFEST_VERSION;
+/**
+ * Current manifest format. A v2 database accepts only v2 entries bound to its own
+ * address (KNOWN_ISSUES.md #24).
+ */
+export const MANIFEST_VERSION = 2;
+
+/** The 3.0.0 manifest format: its database also accepts legacy unbound entries. */
+export const LEGACY_MANIFEST_VERSION = 1;
+
+export type ManifestVersionType = typeof MANIFEST_VERSION | typeof LEGACY_MANIFEST_VERSION;
 
 /**
  * Represents the type of a Database manifest.

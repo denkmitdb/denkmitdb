@@ -179,7 +179,8 @@ memory for exactly these N agents."
    against `currentTimestamp` and replicas silently diverge on what they
    accept. Remove node-local fields from the replicated-policy input (or
    split them into an explicitly local-only admission hook) before
-   advertising custom policies.
+   advertising custom policies. *(Done November 2026 — the fields are gone and
+   `execute()` is strictly boolean; KNOWN_ISSUES.md #25.)*
 3. **Policies are immutable** — manifest-bound at creation. A feature
    (rules are content-addressed and can never change silently) and a
    governance gap (no adding writers later). Delegation entries resolve it

@@ -10,6 +10,8 @@ import {
     DenkmitDatabaseInput,
     DenkmitDatabaseInterface,
     DenkmitDatabaseOptions,
+    ENTRY_VERSION,
+    EntryInterface,
     HEAD_VERSION,
     HeadData,
     HeadInterface,
@@ -17,6 +19,8 @@ import {
     IdentityInterface,
     LeafType,
     LeafTypes,
+    LEGACY_ENTRY_VERSION,
+    LEGACY_MANIFEST_VERSION,
     MANIFEST_VERSION,
     ManifestData,
     ManifestInterface,
@@ -35,7 +39,43 @@ import { createSyncController } from "./sync.js";
 import { HeliaController } from "./utils/helia.js";
 import { SortedItemsStore } from "./utils/sortedItems.js";
 
-// class TimestampPolicyController {} // TODO: Implement TimestampPolicyController
+/**
+ * Upper bound on the number of entries a head may describe. It bounds the layer
+ * count a peer can claim (2^40 entries ≈ 10^12), and with it how deep tree
+ * comparison and bulk load may walk (KNOWN_ISSUES.md #26).
+ */
+const MAX_ENTRIES_LOG2 = 40;
+
+/** The largest layer count a head may claim for a tree of the given order. */
+export function maxHeadLayers(order: number): number {
+    return Math.ceil(MAX_ENTRIES_LOG2 / order) + 1;
+}
+
+/**
+ * Thrown while walking a peer's tree when it is structurally impossible for an
+ * honest replica to have built it (repeated pollards, wrong order or width, more
+ * pollards than its claimed size allows). The whole head is then dropped.
+ */
+class TreeRejectedError extends Error {}
+
+/**
+ * Per-head budget for walking a peer's tree. Content addressing lets a hostile
+ * peer build a DAG whose pollards link the same child many times, which a naive
+ * walk visits exponentially often; an honest tree never repeats a pollard, so a
+ * repeat rejects the head. The pollard count is also capped by what the head's
+ * claimed size allows (KNOWN_ISSUES.md #26).
+ */
+class TreeWalkBudget {
+    private readonly seen = new Set<string>();
+    constructor(private readonly maxPollards: number) {}
+
+    visit(cid: CID): void {
+        const key = cid.toString();
+        if (this.seen.has(key)) throw new TreeRejectedError(`pollard ${key} appears more than once`);
+        this.seen.add(key);
+        if (this.seen.size > this.maxPollards) throw new TreeRejectedError("more pollards than the head's size allows");
+    }
+}
 
 /**
  * Datastore key holding the CID of the last locally built head for a database,
@@ -246,6 +286,31 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         });
     }
 
+    /**
+     * Evaluates the manifest-bound validation (consensus) policy for a signed
+     * entry. The input is a pure function of manifest + signed-entry data — no
+     * wall clock, no local identity — so every replica reaches the same verdict
+     * for the same entry (specs/ordering.md §4, KNOWN_ISSUES.md #25).
+     */
+    private async isValid(entry: { timestamp: number; creator: CID }): Promise<boolean> {
+        return this.validationPolicy.execute({
+            databaseCreator: this.manifest.creator.toString(),
+            entryTimestamp: entry.timestamp,
+            entryCreator: entry.creator.toString(),
+        });
+    }
+
+    /**
+     * Whether a signed entry belongs to this database. Current (v2) entries must
+     * carry this database's address; legacy unbound v1 entries are accepted only
+     * by legacy (v1-manifest) databases, so 3.0.0 data stays readable while new
+     * databases are immune to cross-database replay (KNOWN_ISSUES.md #24).
+     */
+    private isBoundHere(entry: EntryInterface<unknown>): boolean {
+        if (entry.version === ENTRY_VERSION) return entry.manifest?.equals(this.manifest.cid) === true;
+        return entry.version === LEGACY_ENTRY_VERSION && this.manifest.version === LEGACY_MANIFEST_VERSION;
+    }
+
     get identity(): IdentityInterface {
         return this.heliaController.identity;
     }
@@ -273,16 +338,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             throw new Error("Access denied: this identity is not authorized to write to this database");
         }
 
-        const entry = await createEntry<T>(key, value, this.heliaController);
-
-        const check = {
-            currentTimestamp: Date.now(),
-            databaseCreator: this.manifest.creator.toString(),
-            currentIdentity: this.identity.cid.toString(),
-            entryTimestamp: entry.timestamp,
-            entryCreator: entry.creator.toString(),
-        };
-        if (!(await this.validationPolicy.execute(check))) throw new Error("Consensus failed");
+        const entry = await createEntry<T>(key, value, this.heliaController, this.manifest.cid);
+        if (!(await this.isValid(entry))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
         // A concurrently-known entry with a greater composite key already wins.
@@ -309,16 +366,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             throw new Error("Access denied: this identity is not authorized to write to this database");
         }
 
-        const entry = await createTombstone<T>(key, this.heliaController);
-
-        const check = {
-            currentTimestamp: Date.now(),
-            databaseCreator: this.manifest.creator.toString(),
-            currentIdentity: this.identity.cid.toString(),
-            entryTimestamp: entry.timestamp,
-            entryCreator: entry.creator.toString(),
-        };
-        if (!(await this.validationPolicy.execute(check))) throw new Error("Consensus failed");
+        const entry = await createTombstone<T>(key, this.heliaController, this.manifest.cid);
+        if (!(await this.isValid(entry))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
         if (!result.applied) return;
@@ -410,12 +459,22 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A promise that resolves when the DenkmitDB instance is closed.
      */
     async close(): Promise<void> {
-        await this.syncController.close();
-        // Only clear a store we created; a caller-supplied (possibly persistent)
-        // Keyv is theirs, and clearing it would destroy their data (D4).
-        if (this.ownsKeyValueStorage) await this.keyValueStorage.clear();
-        this.layers.length = 0;
-        this.sortedItemsStore.clear();
+        try {
+            // Make acknowledged writes recoverable: let the queued tree rebuild run,
+            // then build and persist a head for it. Without this, close() dropped the
+            // pending rebuild and a write made shortly before close was not
+            // discoverable on reopen (KNOWN_ISSUES.md #28). Persisting only — no
+            // announcement goes out while shutting down.
+            await this.idle();
+            await this.createOnlyNewHead();
+        } finally {
+            await this.syncController.close();
+            // Only clear a store we created; a caller-supplied (possibly persistent)
+            // Keyv is theirs, and clearing it would destroy their data (D4).
+            if (this.ownsKeyValueStorage) await this.keyValueStorage.clear();
+            this.layers.length = 0;
+            this.sortedItemsStore.clear();
+        }
     }
 
     async getManifest(): Promise<ManifestInterface> {
@@ -480,9 +539,14 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     async compare(head: HeadInterface): Promise<{ isEqual: boolean; difference: [LeafType[], LeafType[]] }> {
         const layersCount = Math.max(this.layers.length, head.layers);
-        const order = layersCount - 1;
+        const budget = new TreeWalkBudget(this.maxPollardsFor(head));
 
-        const difference = await this.compareNodes(layersCount, head.root, { layerIndex: order, position: 0 });
+        const difference = await this.compareNodes(
+            head.layers,
+            head.root,
+            { layerIndex: layersCount - 1, position: 0 },
+            budget,
+        );
 
         difference[0] = difference[0].filter((x) => x.type !== LeafTypes.Empty);
         difference[1] = difference[1].filter((x) => x.type !== LeafTypes.Empty);
@@ -522,46 +586,95 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         if (mergedAny) await this.createTaskUpdateLayers(rebuildFrom);
     }
 
+    /**
+     * Diffs the local subtree at `{layerIndex, position}` against the remote
+     * subtree rooted at `remote` (undefined when the remote tree has nothing
+     * there). `remoteLayers` is the remote tree's height: at and above that layer
+     * the remote tree is virtual — its root is the leftmost descendant — so a peer
+     * with fewer layers is still compared at the right depth (KNOWN_ISSUES.md #26).
+     */
     private async compareNodes(
-        layersCount: number,
-        root: CID | undefined,
+        remoteLayers: number,
+        remote: CID | undefined,
         { layerIndex, position }: PollardLocation,
+        budget: TreeWalkBudget,
     ): Promise<[LeafType[], LeafType[]]> {
         const result: [LeafType[], LeafType[]] = [[], []];
-        let thisPollard = this.getPollardTreeNode({ layerIndex, position }).pollard;
-        const otherPollard = layersCount > layerIndex ? root && (await this.getPollard(root)) : undefined;
+        const thisPollard = this.getPollardTreeNode({ layerIndex, position }).pollard;
+        const append = (next: [LeafType[], LeafType[]]) => {
+            for (const leaf of next[0]) result[0].push(leaf);
+            for (const leaf of next[1]) result[1].push(leaf);
+        };
+        const descend = (i: number, child: CID | undefined) =>
+            this.compareNodes(remoteLayers, child, { layerIndex: layerIndex - 1, position: position * this.maxPollardLength + i }, budget);
 
-        if (!thisPollard && !otherPollard) return result;
-
-        thisPollard = thisPollard || (await createEmptyPollard(this.order));
-
-        const comp = await thisPollard.compare(otherPollard);
-        if (comp.isEqual) return result;
-
-        if (layerIndex === 0) {
-            result[0] = result[0].concat(comp.difference[0]);
-            result[1] = result[1].concat(comp.difference[1]);
+        if (layerIndex >= remoteLayers) {
+            // Above the remote root: only the leftmost child carries the remote tree.
+            const width = Math.max(thisPollard?.length ?? 0, remote ? 1 : 0);
+            for (let i = 0; i < width; i++) append(await descend(i, i === 0 ? remote : undefined));
             return result;
         }
 
-        const maxPollardLength = Math.max(thisPollard?.length || 0, otherPollard?.length || 0);
+        const otherPollard = remote ? await this.getRemotePollard(remote, budget) : undefined;
+        if (!thisPollard && !otherPollard) return result;
 
-        for (let i = 0; i < maxPollardLength; i++) {
-            let cid = root;
-            if (otherPollard) {
-                const leaf = await otherPollard.getLeaf(i);
-                if (leaf.type !== LeafTypes.Empty && leaf.type !== LeafTypes.Hash) cid = leaf.link;
-            }
+        const comp = await (thisPollard ?? (await createEmptyPollard(this.order))).compare(otherPollard);
+        if (comp.isEqual) return result;
 
-            const next = await this.compareNodes(layersCount, cid, {
-                layerIndex: layerIndex - 1,
-                position: position * maxPollardLength + i,
-            });
-            result[0] = result[0].concat(next[0]);
-            result[1] = result[1].concat(next[1]);
+        if (layerIndex === 0) {
+            append(comp.difference);
+            return result;
+        }
+
+        // Child positions use the fixed fan-out, not the (possibly partial) length
+        // of this pollard, or right-edge subtrees are compared against the wrong
+        // local nodes.
+        const width = Math.max(thisPollard?.length ?? 0, otherPollard?.length ?? 0);
+        for (let i = 0; i < width; i++) {
+            const leaf = otherPollard && i < otherPollard.length ? otherPollard.getLeaf(i) : undefined;
+            append(await descend(i, leaf?.type === LeafTypes.Pollard ? leaf.link : undefined));
         }
 
         return result;
+    }
+
+    /** Pollard budget for walking a head's tree: what an honest tree of its size needs. */
+    private maxPollardsFor(head: HeadInterface): number {
+        return 2 * Math.ceil(head.size / this.maxPollardLength) + head.layers + 1;
+    }
+
+    /**
+     * Fetches a pollard from a peer's tree under the walk budget, rejecting
+     * shapes no honest replica of this database builds: another order, or a
+     * length/width beyond the fan-out (the loop bounds come from these fields).
+     */
+    private async getRemotePollard(cid: CID, budget: TreeWalkBudget): Promise<PollardInterface | undefined> {
+        budget.visit(cid);
+        const pollard = await this.getPollard(cid);
+        if (!pollard) return undefined;
+        const width = pollard.layers[0]?.length ?? 0;
+        if (
+            pollard.order !== this.order ||
+            !Number.isSafeInteger(pollard.length) ||
+            pollard.length < 0 ||
+            pollard.length > this.maxPollardLength ||
+            width > this.maxPollardLength
+        ) {
+            throw new TreeRejectedError(`pollard ${cid.toString()} does not match this database's tree shape`);
+        }
+        return pollard;
+    }
+
+    /**
+     * Whether a fetched head is plausible for this database before any of its tree
+     * is walked: an integer layer count within what 2^40 entries need, and a size
+     * that fits those layers (KNOWN_ISSUES.md #26).
+     */
+    private isPlausibleHead(head: HeadInterface): boolean {
+        const { layers, size } = head;
+        if (!Number.isSafeInteger(layers) || layers < 1 || layers > maxHeadLayers(this.order)) return false;
+        if (!Number.isSafeInteger(size) || size < 1) return false;
+        return size <= this.maxPollardLength ** layers && CID.asCID(head.root) !== null;
     }
 
     /**
@@ -579,10 +692,19 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
         let entry;
         try {
-            // fetchEntry verifies the JWS signature; throws if missing/invalid.
+            // fetchEntry verifies the JWS signature and the payload shape; throws if
+            // missing, invalid, or malformed.
             entry = await fetchEntry(cid, this.heliaController);
         } catch {
-            this.log("Rejected leaf %s: entry missing or signature invalid", cid.toString());
+            this.log("Rejected leaf %s: entry missing, malformed, or signature invalid", cid.toString());
+            return;
+        }
+
+        // The signed entry must belong to THIS database — otherwise any entry (or
+        // tombstone) written to another database by a shared writer could be
+        // replayed here inside a head we accept (KNOWN_ISSUES.md #24).
+        if (!this.isBoundHere(entry)) {
+            this.log("Rejected leaf %s: entry is not bound to this database", cid.toString());
             return;
         }
 
@@ -598,14 +720,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             return;
         }
 
-        const check = {
-            currentTimestamp: Date.now(),
-            databaseCreator: this.manifest.creator.toString(),
-            currentIdentity: this.identity.cid.toString(),
-            entryTimestamp: timestamp,
-            entryCreator: creator.toString(),
-        };
-        if (!(await this.validationPolicy.execute(check))) {
+        if (!(await this.isValid(entry))) {
             this.log("Rejected leaf %s: consensus check failed", cid.toString());
             return;
         }
@@ -745,6 +860,28 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // remote tree (KNOWN_ISSUES.md #17). The remote pollards are only walked to
         // discover entries; the honest tree is rebuilt from the verified index, so
         // forged leaf structure/metadata cannot survive.
+        //
+        // Phase 1 walks the remote tree level by level under the walk budget and the
+        // head's own layer count (KNOWN_ISSUES.md #26): a repeated or misshapen
+        // pollard rejects the head before any local state is touched.
+        const budget = new TreeWalkBudget(this.maxPollardsFor(head));
+        const leaves: LeafType[] = [];
+        let links: CID[] = [head.root];
+        for (let level = 0; links.length > 0; level++) {
+            if (level >= head.layers) throw new TreeRejectedError("tree is deeper than the head claims");
+            const pollards = await Promise.all(links.map((link) => this.getRemotePollard(link, budget)));
+            const next: CID[] = [];
+            for (const pollard of pollards) {
+                if (!pollard) continue; // missing or wrong version — skip
+                for (const leaf of pollard.iterator()) {
+                    if (leaf.type === LeafTypes.Pollard) next.push(leaf.link);
+                    else if (leaf.type === LeafTypes.SortedEntry) leaves.push(leaf);
+                }
+            }
+            links = next;
+        }
+
+        // Phase 2 replaces local state with the verified entries.
         this.layers.length = 0;
         // Invalidate the value cache. An owned store is cleared outright; a
         // caller-supplied (possibly shared/persistent) Keyv only has the keys THIS
@@ -760,37 +897,15 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         await this.sortedItemsStore.clear();
         this.head = undefined;
 
-        let links: CID[] = [head.root];
-
-        // Each level's pollard fetches and each pollard's entry verifications run
-        // concurrently (bounded by the level's fan-out): the work items are
+        // Entry verifications run with bounded concurrency: the work items are
         // independent — processLeafMerging verifies and LWW-indexes one signed
         // entry, which is order-insensitive by construction — and the bulk-load
         // path is fetch-latency-bound, so sequential awaits made full replication
-        // scale with round-trips × entries (scripts/bench.mjs).
-        while (links.length > 0) {
-            const pollards = await Promise.all(links.map((link) => this.getPollard(link)));
-            const next: CID[] = [];
-            const leafWork: Promise<unknown>[] = [];
-
-            const leaves: LeafType[] = [];
-            for (const pollard of pollards) {
-                if (!pollard) continue; // missing or wrong version — skip
-                for (const leaf of pollard.iterator()) {
-                    if (leaf.type === LeafTypes.Pollard) next.push(leaf.link);
-                    else if (leaf.type === LeafTypes.SortedEntry) leaves.push(leaf);
-                }
-            }
-            // Bounded concurrency: an unbounded Promise.all over a whole level
-            // (10k+ entries) floods bitswap/pinning and scales superlinearly;
-            // batches keep the pipeline full without the thundering herd.
-            const BATCH = 64;
-            for (let i = 0; i < leaves.length; i += BATCH) {
-                leafWork.length = 0;
-                for (const leaf of leaves.slice(i, i + BATCH)) leafWork.push(this.processLeafMerging(leaf));
-                await Promise.all(leafWork);
-            }
-            links = next;
+        // scale with round-trips × entries (scripts/bench.mjs). An unbounded
+        // Promise.all over 10k+ entries floods bitswap/pinning instead.
+        const BATCH = 64;
+        for (let i = 0; i < leaves.length; i += BATCH) {
+            await Promise.all(leaves.slice(i, i + BATCH).map((leaf) => this.processLeafMerging(leaf)));
         }
         await this.createTaskUpdateLayers(0);
     }
@@ -827,11 +942,20 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
                 this.log("Rejected head %s: unsupported version %d", cid.toString(), head.version);
                 return;
             }
+            if (!this.isPlausibleHead(head)) {
+                this.log("Rejected head %s: implausible layers/size", cid.toString());
+                return;
+            }
 
-            if (this.size === 0) {
-                await this.load(head);
-            } else {
-                await this.merge(head);
+            try {
+                if (this.size === 0) {
+                    await this.load(head);
+                } else {
+                    await this.merge(head);
+                }
+            } catch (error) {
+                if (!(error instanceof TreeRejectedError)) throw error;
+                this.log("Rejected head %s: %s", cid.toString(), error.message);
             }
         });
     }
