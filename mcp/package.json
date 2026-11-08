@@ -17,7 +17,8 @@
     "scripts": {
         "build": "rm -rf dist && tsc",
         "start": "node dist/index.js",
-        "smoke": "node dist/smoke.js"
+        "smoke": "node dist/smoke.js",
+        "demo": "node dist/demo.js"
     },
     "author": "Askar Zhakenov <askar@zhakenov.pro>",
     "license": "MIT",

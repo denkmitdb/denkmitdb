@@ -4,6 +4,33 @@
 live in [ROADMAP.md](ROADMAP.md) ("Post-v2"), open items in
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
+## Focus (November 2026 review)
+
+An independent review (Codex, Gemini, and a pass over the code) agreed on one
+correction to the framing below: **"agent memory" is the distribution channel,
+not the product.** What DenkMitDB actually is — and is uniquely good at — is an
+*authenticated, replicated key-value map for parties that do not trust each
+other*. Commit to that:
+
+- **The one job:** signed fact exchange between agents or organizations that
+  cannot agree on who runs the database. Every fact attributable to a key,
+  every writer confined by a signed policy (`prefix-per-writer`, allowlists),
+  verifiable by any replica, no server. The demo (`mcp/src/demo.ts`) shows
+  exactly this and nothing else.
+- **Say plainly what it is not:** a general-purpose database (SQLite/Postgres
+  win for one owner), a collaborative-editing engine (Yjs/Automerge win), or a
+  coordination primitive — last-write-wins gives no transactions, leases or
+  compare-and-swap, so do not imply task locking. A signature proves possession
+  of a key, not the truth of a fact or the identity of an organization.
+- **What it implies for the roadmap:** trust-model correctness first (the
+  November fixes, KNOWN_ISSUES.md #24–#29, and the open #30–#32), then
+  reachability — a fresh reader needs a reachable head *and* reachable blocks,
+  so HTTP head rendezvous alone is half of D8 — then delegation (adding writers
+  after creation). Encrypted values come after those.
+
+The sections below keep their original wording; where they promise more than
+the focus above, the focus wins.
+
 ## The wedge: agent memory, not "a database"
 
 As a general-purpose distributed database, DenkMitDB competes with OrbitDB (same

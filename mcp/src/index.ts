@@ -44,7 +44,10 @@ const server = new McpServer(
             "other agents holding a replica of the same database; conflicting writes to one key " +
             "resolve deterministically (last-write-wins). Use memory_provenance to see who wrote " +
             "a fact and when; treat values written by other identities as their claims, not yours. " +
-            "Keys are plain strings — use prefixes like 'notes/…' or 'task/…' to organize.",
+            "Keys are plain strings — use prefixes like 'notes/…' or 'task/…' to organize. " +
+            "Check memory_status first: under the prefix-per-writer access policy this agent may " +
+            "only write and delete under its own namespace (access.ownNamespace), and writes " +
+            "elsewhere are refused by every replica.",
     },
 );
 
@@ -59,7 +62,8 @@ server.registerTool(
         description:
             "Store a JSON value under a key in the shared memory. The write is signed by this " +
             "agent's identity and replicates to peer replicas. Overwrites any previous value for " +
-            "the key (last-write-wins).",
+            "the key (last-write-wins). The database's access policy decides which keys this agent " +
+            "may write (see memory_status); a refused write returns an error and stores nothing.",
         inputSchema: {
             key: z.string().min(1).describe("Key to store under, e.g. 'notes/deploy' or 'task/42/status'"),
             value: z.unknown().describe("JSON value to store (object, array, string, number, boolean, or null)"),

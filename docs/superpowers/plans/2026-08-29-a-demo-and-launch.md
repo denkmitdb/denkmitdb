@@ -30,7 +30,7 @@
 - Consumes: the denkmit-mcp server (`mcp/src/index.js` after build) via `StdioClientTransport`, exactly as `mcp/src/smoke-sync.ts` does.
 - Produces: `pnpm demo` — exits 0 after printing the full narrated flow; later tasks (A2) embed its transcript.
 
-- [ ] **Step 1: Write `mcp/src/demo.ts`**
+- [x] **Step 1: Write `mcp/src/demo.ts`**
 
 Start from `mcp/src/smoke-sync.ts` (copy it) and transform it: keep `makeClient`, `firstText`, `waitUntil`, the temp `dataDir` and two-process setup verbatim; replace the assert-style output with the narrated acts below, and add Act 4 (kill survival). The complete new/changed parts:
 
@@ -118,17 +118,17 @@ console.log("\nDEMO COMPLETE");
 
 Wrap the whole flow in the same `try { … } finally { close clients; rmSync(dataDir) }` shape as smoke-sync.ts (alice's close is already done in Act 4 — guard the finally with `.catch(() => {})` as smoke-sync does).
 
-- [ ] **Step 2: Add the script and build**
+- [x] **Step 2: Add the script and build**
 
 In `mcp/package.json` scripts add `"demo": "node dist/demo.js"`. Run: `cd mcp && pnpm build`
 Expected: compiles clean.
 
-- [ ] **Step 3: Run the demo — it must exit 0 with all four acts printed**
+- [x] **Step 3: Run the demo — it must exit 0 with all four acts printed**
 
 Run: `cd mcp && pnpm demo`
 Expected: Acts 1–4 print; `is alice? true`; `by bob self? false`; Act 4 prints the surviving value; exit 0.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add mcp/src/demo.ts mcp/package.json
@@ -145,7 +145,7 @@ git commit -m "demo: narrated two-agent launch demo (replication, provenance, ki
 - Consumes: the demo transcript from Task A1 (run `pnpm demo` and paste real output), the README perf table, VISION.md positioning.
 - Produces: publishable text; no code surface.
 
-- [ ] **Step 1: Write `docs/launch/show-hn.md`**
+- [x] **Step 1: Write `docs/launch/show-hn.md`**
 
 ```markdown
 # Show HN: DenkMitDB – shared memory for AI agents with cryptographic provenance, no server
@@ -194,7 +194,7 @@ I'd love scrutiny of the trust model (KNOWN_ISSUES.md documents every hole
 found so far and what closed it).
 ```
 
-- [ ] **Step 2: Add the README "Why" section**
+- [x] **Step 2: Add the README "Why" section**
 
 Insert after the `## 📈 Performance` section in `README.md`:
 
@@ -215,12 +215,12 @@ peers; DenkMitDB solves attributable state among untrusted peers.* See
 [VISION.md](VISION.md) for the full positioning.
 ```
 
-- [ ] **Step 3: Verify docs build nothing breaks**
+- [x] **Step 3: Verify docs build nothing breaks**
 
 Run: `pnpm lint && pnpm typecheck`
 Expected: clean (markdown-only change; lint doesn't cover md but catches accidental code edits).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/launch/show-hn.md README.md

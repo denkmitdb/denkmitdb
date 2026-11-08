@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Demo, launch draft, focus
+
+- **`cd mcp && pnpm demo`** — a narrated six-act run of two real MCP server
+  processes: a `prefix-per-writer` database with no server, provenance on a
+  shared fact, a refused cross-namespace overwrite, and the memory surviving both
+  processes (including a restart with no peers online).
+- Refused writes name the key (`may not write key "…"`), which matters once
+  presets authorize per key.
+- MCP instructions and the `memory_set` description point agents at their own
+  namespace.
+- README "Why" section, VISION.md "Focus" section (signed fact exchange between
+  parties that don't trust each other), and a Show HN draft in
+  `docs/launch/show-hn.md` (not posted).
+
 ### Access presets & policy hardening
 
 - **`access` option on `createDenkmitDatabase`:** `"creator-only"` (default),
