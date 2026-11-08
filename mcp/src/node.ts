@@ -164,7 +164,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         JSON.stringify({ addrs: libp2p.getMultiaddrs().map(String), updatedAt: Date.now() }),
     );
     const dialSiblings = async (): Promise<void> => {
-        let siblings: string[] = [];
+        let siblings: string[];
         try {
             siblings = (await readdir(config.dataDir)).filter((name) => name !== config.identityName);
         } catch {

@@ -58,9 +58,33 @@ stores, single writer, ~40-byte values — orders of magnitude, not SLAs):
 | Reopen from persisted head (10k records, restore + reindex) | 0.55 ms | ~1,800 |
 | Full replication to a fresh peer (verify + index + rebuild) | 14.3 ms | ~70 |
 
+On a small cloud VM (4 vCPU arm64 Neoverse-N1, November 2026, after the
+integrity fixes): `set()` 6.7 ms, cold `get()` 3.2 ms, reopen 0.69 ms/record,
+full replication 10.5 ms/entry.
+
 Bulk replication is the known wall (fetch-latency-bound and superlinear at
 depth; see ROADMAP.md — batch sync and the persisted materialized index are the
 follow-ups).
+
+## 🤔 Why
+
+Agents run by different owners increasingly need to share facts — findings,
+decisions, task state — and nothing in a typical memory stack answers *"who
+claimed this, and can I check it without trusting whoever runs the database?"*
+
+DenkMitDB's answer is structural. Every record is signed by a self-certifying
+identity and bound to its database; every replica checks the signature, the
+binding and the database's signed write policy **before** indexing anything; and
+provenance is a query (`provenance(key)`). With the `prefix-per-writer` preset
+each party owns its own namespace, so nobody can overwrite or delete anyone
+else's facts. None of it needs a server.
+
+It is deliberately narrow: for one owner's agents, SQLite or Postgres is simpler;
+for collaborative documents, use Yjs or Automerge. *CRDTs solve concurrent
+editing among trusted peers; DenkMitDB solves attributable state among peers
+that don't trust each other.* A signature proves which key wrote a fact — not
+that the fact is true. See [VISION.md](_media/VISION.md) and
+[docs/policies.md](_media/policies.md); the two-agent demo is `cd mcp && pnpm demo`.
 
 ## 💾 Installation
 

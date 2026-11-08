@@ -395,7 +395,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // unauthorized writer must be rejected before anything is persisted —
         // otherwise every denied write still grows the local store.
         if (!(await this.isAuthorized(this.identity.cid, key))) {
-            throw new Error("Access denied: this identity is not authorized to write to this database");
+            throw new Error(`Access denied: this identity may not write key "${key}" in this database`);
         }
 
         const entry = await createEntry<T>(key, value, this.heliaController, this.manifest.cid);
@@ -423,7 +423,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     async delete(key: string): Promise<void> {
         // Authorization before the tombstone is signed/stored/pinned (see set()).
         if (!(await this.isAuthorized(this.identity.cid, key))) {
-            throw new Error("Access denied: this identity is not authorized to write to this database");
+            throw new Error(`Access denied: this identity may not delete key "${key}" in this database`);
         }
 
         const entry = await createTombstone<T>(key, this.heliaController, this.manifest.cid);
