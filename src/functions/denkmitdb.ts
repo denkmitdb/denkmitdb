@@ -459,16 +459,26 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @returns A promise that resolves when the DenkmitDB instance is closed.
      */
     async close(): Promise<void> {
+        // Stop sync first: it drops queued work (even on a paused caller-supplied
+        // controller) and waits for a task that is already running, so nothing
+        // below races a background rebuild or merge.
+        await this.syncController.close();
         try {
-            // Make acknowledged writes recoverable: let the queued tree rebuild run,
-            // then build and persist a head for it. Without this, close() dropped the
-            // pending rebuild and a write made shortly before close was not
-            // discoverable on reopen (KNOWN_ISSUES.md #28). Persisting only — no
-            // announcement goes out while shutting down.
-            await this.idle();
+            // Make acknowledged writes recoverable: run the rebuild that was still
+            // queued (its task was just dropped), then build and persist a head for
+            // it. Without this, close() discarded the pending rebuild and a write made
+            // shortly before close was not discoverable on reopen (KNOWN_ISSUES.md
+            // #28). Persisting only — nothing is announced while shutting down.
+            const pending = this.pendingRebuildFrom;
+            this.pendingRebuildFrom = undefined;
+            if (pending !== undefined) await this.updateLayers(pending);
             await this.createOnlyNewHead();
+        } catch (error) {
+            // Typically the Helia node was stopped before the database: its stores are
+            // gone, so there is nowhere left to persist to. Closing must still succeed.
+            // Close the database before stopping Helia to keep the last writes durable.
+            this.log.error("close: could not persist the head; recent writes may need a peer to recover", error);
         } finally {
-            await this.syncController.close();
             // Only clear a store we created; a caller-supplied (possibly persistent)
             // Keyv is theirs, and clearing it would destroy their data (D4).
             if (this.ownsKeyValueStorage) await this.keyValueStorage.clear();

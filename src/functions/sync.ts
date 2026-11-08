@@ -57,15 +57,24 @@ export class SyncController implements SyncControllerInterface {
 
     async addTask(task: () => Promise<void>): Promise<void> {
         if (this.closed) return;
-        await this.queue.add(async () => {
-            try {
-                await task();
-            } catch (error) {
-                // A failing background task must not crash the process
-                // (KNOWN_ISSUES.md #14); surface it on the logger instead.
-                this.log.error?.("sync task failed", error);
-            }
-        });
+        try {
+            await this.queue.add(async () => {
+                try {
+                    await task();
+                } catch (error) {
+                    // A failing background task must not crash the process
+                    // (KNOWN_ISSUES.md #14); surface it on the logger instead.
+                    this.log.error?.("sync task failed", error);
+                }
+            });
+        } catch (error) {
+            // p-queue 10 rejects the promise of a task dropped by clear() (on close)
+            // with an AbortError; p-queue 9 left it pending forever. A dropped task is
+            // expected during shutdown, and callers may not await this promise, so it
+            // must not surface as an unhandled rejection.
+            if ((error as Error)?.name !== "AbortError") throw error;
+            this.log("task dropped: queue cleared on close");
+        }
     }
 
     async addRepetitiveTask(task: () => Promise<void>, interval: number): Promise<void> {
@@ -88,12 +97,16 @@ export class SyncController implements SyncControllerInterface {
         if (this.repetitiveDelay) clearDelay(this.repetitiveDelay);
         this.queue.clear();
         this.scheduleQueue.clear();
-        this.heliaController.libp2p.services.pubsub.unsubscribe(this.name);
-        this.heliaController.libp2p.services.pubsub.removeEventListener("message", this.messageHandler);
-        this.heliaController.libp2p.services.pubsub.removeEventListener(
-            "subscription-change",
-            this.subscriptionChangeHandler,
-        );
+        const pubsub = this.heliaController.libp2p.services.pubsub;
+        pubsub.removeEventListener("message", this.messageHandler);
+        pubsub.removeEventListener("subscription-change", this.subscriptionChangeHandler);
+        try {
+            pubsub.unsubscribe(this.name);
+        } catch (error) {
+            // A stopped libp2p node throws "Pubsub is not started"; its subscriptions
+            // are already gone, so teardown carries on (KNOWN_ISSUES.md #28).
+            this.log("unsubscribe skipped: %s", (error as Error).message);
+        }
         await this.queue.onIdle();
     }
 }

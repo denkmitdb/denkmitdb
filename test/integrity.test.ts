@@ -14,6 +14,7 @@ import {
     HeliaStorage,
     openDenkmitDatabase,
     SortedItemsStore,
+    SyncController,
 } from "../src/functions";
 import { ENTRY_VERSION, HEAD_VERSION, IdentityTypes, LeafTypes } from "../src/types";
 import { buildHead, createCustomDb, createTestNode, ForgedLeaf, putSignedEntry, TestNode } from "./helpers";
@@ -373,6 +374,38 @@ describe("Integrity hardening (review 2026-11)", () => {
             expect(await reopened.get("first")).toEqual({ value: "1" });
             expect(await reopened.get("last")).toEqual({ value: "2" });
             await reopened.close();
+        });
+
+        it("does not hang when a caller-supplied controller's queue is paused", async () => {
+            const syncController = (await createSyncController("close-paused", controller)) as SyncController;
+            const db = await createDenkmitDatabase<Value>("close-paused", {
+                helia: node.helia,
+                identity: node.identity,
+                syncController,
+            });
+            syncController.queue.pause();
+            await db.set("queued", { value: "still durable" });
+            await Promise.race([
+                db.close(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("close() hung")), 5_000)),
+            ]);
+
+            const reopened = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: node.identity });
+            await reopened.idle();
+            expect(await reopened.get("queued")).toEqual({ value: "still durable" });
+            await reopened.close();
+        });
+
+        it("still closes when Helia was stopped first", async () => {
+            const other = await createTestNode("integrity-stopped");
+            const db = await createDenkmitDatabase<Value>("close-after-stop", {
+                helia: other.helia,
+                identity: other.identity,
+            });
+            await db.set("k", { value: "v" });
+            await db.idle();
+            await other.stop();
+            await expect(db.close()).resolves.toBeUndefined();
         });
     });
 
