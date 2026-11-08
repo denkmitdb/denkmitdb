@@ -225,6 +225,28 @@ export async function fetchIdentity(cid: CID, heliaStorage: HeliaStorage, keys?:
 
     const verified = await jose.flattenedVerify(identityJWS, jose.EmbeddedJWK);
     const data: IdentityData = HeliaStorage.decode(verified.payload);
+
+    // The block is self-signed with the JWK embedded in its header, but every later
+    // verification uses the public key stated in the payload. Require them to be the
+    // same key (and algorithm), so an identity block is self-certifying for the key
+    // it advertises (KNOWN_ISSUES.md #29).
+    const header = verified.protectedHeader;
+    const embedded = header?.jwk;
+    if (!header || !embedded || typeof data.publicKey !== "string") {
+        throw new Error("Identity block lacks a public key");
+    }
+    const stated = HeliaStorage.decode<jose.JWK>(uint8ArrayFromString(data.publicKey, "base64"));
+    const [embeddedThumbprint, statedThumbprint] = await Promise.all([
+        jose.calculateJwkThumbprint(embedded),
+        jose.calculateJwkThumbprint(stated),
+    ]);
+    if (embeddedThumbprint !== statedThumbprint) {
+        throw new Error("Identity signing key does not match its stated public key");
+    }
+    if (header.alg !== data.alg) {
+        throw new Error("Identity signing algorithm does not match its stated algorithm");
+    }
+
     const identity: DenkmitData<IdentityData> = { data, cid, creator: cid };
 
     return new Identity(identity, keys);

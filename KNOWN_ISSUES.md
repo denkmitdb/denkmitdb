@@ -157,6 +157,91 @@ what turned #22 into a silent hang rather than a timeout, and it is reachable on
 own whenever a pinned tree references a block that is not held locally.
 **Fixed:** both paths pass the abort signal.
 
+## Review 2026-11 (Codex + Gemini, verified against the code)
+
+All six are pinned by `test/integrity.test.ts`; each test was confirmed to fail on
+the pre-fix code.
+
+### 24. ✅ [Critical] Signed entries were not bound to their database
+An entry's signed payload was `{version, timestamp, key, value|deleted}` — nothing
+named the database. Ingestion checked the head's manifest, the signature and the
+writer's authorization, but any entry or **tombstone** written to database X by a
+writer also authorized in database Y could be wrapped in a head for Y and accepted
+there. **Fixed:** `ENTRY_VERSION` 2 entries carry `manifest` (the database
+address) inside the signed payload, and `MANIFEST_VERSION` 2 databases accept only
+entries bound to their own address. Legacy v1-manifest databases (created by
+3.0.0) still accept legacy unbound entries, so existing data stays readable — but
+they keep the replay exposure; create a new database to get the binding.
+`fetchEntry` and `fetchManifest` now check the shape of the signed payload
+(version, integer timestamp, string key, exactly one of put/tombstone; manifest
+order and policy CIDs) — a valid signature only proves who wrote the bytes.
+
+### 25. ✅ [High] Policies saw node-local inputs and truthy results authorized
+The validation policy received `currentTimestamp: Date.now()` and the receiving
+node's `currentIdentity`, so a custom policy reading them accepted an entry on one
+replica and rejected it on another — the exact divergence `specs/ordering.md` §4
+forbids. `execute()` also returned json-logic's raw result, so `"false"`, `[]` or
+any object authorized. **Fixed:** the validation input is
+`{databaseCreator, entryTimestamp, entryCreator}` on both the write and the merge
+path, and only a literal `true` authorizes. Built-in policies are unaffected.
+
+### 26. ✅ [High] Tree comparison: wrong child CIDs, misaligned layers, unbounded walk
+`compareNodes` passed the *parent's* CID down for an empty or hash child,
+re-fetching the parent as if it were its own child, and used the pollard's current
+length instead of the fan-out to compute child positions, so right-edge subtrees of
+three-plus-layer trees were compared against the wrong local nodes. A shorter remote
+tree was never aligned to its own height either (it converged only because the
+parent-CID reuse happened to land on the remote root). Worse, nothing bounded the
+walk: `head.layers` was trusted, pollard `order`/`length` were trusted as loop
+bounds, and content addressing lets a hostile DAG link one child many times, which
+both `compare` and `load` walked exponentially — a 12-layer head crashed the test
+worker with an out-of-memory abort. **Fixed:** the remote tree is aligned by its
+height (virtual leftmost path above its root), child positions use the fan-out,
+heads must claim an integer layer count within what 2^40 entries need and a size
+those layers can hold, remote pollards must match this database's order and width,
+and a per-head budget rejects repeated pollards and more pollards than the claimed
+size allows. `load` walks and validates the whole remote tree before touching local
+state.
+
+### 27. ✅ [Medium] Positional iteration made every rebuild O(n²)
+`SortedItemsStore.iteratorFromIndex` called js-sdsl `getElementByPos` once per
+record; that call is an in-order walk from the root (O(pos)). **Fixed:** one
+positional lookup, then a forward tree iterator, snapshotted synchronously so a
+concurrent `set()` that erases a superseded node cannot invalidate it.
+
+### 28. ✅ [High] `close()` dropped writes made shortly before it
+`close()` cleared the pending tree rebuild without building a head, so the
+persisted head pointer (D4) lagged behind acknowledged writes until the periodic
+30 s announcement. **Fixed:** `close()` drains the queue and persists a head before
+shutting sync down (it does not announce). A crash between a write and the next
+head is still a loss window: durability points are `createHead()`, the periodic
+announcement, and `close()`.
+
+### 29. ✅ [Medium] Identity blocks did not bind their signing key
+`fetchIdentity` verified the identity block with the JWK embedded in its header,
+while every later signature check uses the public key stated in the payload; the
+two were never compared. Not a signature forgery (a JWS's `kid` is signed), but an
+identity block was not self-certifying for the key it advertises. **Fixed:** the
+embedded and stated keys must have the same RFC 7638 thumbprint and the header
+algorithm must equal the stated one.
+
+### 30. ◻️ [Medium] `get()` can cache a value that lost a concurrent merge
+Reported by Codex, not yet reproduced: `get()` fetches the indexed entry, and a
+winning merge or delete that lands while the fetch is in flight invalidates the
+cache *before* `get()` writes the old value into it. Fix direction: cache by entry
+CID, or re-check the index winner before caching.
+
+### 31. ◻️ [Medium] A pin failure after indexing leaves a half-applied entry
+Reported by Codex, not yet reproduced: `processLeafMerging` updates the index, then
+pins; if pinning throws, cache invalidation and the rebuild are skipped, and a retry
+sees the entry as already applied. Fix direction: pin before indexing, or roll the
+index back on failure.
+
+### 32. ◻️ [Low] MCP `memory_set` has no value size limit
+Any MCP client can store arbitrarily large values; signed hostile text is also still
+prompt-injection content for the agents reading it. Fix direction: a configurable
+size cap in the MCP server.
+
 ## Packaging & tooling
 
 - **✅ [Fixed 0.5] Broken ESM output** — NodeNext resolution with explicit `.js`

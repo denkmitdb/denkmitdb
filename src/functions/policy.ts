@@ -33,8 +33,17 @@ export class PolicyController implements PolicyInterface {
         };
     }
 
+    /**
+     * Evaluates the policy. Strict: only a literal `true` result authorizes —
+     * json-logic readily returns strings, numbers and arrays, and treating
+     * truthiness as authorization would make a buggy policy fail open
+     * (KNOWN_ISSUES.md #25).
+     *
+     * @param data - Deterministic inputs only (manifest + signed-entry data).
+     * @returns Whether the policy accepts the input.
+     */
     async execute(data: PolicyInput): Promise<boolean> {
-        return jsonLogic.apply(this.logic, data);
+        return jsonLogic.apply(this.logic, data) === true;
     }
 }
 

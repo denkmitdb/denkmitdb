@@ -72,7 +72,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
     it("does not index an entry under a key the signed entry does not carry", async () => {
         const { db, drain } = await createDb("forged-key");
         const manifest = (await db.getManifest()).cid;
-        const entry = await putSignedEntry(heliaController, "legit", { value: "real" }, Date.now());
+        const entry = await putSignedEntry(heliaController, "legit", { value: "real" }, Date.now(), manifest);
 
         const forgedHead = await buildHead(heliaController, manifest, [
             { cid: entry.cid, creator: entry.creator, sort: [entry.timestamp], key: "forged" },
@@ -100,7 +100,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
         expect(await db.get("k")).toEqual({ value: "v1" }); // now cached
 
         const base = Date.now();
-        const newer = await putSignedEntry(heliaController, "k", { value: "v2" }, base + 10_000);
+        const newer = await putSignedEntry(heliaController, "k", { value: "v2" }, base + 10_000, manifest);
         const head = await buildHead(heliaController, manifest, [
             { cid: newer.cid, creator: newer.creator, sort: [newer.timestamp], key: "k" },
         ]);
@@ -122,7 +122,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
         await db.set("k", { value: "new" }); // stamped ~base
         await drain();
 
-        const older = await putSignedEntry(heliaController, "k", { value: "old" }, base - 10_000);
+        const older = await putSignedEntry(heliaController, "k", { value: "old" }, base - 10_000, manifest);
         const head = await buildHead(heliaController, manifest, [
             { cid: older.cid, creator: older.creator, sort: [older.timestamp], key: "k" },
         ]);

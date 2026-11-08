@@ -9,19 +9,27 @@ import * as dagCborCodec from "@ipld/dag-cbor";
 import { createHeliaLight } from "helia";
 import { Libp2p } from "libp2p";
 import { CID } from "multiformats/cid";
+import type { RulesLogic } from "json-logic-js";
 import {
     createEmptyPollard,
     createHead,
     createIdentity,
+    createManifest,
+    createPolicy,
     HeliaController,
+    openDenkmitDatabase,
 } from "../src/functions";
 import {
+    DenkmitDatabaseInterface,
     EntryData,
     ENTRY_VERSION,
     HeadInterface,
     HEAD_VERSION,
     IdentityInterface,
     LeafTypes,
+    LEGACY_ENTRY_VERSION,
+    MANIFEST_VERSION,
+    ManifestVersionType,
 } from "../src/types";
 import type { DenkmitHeliaInterface } from "../src/types";
 
@@ -82,10 +90,53 @@ export async function putSignedEntry<T>(
     key: string,
     value: T,
     timestamp: number,
+    manifest?: CID,
 ): Promise<{ cid: CID; creator: CID; timestamp: number; key: string }> {
-    const data: EntryData<T> = { version: ENTRY_VERSION, timestamp, key, value };
+    // With a manifest: a current (v2) entry bound to that database. Without one: a
+    // legacy v1 entry, which only legacy (v1-manifest) databases accept.
+    const data: EntryData<T> = manifest
+        ? { version: ENTRY_VERSION, manifest, timestamp, key, value }
+        : { version: LEGACY_ENTRY_VERSION, timestamp, key, value };
     const signed = await heliaController.addSigned(data);
     return { cid: signed.cid, creator: signed.creator, timestamp, key };
+}
+
+/**
+ * Creates a database from a hand-built manifest — custom json-logic policies
+ * and/or a legacy manifest version that `createDenkmitDatabase` no longer emits —
+ * and opens it through the normal `openDenkmitDatabase` path.
+ */
+export async function createCustomDb<T>(
+    node: TestNode,
+    name: string,
+    {
+        consensus = true,
+        access = { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
+        manifestVersion = MANIFEST_VERSION,
+        order = 3,
+    }: {
+        consensus?: unknown;
+        access?: unknown;
+        manifestVersion?: ManifestVersionType;
+        order?: number;
+    } = {},
+): Promise<DenkmitDatabaseInterface<T>> {
+    const controller = new HeliaController(node.helia, node.identity);
+    const policy = (policyName: string, logic: unknown) =>
+        createPolicy({ version: 1, name: policyName, description: policyName, logic: logic as RulesLogic }, controller);
+    const manifest = await createManifest(
+        {
+            version: manifestVersion,
+            name,
+            type: "denkmit-database-key-value",
+            order,
+            consensus: (await policy(`${name}-consensus`, consensus)).cid,
+            access: (await policy(`${name}-access`, access)).cid,
+            timestamp: Date.now(),
+        },
+        controller,
+    );
+    return openDenkmitDatabase<T>(manifest.cid, { helia: node.helia, identity: node.identity });
 }
 
 /** A leaf to place in a forged head: what CID/creator/sort-key/key to claim. */

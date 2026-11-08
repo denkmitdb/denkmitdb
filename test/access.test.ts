@@ -65,7 +65,7 @@ describe("Access control", () => {
         // A head bound to this database's manifest, whose leaf links an entry signed
         // by B. Authentication succeeds (B's signature is valid), but authorization
         // must reject it under the creator-only policy.
-        const entry = await putSignedEntry(otherController, "intruder", { value: "x" }, Date.now());
+        const entry = await putSignedEntry(otherController, "intruder", { value: "x" }, Date.now(), db.address);
         const head = await buildHead(otherController, db.address, [
             { cid: entry.cid, creator: entry.creator, sort: [entry.timestamp], key: entry.key },
         ]);

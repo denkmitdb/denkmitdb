@@ -106,13 +106,28 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
         return { ...entry, sortField: composite.timestamp, index };
     }
 
-    /** Iterates records in composite-key order starting at position `startIndex`. */
+    /**
+     * Iterates records in composite-key order starting at position `startIndex`.
+     *
+     * js-sdsl's `getElementByPos` is an O(pos) in-order walk, so calling it per
+     * record made every tree rebuild O(n²) (KNOWN_ISSUES.md #27). This takes one
+     * positional lookup, then walks forward with a tree iterator. The range is
+     * snapshotted synchronously before the first yield: callers await between
+     * records, and a concurrent `set()` that supersedes a record erases its tree
+     * node, which would invalidate a live iterator.
+     */
     async *iteratorFromIndex(startIndex: number): AsyncGenerator<SortedItemType> {
-        const size = this.sortedMap.size();
-        for (let index = startIndex; index < size; index++) {
-            const [composite, entry] = this.sortedMap.getElementByPos(index);
-            yield { ...entry, sortField: composite.timestamp, index };
+        if (startIndex >= this.sortedMap.size()) return;
+        const [first] = this.sortedMap.getElementByPos(Math.max(0, startIndex));
+        const snapshot: SortedItemType[] = [];
+        const end = this.sortedMap.end();
+        let index = Math.max(0, startIndex);
+        for (let it = this.sortedMap.find(first); !it.equals(end); it = it.next()) {
+            const [composite, entry] = it.pointer;
+            snapshot.push({ ...entry, sortField: composite.timestamp, index });
+            index++;
         }
+        yield* snapshot;
     }
 
     get size(): number {
