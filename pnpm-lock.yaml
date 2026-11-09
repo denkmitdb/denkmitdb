@@ -344,6 +344,9 @@ importers:
       '@libp2p/tcp':
         specifier: ^11.0.32
         version: 11.0.32
+      '@libp2p/websockets':
+        specifier: ^10.1.25
+        version: 10.1.25
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(supports-color@10.2.2)(zod@4.6.7)

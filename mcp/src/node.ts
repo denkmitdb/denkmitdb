@@ -21,6 +21,7 @@ import { floodsub } from "@libp2p/floodsub";
 import { identify } from "@libp2p/identify";
 import { mdns } from "@libp2p/mdns";
 import { tcp } from "@libp2p/tcp";
+import { webSockets } from "@libp2p/websockets";
 import { FsBlockstore } from "blockstore-fs";
 import { FsDatastore } from "datastore-fs";
 import { createHeliaLight } from "helia";
@@ -265,7 +266,10 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
                     listen: config.listen,
                     ...(config.announce.length > 0 ? { announce: config.announce } : {}),
                 },
-                transports: [tcp()],
+                // TCP everywhere; WebSockets so a node can listen on a /ws address (e.g.
+                // behind a TLS reverse proxy on 443) and dial /ws and /wss peers — the
+                // way through networks that allow only HTTPS.
+                transports: [tcp(), webSockets()],
                 connectionEncrypters: [noise()],
                 streamMuxers: [yamux()],
                 peerDiscovery: config.mdns ? [mdns()] : [],
