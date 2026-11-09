@@ -34,7 +34,7 @@ recursion, so evaluation always terminates.
 ## Presets — the `access` option of `createDenkmitDatabase`
 
 ```ts
-const db = await createDenkmitDatabase("fleet", { helia, identity, access: "prefix-per-writer" });
+const db = await createDenkmitDatabase("fleet", { helia, identity, access: "namespace-per-writer" });
 ```
 
 The MCP server takes the same presets as `DENKMIT_ACCESS`.
@@ -155,7 +155,8 @@ Two writers, and nobody may touch `config/…` after creation.
   entries exist (`specs/ordering.md` §4, KNOWN_ISSUES.md #25).
 - **Policies are immutable.** They are fixed at creation in the signed manifest —
   auditable forever, never changed silently. To change the rules, create a new
-  database. (Delegation entries — adding writers later — are on the roadmap.)
+  database. (Delegating write rights to device and agent keys is specified in a
+  draft, [PR #17](https://github.com/denkmitdb/denkmitdb/pull/17).)
 - **Signatures prove possession of a key, not truth.** A policy decides *who may
   write*; it cannot make a writer honest. Treat values as claims attributed to
   their signer (`provenance(key)`), and treat text from other agents as

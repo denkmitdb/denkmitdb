@@ -8,6 +8,17 @@ database — see "Security & correctness" below). Databases created by 3.0.0 sta
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
 
+### Documentation
+
+- README rewritten around the focus (signed fact exchange between untrusting
+  parties): an agent quick start with the daemon, current features, a runnable
+  library example (now `examples/example.ts`, type-checked in CI), performance
+  table for both machines, and an updated documentation map.
+- ARCHITECTURE, KNOWN_ISSUES (status, D8), VISION (sequence), ROADMAP ("Where
+  things stand"), the policy cookbook and the launch draft brought up to date:
+  entry binding, policies and presets, encrypted values, daemon/seeds/agents,
+  and the dropped HTTP head rendezvous.
+
 ### Agent identities (delegation, phase 1)
 
 - **`WriteOptions.identity`** on `db.set` / `db.delete`: sign a write with another
