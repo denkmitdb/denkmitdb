@@ -261,9 +261,9 @@ everything ever sealed to it. Seal to the narrowest identity that needs it.
 - **Selecting an identity is not authenticating it.** A thin client asking for
   `DENKMIT_AGENT=codex` over the user's socket proves nothing: any process of the
   same OS user could ask for any agent. Each agent gets its own socket
-  (`denkmitd-<agent>.sock`) and a per-agent session token written into that
-  agent's MCP config; the daemon binds each session to exactly one identity and
-  scope. This prevents mistakes and casual misuse — **it is not a security
+  (`denkmitd-<agent>.sock`, phase 1) and, later, a per-agent session token in
+  that agent's MCP config; the daemon binds each session to exactly one identity
+  and scope. This prevents mistakes and casual misuse — **it is not a security
   boundary against code running as the same user**, which can read the configs
   and the daemon's keys.
 - **The security boundary is the OS user.** Agents that must not impersonate each
@@ -299,10 +299,67 @@ everything ever sealed to it. Seal to the narrowest identity that needs it.
 2. **Chain depth 3** — enough for owner → device → agent; a case for sub-agents?
 3. **Prefix-only scopes** — enough, or are exclusions needed?
 4. **Clock skew** for short certs — how much slack must renewal leave?
-5. **Interop.** UCAN 1.0 delegation (`iss`/`aud`/`sub`/`cmd`/`pol`/`nbf`/`exp`)
-   and Willow's Meadowcap (area-based attenuation over namespaces, subspaces and
-   paths) are both capability chains with attenuation. Neither maps onto
-   DenkMitDB without a profile (a resource model for UCAN, a namespace/path
-   mapping for Meadowcap). This draft keeps a small custom format; before
-   implementation, write the concrete mapping to at least one of them and decide
-   whether the interop is worth the fit.
+5. **Interop.** Decided: keep the small custom format, but keep its semantics
+   aligned with Willow's Meadowcap so that a translation stays a format change,
+   not a model change — the mapping is §14. UCAN 1.0 (`iss`/`aud`/`sub`/`cmd`/
+   `pol`/`nbf`/`exp`) would need a DenkMitDB resource profile and brings no
+   ecosystem we need today; revisit if interop with a UCAN system becomes a
+   requirement.
+
+## 14. Correspondence with Meadowcap
+
+[Meadowcap](https://willowprotocol.org/specs/meadowcap/) (Final since October
+2025) is the capability system of the Willow protocol. Its model is the closest
+prior art to this spec; this section fixes the correspondence so the two stay
+translatable.
+
+### 14.1 Concepts
+
+| Meadowcap | DenkMitDB (this spec) | Notes |
+|---|---|---|
+| namespace (`namespace_key`) | database (manifest CID) | A capability is valid in exactly one namespace — like our required `database`. Meadowcap has no counterpart of `anyDatabase`. |
+| **communal** namespace: every subspace owned by its author (subspace id = the author's public key) | `namespace-per-writer` / `namespace-per-owner`: every identity owns `agents/<its-cid>/` | Our `agents/<cid>/` key prefix plays the role of the subspace id. |
+| **owned** namespace: the namespace keypair owns all data and hands out access | `creator-only` (and custom creator-rooted policies) | The database creator plays the namespace owner; it can now delegate instead of being the only writer. |
+| `Area` = subspace (or any) × path prefix × time range `[start, end)` | `scope.prefixes` × `[notBefore, notAfter)` within the owner's namespace | Willow paths are sequences of components, so path prefixes are segment-aware by construction — the reason §4.2 requires prefixes ending in `/`. |
+| access mode `read` / `write` | `operations: put / delete` | Meadowcap has no separate delete right (deletion is overwriting/pruning); `read` has no counterpart (§14.3). |
+| delegation triple (area, receiver key, signature of the previous receiver over the handover) | cert (`scope` + window, `audience`, signature of `issuer`), linked by `parent` | Meadowcap carries the whole chain inside each capability; we reference it by CID (`delegation` → `parent` → …) — the same chain, content-addressed. |
+| attenuation: each delegated area ⊆ the previous granted area | narrowing (§4.2): prefixes, operations and window ⊆ the parent's | Same rule. |
+| receiver = last key in the chain (or `user_key`) | `cn.audience`, which must be the entry's signer | Same. |
+| `MeadowcapAuthorisationToken` = capability + receiver's signature over the entry | entry v3: signer's signature over a payload that names its leaf cert | Same binding, different packaging. |
+| authorised iff capability valid, mode `write`, granted area ⊇ entry | §5 steps 1–4 | Ours also checks the database and the operation. |
+| no expiry or revocation mechanism; time-bounded areas, and the owner simply stops re-issuing | §8: expiry via windows; compromise handled by a succession checkpoint | Meadowcap's own moderation pattern (short-lived capabilities, owner overwrites) matches our stance that revocation is not deterministic. |
+
+### 14.2 Translating a chain
+
+A DenkMitDB chain becomes a Meadowcap capability when:
+
+1. the database follows the `agents/<subspace>/…` key convention, so a key
+   `agents/<cid>/a/b` maps to subspace `<cid>` and path `[a, b]`;
+2. every cert has **one** prefix (a cert with k prefixes becomes k capabilities);
+3. its operations include `put` (→ `write`); delete-only grants have no
+   counterpart;
+4. placeholders are expanded (Meadowcap areas name concrete subspaces) and
+   `anyDatabase` is not used;
+5. the identity keys are usable as Meadowcap user keys (the reference parameters
+   use Ed25519; our identities default to ES384, so a translation needs either an
+   Ed25519 identity type or a parameter set with ECDSA P-384 signatures).
+
+The other direction works the same way for capabilities whose areas are a
+subspace plus a path prefix.
+
+### 14.3 Deliberate differences
+
+- **Chain by reference.** Certs are separate blocks named by CID. One device cert
+  shared by thousands of entries is stored once; Meadowcap embeds the chain in
+  every token.
+- **Several prefixes and an explicit delete right** per cert — practical for
+  agents (`notes/` and `tasks/`; append-only roles that may `put` but not
+  `delete`).
+- **Read access.** Meadowcap gates replication with read capabilities (peers send
+  entries only to holders of a valid read capability). DenkMitDB does not gate
+  replication: anyone who knows a database address and can reach a peer can
+  replicate it, and confidentiality comes from encrypting values
+  (`encryptValueFor`). Gated replication would be a later, separate feature.
+- **Placeholders** (`{owner}`, `{issuer}`, `{audience}`) so a template can be
+  signed before the audience exists; they are expanded once per cert, which keeps
+  every verified cert equivalent to a concrete Meadowcap area.
