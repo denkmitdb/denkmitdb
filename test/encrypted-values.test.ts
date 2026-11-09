@@ -1,7 +1,7 @@
 import * as jose from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
     decryptValue,
     encryptedRecipients,
@@ -10,9 +10,9 @@ import {
     fetchIdentity,
     HeliaStorage,
     isEncryptedValue,
-    openDenkmitDatabase,
-} from "../src/functions";
-import { IdentityInterface } from "../src/types";
+    openDatabase,
+} from "../src/internal";
+import { SigningIdentity } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 /**
@@ -22,8 +22,8 @@ import { createTestNode, TestNode } from "./helpers";
  */
 describe("Encrypted values", () => {
     let node: TestNode; // node.identity = alice (holds her private key)
-    let bob: IdentityInterface;
-    let carol: IdentityInterface;
+    let bob: SigningIdentity;
+    let carol: SigningIdentity;
 
     beforeAll(async () => {
         node = await createTestNode("enc-alice");
@@ -51,7 +51,7 @@ describe("Encrypted values", () => {
     });
 
     it("encrypts to a FETCHED identity (public key only) — the sender never needs the private key", async () => {
-        const bobPublic = await fetchIdentity(bob.cid, new HeliaStorage(node.helia));
+        const bobPublic = await fetchIdentity(bob.cid, node.helia);
         const enc = await encryptValueFor(bobPublic, { secret: "remote" });
         expect(await decryptValue(bob, enc)).toEqual({ secret: "remote" });
     });
@@ -111,7 +111,7 @@ describe("Encrypted values", () => {
     });
 
     it("an encrypted value replicates through the database like any value", async () => {
-        const db = await createDenkmitDatabase<EncryptedValue>("enc-db", {
+        const db = await createDatabase<EncryptedValue>("enc-db", {
             helia: node.helia,
             identity: node.identity,
             access: "public",
@@ -119,7 +119,7 @@ describe("Encrypted values", () => {
         await db.set("private/token", await encryptValueFor([node.identity, bob], { secret: "stored" }));
         await db.idle();
 
-        const asBob = await openDenkmitDatabase<EncryptedValue>(db.address, { helia: node.helia, identity: bob });
+        const asBob = await openDatabase<EncryptedValue>(db.address, { helia: node.helia, identity: bob });
         await asBob.syncNewHead((await db.createHead()).cid.bytes);
         await asBob.idle();
 

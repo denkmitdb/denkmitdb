@@ -15,10 +15,9 @@ import {
     fetchManifest,
     fetchPolicy,
     HeliaController,
-    HeliaStorage,
-    openDenkmitDatabase,
-} from "../../src/functions";
-import type { IdentityInterface } from "../../src/types";
+    openDatabase,
+} from "../../src/internal";
+import type { SigningIdentity } from "../../src/internal";
 import { createTestNode, type TestNode } from "../helpers";
 import { installCaptured, runDeterministicFlows, type CapturedBlocks, type DeterministicRecord } from "./wire-flows";
 
@@ -31,7 +30,7 @@ const cid = (s: string) => CID.parse(s);
 
 describe("wire format v4", () => {
     let node: TestNode;
-    let identity: IdentityInterface;
+    let identity: SigningIdentity;
     let controller: HeliaController;
 
     beforeAll(async () => {
@@ -98,12 +97,12 @@ describe("wire format v4", () => {
         const head = await fetchHead(cid(captured.refs.head), controller);
         expect(head.manifest.toString()).toBe(captured.refs.manifestV2);
 
-        const fetched = await fetchIdentity(cid(captured.identity.cid), new HeliaStorage(node.helia));
+        const fetched = await fetchIdentity(captured.identity.cid, node.helia);
         expect(fetched.cid.toString()).toBe(captured.identity.cid);
     });
 
     it("opens the captured database and reads its values", async () => {
-        const db = await openDenkmitDatabase<unknown>(cid(captured.refs.manifestV2), {
+        const db = await openDatabase<unknown>(cid(captured.refs.manifestV2), {
             helia: node.helia,
             identity,
         });

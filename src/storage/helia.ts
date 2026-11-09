@@ -5,30 +5,25 @@ import drain from "it-drain";
 import * as jose from "jose";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
-import {
-    DenkmitData,
-    DenkmitHeliaInterface,
-    HeliaControllerInterface,
-    HeliaStorageInterface,
-    IdentityInterface,
-} from "../../types/index.js";
 import { TimeoutController } from "timeout-abort-controller";
-import { fetchIdentity } from "../identity.js";
+import { loadIdentity } from "../identity.js";
+import type { Signed } from "../protocol/signed.js";
+import type { HeliaNode, Identity, SigningIdentity } from "../types.js";
 
 const DefaultTimeout = 30000; // 30 seconds
 
 /**
  * Represents a Storage for interacting with the Helia IPFS.
  */
-export class HeliaStorage implements HeliaStorageInterface {
-    readonly helia: DenkmitHeliaInterface;
+export class HeliaStorage {
+    readonly helia: HeliaNode;
     private heliaDagCbor: DAGCBOR;
 
     /**
      * Creates a new instance of the HeliaStorage class.
      * @param helia - The Helia database interface.
      */
-    constructor(helia: DenkmitHeliaInterface) {
+    constructor(helia: HeliaNode) {
         this.helia = helia;
         this.heliaDagCbor = dagCbor(helia);
     }
@@ -177,19 +172,19 @@ export class HeliaStorage implements HeliaStorageInterface {
 /**
  * Represents a controller for interacting with the Helia storage, providing methods for adding and retrieving signed data.
  */
-export class HeliaController extends HeliaStorage implements HeliaControllerInterface {
-    readonly identity: IdentityInterface;
+export class HeliaController extends HeliaStorage {
+    readonly identity: SigningIdentity;
 
     // Bounded, insertion-ordered LRU of resolved identities keyed by CID string.
     // Stores the in-flight promise so concurrent lookups of the same identity
     // coalesce onto one fetch (KNOWN_ISSUES.md D6).
     private static readonly IDENTITY_CACHE_MAX = 1024;
-    private readonly identityCache = new Map<string, Promise<IdentityInterface>>();
+    private readonly identityCache = new Map<string, Promise<Identity>>();
     // Number of actual fetchIdentity() calls (cache misses) — observability for the
     // merge hot-path and tests.
     private identityFetches = 0;
 
-    constructor(helia: DenkmitHeliaInterface, identity: IdentityInterface) {
+    constructor(helia: HeliaNode, identity: SigningIdentity) {
         super(helia);
         this.identity = identity;
     }
@@ -204,7 +199,7 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
      * identity short-circuits (no fetch). Failures are not cached — a transient miss
      * must not become permanent (KNOWN_ISSUES.md D6).
      */
-    private async resolveIdentity(cid: CID): Promise<IdentityInterface> {
+    private async resolveIdentity(cid: CID): Promise<Identity> {
         const key = cid.toString();
         if (this.identity.cid.toString() === key) return this.identity;
 
@@ -217,7 +212,7 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
         }
 
         this.identityFetches++;
-        const promise = fetchIdentity(cid, this)
+        const promise = loadIdentity(cid, this)
             .then(async (identity) => {
                 // Keep verified foreign identities across restarts/GC (D4).
                 await this.pin(cid);
@@ -243,7 +238,7 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
      * @param data - The payload to sign and store.
      * @returns The stored payload with its CID and the signer's identity CID.
      */
-    async addSigned<T>(data: T): Promise<DenkmitData<T>> {
+    async addSigned<T>(data: T): Promise<Signed<T>> {
         const signed = await this.identity.sign(codec.encode(data));
         const cid = await this.add(signed);
 
@@ -258,7 +253,7 @@ export class HeliaController extends HeliaStorage implements HeliaControllerInte
      * @param cid - The CID of the signed block.
      * @returns The payload with CID and creator, or undefined if missing or invalid.
      */
-    async getSigned<T>(cid: CID): Promise<DenkmitData<T> | undefined> {
+    async getSigned<T>(cid: CID): Promise<Signed<T> | undefined> {
         const signed = await this.get<jose.FlattenedJWS>(cid);
         if (!signed) return;
 

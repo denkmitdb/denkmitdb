@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createSyncController,
     emptyCID,
     HeliaController,
     SyncController,
-} from "../src/functions";
-import { DenkmitDatabaseInterface } from "../src/types";
+} from "../src/internal";
+import { DenkmitDatabase } from "../src/internal";
 import { buildHead, createTestNode, putSignedEntry, TestNode } from "./helpers";
 
 /**
@@ -32,7 +32,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
 
     async function createDb(name: string) {
         const syncController = (await createSyncController(name, heliaController)) as SyncController;
-        const db = await createDenkmitDatabase<unknown>(name, {
+        const db = await createDatabase<unknown>(name, {
             helia: node.helia,
             identity: node.identity,
             syncController,
@@ -45,7 +45,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
                 await syncController.queue.onIdle();
             }
         };
-        return { db: db as DenkmitDatabaseInterface<unknown>, drain };
+        return { db: db as DenkmitDatabase<unknown>, drain };
     }
 
     // KNOWN_ISSUES.md #11 — a head bound to a different manifest must not mutate
@@ -71,7 +71,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
     // signed key (or reject), never under the attacker's claim.
     it("does not index an entry under a key the signed entry does not carry", async () => {
         const { db, drain } = await createDb("forged-key");
-        const manifest = (await db.getManifest()).cid;
+        const manifest = db.manifest.cid;
         const entry = await putSignedEntry(heliaController, "legit", { value: "real" }, Date.now(), manifest);
 
         const forgedHead = await buildHead(heliaController, manifest, [
@@ -93,7 +93,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
     // key. Today get() returns the stale cached value and the old record lingers.
     it("a newer merged entry wins and invalidates the cached value", async () => {
         const { db, drain } = await createDb("lww-newer");
-        const manifest = (await db.getManifest()).cid;
+        const manifest = db.manifest.cid;
 
         await db.set("k", { value: "v1" });
         await drain();
@@ -116,7 +116,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
     // present for the key (last-write-wins by composite key, not by merge order).
     it("an older merged entry loses to the newer local value", async () => {
         const { db, drain } = await createDb("lww-older");
-        const manifest = (await db.getManifest()).cid;
+        const manifest = db.manifest.cid;
 
         const base = Date.now();
         await db.set("k", { value: "new" }); // stamped ~base

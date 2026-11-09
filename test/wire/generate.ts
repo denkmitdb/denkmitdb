@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 import { Key } from "interface-datastore";
 import { CID } from "multiformats/cid";
 import { toString as toHex } from "uint8arrays";
-import { createDenkmitDatabase, createIdentity } from "../../src/functions";
-import { LEGACY_MANIFEST_VERSION } from "../../src/types";
+import { createDatabase, createIdentity } from "../../src/internal";
+import { LEGACY_MANIFEST_VERSION } from "../../src/internal";
 import { createTestNode } from "../helpers";
 import { blockBytes, FIXTURE_IDENTITY, runDeterministicFlows, writers, type CapturedBlocks } from "./wire-flows";
 
@@ -20,7 +20,7 @@ const identity = await createIdentity(FIXTURE_IDENTITY.name, FIXTURE_IDENTITY.pa
 const controller = new writers.HeliaController(helia, identity);
 
 // --- captured blocks, really signed by the current code
-const db = await createDenkmitDatabase<unknown>("wire-captured", {
+const db = await createDatabase<unknown>("wire-captured", {
     helia,
     identity,
     access: "namespace-per-writer",
@@ -36,7 +36,7 @@ const entryV2 = (await db.provenance(`${mine}keep`))!;
 const tombstone = (await db.provenance(`${mine}drop`))!;
 const dbValues: Record<string, unknown> = {};
 for await (const [k, v] of db.iterator()) dbValues[k] = v;
-const policy = (await db.getManifest()).access;
+const policy = db.manifest.access;
 await db.close();
 
 const v1 = await writers.createEntry("legacy/key", { legacy: true }, controller); // no manifest → v1

@@ -1,7 +1,7 @@
 import * as jose from "jose";
 import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
-import { IdentityInterface } from "../types/index.js";
-import { HeliaStorage } from "./utils/helia.js";
+import type { Identity, SigningIdentity } from "./types.js";
+import { HeliaStorage } from "./storage/helia.js";
 
 /** Key management algorithm for every recipient: ECDH-ES key agreement + AES key wrap. */
 export const ENCRYPTION_KEY_ALG = "ECDH-ES+A256KW";
@@ -83,7 +83,7 @@ function contextAad(context: EncryptionContext): Uint8Array {
  * @throws Error - With no recipients, or a recipient whose key cannot do ECDH (not EC).
  */
 export async function encryptValueFor(
-    recipients: IdentityInterface | IdentityInterface[],
+    recipients: Identity | Identity[],
     value: unknown,
     context?: EncryptionContext,
 ): Promise<EncryptedValue> {
@@ -120,7 +120,7 @@ export async function encryptValueFor(
  * @returns The decoded value, or undefined.
  */
 export async function decryptValue<T>(
-    identity: IdentityInterface,
+    identity: SigningIdentity,
     value: EncryptedValue,
     expected?: EncryptionContext,
 ): Promise<T | undefined> {

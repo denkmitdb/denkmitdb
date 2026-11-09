@@ -5,20 +5,20 @@ import { sha256 } from "multiformats/hashes/sha2";
 import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createEmptyPollard,
     createHead,
     createPolicy,
     createSyncController,
-    fetchIdentity,
     HeliaController,
     HeliaStorage,
     headStoreKey,
-    openDenkmitDatabase,
+    openDatabase,
     SortedItemsStore,
     SyncController,
-} from "../src/functions";
-import { ENTRY_VERSION, HEAD_VERSION, IdentityTypes, LeafTypes } from "../src/types";
+    evaluatePolicy,
+} from "../src/internal";
+import { ENTRY_VERSION, HEAD_VERSION, IdentityKind, LeafKind, loadIdentity } from "../src/internal";
 import { buildHead, createCustomDb, createTestNode, ForgedLeaf, putSignedEntry, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -56,8 +56,8 @@ describe("Integrity hardening (review 2026-11)", () => {
     // database could be wrapped in a head for another database that shares a writer.
     describe("#24 entries are bound to their database", () => {
         it("rejects an entry replayed from another database (load path)", async () => {
-            const x = await createDenkmitDatabase<Value>("replay-x", { helia: node.helia, identity: node.identity });
-            const y = await createDenkmitDatabase<Value>("replay-y", { helia: node.helia, identity: node.identity });
+            const x = await createDatabase<Value>("replay-x", { helia: node.helia, identity: node.identity });
+            const y = await createDatabase<Value>("replay-y", { helia: node.helia, identity: node.identity });
             await x.set("secret", { value: "only in x" });
             await x.idle();
 
@@ -72,8 +72,8 @@ describe("Integrity hardening (review 2026-11)", () => {
         });
 
         it("rejects a replayed tombstone (merge path) but accepts entries bound to this database", async () => {
-            const x = await createDenkmitDatabase<Value>("replay-tx", { helia: node.helia, identity: node.identity });
-            const y = await createDenkmitDatabase<Value>("replay-ty", { helia: node.helia, identity: node.identity });
+            const x = await createDatabase<Value>("replay-tx", { helia: node.helia, identity: node.identity });
+            const y = await createDatabase<Value>("replay-ty", { helia: node.helia, identity: node.identity });
             await y.set("shared", { value: "y keeps this" });
             await x.set("shared", { value: "x" });
             await x.delete("shared"); // newer tombstone, signed by the same writer
@@ -92,7 +92,7 @@ describe("Integrity hardening (review 2026-11)", () => {
         });
 
         it("rejects legacy (unbound) entries in a current database", async () => {
-            const db = await createDenkmitDatabase<Value>("replay-legacy-entry", {
+            const db = await createDatabase<Value>("replay-legacy-entry", {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -126,7 +126,7 @@ describe("Integrity hardening (review 2026-11)", () => {
         });
 
         it("rejects signed entries with a malformed shape", async () => {
-            const db = await createDenkmitDatabase<Value>("malformed", { helia: node.helia, identity: node.identity });
+            const db = await createDatabase<Value>("malformed", { helia: node.helia, identity: node.identity });
             await db.set("seed", { value: "s" });
             await db.idle();
             const now = Date.now();
@@ -177,10 +177,10 @@ describe("Integrity hardening (review 2026-11)", () => {
         it("authorizes only a literal true result", async () => {
             const make = (logic: unknown) =>
                 createPolicy({ version: 1, name: "t", description: "t", logic: logic as never }, controller);
-            expect(await (await make(true)).execute({})).toBe(true);
-            expect(await (await make({ cat: ["a", "b"] })).execute({})).toBe(false);
-            expect(await (await make({ var: "entryKey" })).execute({ entryKey: "yes" })).toBe(false);
-            expect(await (await make({ "+": [1, 1] })).execute({})).toBe(false);
+            expect(evaluatePolicy(await make(true), {})).toBe(true);
+            expect(evaluatePolicy(await make({ cat: ["a", "b"] }), {})).toBe(false);
+            expect(evaluatePolicy(await make({ var: "entryKey" }), { entryKey: "yes" })).toBe(false);
+            expect(evaluatePolicy(await make({ "+": [1, 1] }), {})).toBe(false);
         });
     });
 
@@ -196,7 +196,7 @@ describe("Integrity hardening (review 2026-11)", () => {
         }
 
         it("merges an entry from a remote tree with fewer layers than ours", async () => {
-            const db = await createDenkmitDatabase<Value>("short-remote", {
+            const db = await createDatabase<Value>("short-remote", {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -222,7 +222,7 @@ describe("Integrity hardening (review 2026-11)", () => {
 
         it("merges between three-layer trees (child positions use the fixed fan-out)", async () => {
             // Separate sync topics so the two replicas only meet through syncNewHead.
-            const a = await createDenkmitDatabase<Value>("three-layers", {
+            const a = await createDatabase<Value>("three-layers", {
                 helia: node.helia,
                 identity: node.identity,
                 syncController: await createSyncController("three-layers-a", controller),
@@ -231,7 +231,7 @@ describe("Integrity hardening (review 2026-11)", () => {
             await a.idle();
             expect(a.layers.length).toBe(3); // 70 entries at order 3: 9 → 2 → 1 pollards
 
-            const b = await openDenkmitDatabase<Value>(a.address, {
+            const b = await openDatabase<Value>(a.address, {
                 helia: node.helia,
                 identity: node.identity,
                 syncController: await createSyncController("three-layers-b", controller),
@@ -255,11 +255,11 @@ describe("Integrity hardening (review 2026-11)", () => {
 
         it("rejects a head whose DAG repeats pollards (load and merge path, no blow-up)", async () => {
             const baitTimestamp = Date.now();
-            const empty = await createDenkmitDatabase<Value>("dag-bomb-load", {
+            const empty = await createDatabase<Value>("dag-bomb-load", {
                 helia: node.helia,
                 identity: node.identity,
             });
-            const busy = await createDenkmitDatabase<Value>("dag-bomb-merge", {
+            const busy = await createDatabase<Value>("dag-bomb-merge", {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -270,14 +270,14 @@ describe("Integrity hardening (review 2026-11)", () => {
                 const bait = await putSignedEntry(controller, "bait", { value: "b" }, baitTimestamp, db.address);
                 let child = await putPollard((p) =>
                     p
-                        .append(LeafTypes.SortedEntry, bait.cid, bait.creator, [bait.timestamp], bait.key)
+                        .append(LeafKind.SortedEntry, bait.cid, bait.creator, [bait.timestamp], bait.key)
                         .then(() => undefined),
                 );
                 const depth = 12; // 8^11 root-to-leaf paths if repeated children were walked
                 for (let layer = 1; layer < depth; layer++) {
                     const link = child;
                     child = await putPollard(async (p) => {
-                        for (let i = 0; i < 8; i++) await p.append(LeafTypes.Pollard, link);
+                        for (let i = 0; i < 8; i++) await p.append(LeafKind.Pollard, link);
                     });
                 }
                 const head = await createHead(
@@ -304,7 +304,7 @@ describe("Integrity hardening (review 2026-11)", () => {
         });
 
         it("rejects heads with an implausible layer count or size", async () => {
-            const db = await createDenkmitDatabase<Value>("bad-head", { helia: node.helia, identity: node.identity });
+            const db = await createDatabase<Value>("bad-head", { helia: node.helia, identity: node.identity });
             await db.set("seed", { value: "s" });
             await db.idle();
             const entry = await putSignedEntry(controller, "x", { value: "x" }, Date.now(), db.address);
@@ -362,7 +362,7 @@ describe("Integrity hardening (review 2026-11)", () => {
     // acknowledged just before close was not discoverable after reopen.
     describe("#28 close() persists acknowledged writes", () => {
         it("reopens a write made right before close (no idle, no createHead)", async () => {
-            const db = await createDenkmitDatabase<Value>("close-durable", {
+            const db = await createDatabase<Value>("close-durable", {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -371,7 +371,7 @@ describe("Integrity hardening (review 2026-11)", () => {
             await db.set("last", { value: "2" });
             await db.close();
 
-            const reopened = await openDenkmitDatabase<Value>(address, { helia: node.helia, identity: node.identity });
+            const reopened = await openDatabase<Value>(address, { helia: node.helia, identity: node.identity });
             await reopened.idle();
             expect(await reopened.get("first")).toEqual({ value: "1" });
             expect(await reopened.get("last")).toEqual({ value: "2" });
@@ -380,7 +380,7 @@ describe("Integrity hardening (review 2026-11)", () => {
 
         it("does not hang when a caller-supplied controller's queue is paused", async () => {
             const syncController = (await createSyncController("close-paused", controller)) as SyncController;
-            const db = await createDenkmitDatabase<Value>("close-paused", {
+            const db = await createDatabase<Value>("close-paused", {
                 helia: node.helia,
                 identity: node.identity,
                 syncController,
@@ -392,7 +392,7 @@ describe("Integrity hardening (review 2026-11)", () => {
                 new Promise((_, reject) => setTimeout(() => reject(new Error("close() hung")), 5_000)),
             ]);
 
-            const reopened = await openDenkmitDatabase<Value>(db.address, {
+            const reopened = await openDatabase<Value>(db.address, {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -403,7 +403,7 @@ describe("Integrity hardening (review 2026-11)", () => {
 
         it("still closes when Helia was stopped first", async () => {
             const other = await createTestNode("integrity-stopped");
-            const db = await createDenkmitDatabase<Value>("close-after-stop", {
+            const db = await createDatabase<Value>("close-after-stop", {
                 helia: other.helia,
                 identity: other.identity,
             });
@@ -423,7 +423,7 @@ describe("Integrity hardening (review 2026-11)", () => {
             const data = {
                 version: 1,
                 name: "forged",
-                type: IdentityTypes.publicKey,
+                type: IdentityKind.PublicKey,
                 alg: "ES384",
                 publicKey: uint8ArrayToString(HeliaStorage.encode(await jose.exportJWK(claimed.publicKey)), "base64"),
             };
@@ -432,9 +432,9 @@ describe("Integrity hardening (review 2026-11)", () => {
                 .sign(signer.privateKey);
             const cid = await controller.add(jws);
 
-            await expect(fetchIdentity(cid, controller)).rejects.toThrow(/public key/i);
+            await expect(loadIdentity(cid, controller)).rejects.toThrow(/public key/i);
             // A genuine identity still resolves.
-            expect((await fetchIdentity(node.identity.cid, controller)).cid.equals(node.identity.cid)).toBe(true);
+            expect((await loadIdentity(node.identity.cid, controller)).cid.equals(node.identity.cid)).toBe(true);
         });
     });
 
@@ -443,7 +443,7 @@ describe("Integrity hardening (review 2026-11)", () => {
     // value into it, so the stale value was served from then on.
     describe("#30 the value cache cannot go stale", () => {
         it("serves the new winner after a merge races an in-flight get()", async () => {
-            const db = await createDenkmitDatabase<Value>("cache-race", { helia: node.helia, identity: node.identity });
+            const db = await createDatabase<Value>("cache-race", { helia: node.helia, identity: node.identity });
             await db.set("seed", { value: "s" });
             const base = Date.now();
             // v1 arrives by merge, so it is indexed but not cached: get() must fetch it.
@@ -483,15 +483,15 @@ describe("Integrity hardening (review 2026-11)", () => {
 
         it("a Keyv shared by two databases cannot mix their values", async () => {
             const shared = new Keyv<Value>();
-            const x = await createDenkmitDatabase<Value>("cache-x", {
+            const x = await createDatabase<Value>("cache-x", {
                 helia: node.helia,
                 identity: node.identity,
-                keyValueStorage: shared,
+                cache: shared,
             });
-            const y = await createDenkmitDatabase<Value>("cache-y", {
+            const y = await createDatabase<Value>("cache-y", {
                 helia: node.helia,
                 identity: node.identity,
-                keyValueStorage: shared,
+                cache: shared,
             });
             await x.set("same-key", { value: "x" });
             await y.set("same-key", { value: "y" });
@@ -506,7 +506,7 @@ describe("Integrity hardening (review 2026-11)", () => {
     // pin threw, a later sync saw the entry as already applied and never pinned it.
     describe("#31 a failed pin leaves nothing half-applied", () => {
         it("retries an entry whose pin failed, and pins it on the next sync", async () => {
-            const db = await createDenkmitDatabase<Value>("pin-fail", { helia: node.helia, identity: node.identity });
+            const db = await createDatabase<Value>("pin-fail", { helia: node.helia, identity: node.identity });
             await db.set("seed", { value: "s" });
             await db.idle();
             const entry = await putSignedEntry(controller, "merged", { value: "m" }, Date.now(), db.address);
@@ -534,7 +534,7 @@ describe("Integrity hardening (review 2026-11)", () => {
         });
 
         it("a pin failure during load() skips the entry instead of aborting the load", async () => {
-            const writer = await createDenkmitDatabase<Value>("pin-fail-load", {
+            const writer = await createDatabase<Value>("pin-fail-load", {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -547,7 +547,7 @@ describe("Integrity hardening (review 2026-11)", () => {
             // reader does not restore (load) it before the pin failure is injected.
             await node.helia.datastore.delete(headStoreKey(writer.address));
 
-            const reader = await openDenkmitDatabase<Value>(writer.address, {
+            const reader = await openDatabase<Value>(writer.address, {
                 helia: node.helia,
                 identity: node.identity,
                 syncController: await createSyncController("pin-fail-load-reader", controller),

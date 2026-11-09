@@ -3,44 +3,52 @@ import type { RulesLogic } from "json-logic-js";
 import { Key } from "interface-datastore";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
-import { createEmptyPollard, createEntry, createPollard, createTombstone, fetchEntry } from "./index.js";
+import { createEntry, createTombstone, type Entry, fetchEntry } from "./entry.js";
+import { createHead, fetchHead, type Head } from "./head.js";
+import { createManifest, fetchManifest } from "./manifest.js";
+import { createPolicy, evaluatePolicy, fetchPolicy } from "./policy.js";
+import { createEmptyPollard, createPollard, Pollard } from "./pollard/index.js";
+import type { PollardLocation, PollardNode, PollardType } from "./pollard/types.js";
+import { ENTRY_VERSION, LEGACY_ENTRY_VERSION } from "./protocol/entry.js";
+import { HEAD_VERSION, type HeadPayload } from "./protocol/head.js";
 import {
-    AccessPreset,
-    PolicyInterface,
-    PolicyData,
-    DENKMITDB_PREFIX,
-    DenkmitDatabaseInput,
-    DenkmitDatabaseInterface,
-    DenkmitDatabaseOptions,
-    ENTRY_VERSION,
-    EntryInterface,
-    HEAD_VERSION,
-    HeadData,
-    HeadInterface,
-    HeliaControllerInterface,
-    IdentityInterface,
-    LeafType,
-    LeafTypes,
-    LEGACY_ENTRY_VERSION,
+    KEY_VALUE_DATABASE_TYPE,
     LEGACY_MANIFEST_VERSION,
     MANIFEST_VERSION,
-    ManifestData,
-    ManifestInterface,
-    POLLARD_VERSION,
-    PollardInterface,
-    PollardLocation,
-    PollardNode,
-    PollardType,
-    SyncControllerInterface,
+    type ManifestPayload,
+} from "./protocol/manifest.js";
+import { assertPolicyDefinition, type PolicyDefinition } from "./protocol/policy.js";
+import { Leaf, LeafKind, POLLARD_VERSION } from "./protocol/tree.js";
+import { HeliaController } from "./storage/helia.js";
+import { SortedItemsStore } from "./storage/sortedItems.js";
+import { createSyncController, SyncController } from "./sync.js";
+import type {
+    AccessPreset,
+    CreateDatabaseOptions,
+    Database,
+    DatabaseOptions,
+    Manifest,
+    Policy,
+    Provenance,
+    SigningIdentity,
     WriteOptions,
-} from "../types/index.js";
+} from "./types.js";
 
-import { assertPolicyData, createPolicy, fetchPolicy } from "./policy.js";
-import { createHead, fetchHead } from "./head.js";
-import { createManifest, fetchManifest } from "./manifest.js";
-import { createSyncController } from "./sync.js";
-import { HeliaController } from "./utils/helia.js";
-import { SortedItemsStore } from "./utils/sortedItems.js";
+/** Key prefix for everything a database keeps in the node's datastore. */
+export const DENKMITDB_PREFIX = "/denkmitdb/";
+
+/** Internal-only options: tests inject their own sync controller. */
+type InternalOptions = { syncController?: SyncController };
+
+/** What a database instance is built from. */
+type DatabaseInit<T> = {
+    manifest: Manifest;
+    heliaController: HeliaController;
+    cache?: Keyv<T>;
+    syncController: SyncController;
+    validationPolicy: Policy;
+    accessPolicy: Policy;
+};
 
 /**
  * Upper bound on the number of entries a head may describe. It bounds the layer
@@ -115,45 +123,44 @@ export function syncTopic(manifestCid: CID): string {
 }
 
 /**
- * Creates a Denkmit database with the specified name and options.
+ * Creates a database: signs its policies and manifest and starts syncing.
  *
- * @param name - The name of the database.
- * @param options - The options for configuring the database.
- * @returns A promise that resolves to the created DenkmitDatabaseInterface.
- * @typeParam T - The type of data stored in the database.
+ * @param name - The database name (part of the manifest, not unique).
+ * @param options - Node, identity, and what the manifest fixes for good.
+ * @typeParam T - The type of values stored in the database.
  */
-export async function createDenkmitDatabase<T>(
+export async function createDatabase<T>(
     name: string,
-    options: DenkmitDatabaseOptions<T>,
-): Promise<DenkmitDatabaseInterface<T>> {
+    options: CreateDatabaseOptions<T> & InternalOptions,
+): Promise<DenkmitDatabase<T>> {
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
 
     // Validation policy: accept every authorized entry unless the caller supplies
     // its own rule (custom policies are checked before they are signed in for good).
-    const consensus: PolicyData = options.validationPolicy ?? {
+    const validationRule: PolicyDefinition = options.validationPolicy ?? {
         version: 1,
         name: "denkmit-timestamp",
         description: "Consensus for denkmit database timestamp",
         logic: true,
     };
-    assertPolicyData(consensus, "validationPolicy");
-    const validationPolicy = await createPolicy(consensus, heliaController);
+    assertPolicyDefinition(validationRule, "validationPolicy");
+    const validationPolicy = await createPolicy(validationRule, heliaController);
 
     // Access (authorization) policy — separate from consensus (validation). Default
     // is creator-only; presets compile to json-logic over deterministic inputs only
     // (signed entry creator, key and operation, manifest creator), so every replica
     // reaches the same decision (KNOWN_ISSUES.md D1, specs/ordering.md,
     // docs/policies.md). A custom accessPolicy replaces the preset entirely.
-    let accessRule: PolicyData;
+    let accessRule: PolicyDefinition;
     if (options.accessPolicy !== undefined) {
-        if (options.access !== undefined || options.publicWrite !== undefined) {
-            throw new Error("accessPolicy replaces the access preset: pass either accessPolicy or access/publicWrite");
+        if (options.access !== undefined) {
+            throw new Error("accessPolicy replaces the access preset: pass either accessPolicy or access");
         }
-        assertPolicyData(options.accessPolicy, "accessPolicy");
+        assertPolicyDefinition(options.accessPolicy, "accessPolicy");
         accessRule = options.accessPolicy;
     } else {
-        accessRule = accessPolicyRule(resolveAccess(options));
+        accessRule = accessPolicyRule(resolveAccess(options.access));
     }
     const accessPolicy = await createPolicy(accessRule, heliaController);
 
@@ -162,10 +169,10 @@ export async function createDenkmitDatabase<T>(
         throw new Error("order must be an integer in [1, 8]");
     }
 
-    const manifestInput: ManifestData = {
+    const manifestInput: ManifestPayload = {
         version: MANIFEST_VERSION,
         name,
-        type: "denkmit-database-key-value",
+        type: KEY_VALUE_DATABASE_TYPE,
         order,
         consensus: validationPolicy.cid,
         access: accessPolicy.cid,
@@ -175,11 +182,10 @@ export async function createDenkmitDatabase<T>(
     const syncController =
         options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
 
-    const mdb: DenkmitDatabaseInput<T> = {
+    const mdb: DatabaseInit<T> = {
         manifest,
         heliaController,
-        identity,
-        keyValueStorage: options.keyValueStorage,
+        cache: options.cache,
         syncController,
         validationPolicy,
         accessPolicy,
@@ -191,32 +197,32 @@ export async function createDenkmitDatabase<T>(
 }
 
 /**
- * Opens a Denkmit database.
+ * Opens a database by address: fetches and verifies its manifest and policies,
+ * restores the locally persisted head, and starts syncing.
  *
- * @param cid - The CID (Content Identifier) of the database.
- * @param options - The options for opening the database.
- * @returns A promise that resolves to a DenkmitDatabaseInterface instance.
- * @typeParam T - The type of data stored in the database.
+ * @param address - The database address (manifest CID).
+ * @param options - Node and identity.
+ * @typeParam T - The type of values stored in the database.
  */
-export async function openDenkmitDatabase<T>(
-    cid: CID,
-    options: DenkmitDatabaseOptions<T>,
-): Promise<DenkmitDatabaseInterface<T>> {
+export async function openDatabase<T>(
+    address: CID | string,
+    options: DatabaseOptions<T> & InternalOptions,
+): Promise<DenkmitDatabase<T>> {
+    const cid = typeof address === "string" ? CID.parse(address) : address;
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
     const syncController = options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
-    const validationPolicy = await fetchPolicy(manifest.consensus, heliaController);
+    const validationPolicy = await fetchPolicy(manifest.validation, heliaController);
     // The access policy is part of the database identity — always read it from the
     // signed manifest, never from local options (a local override would let replicas
     // disagree on who may write, breaking convergence — KNOWN_ISSUES.md #19).
     const accessPolicy = await fetchPolicy(manifest.access, heliaController);
 
-    const mdb: DenkmitDatabaseInput<T> = {
+    const mdb: DatabaseInit<T> = {
         manifest,
         heliaController,
-        identity,
-        keyValueStorage: options.keyValueStorage,
+        cache: options.cache,
         syncController,
         validationPolicy,
         accessPolicy,
@@ -239,22 +245,16 @@ export async function openDenkmitDatabase<T>(
 }
 
 /**
- * Resolves the access preset for a new database from its options. `publicWrite`
- * is a deprecated alias for `access: "public"`; giving both with different
- * meanings is an error rather than a silent precedence rule. Allowlist entries
+ * Validates the access preset for a new database (default "creator-only"). Allowlist entries
  * must be identity CIDs and are normalized to the string form `entryCreator`
  * takes at evaluation time, so a differently encoded CID cannot silently fail to
  * match.
  *
- * @param options - The create options.
+ * @param access - The requested preset.
  * @returns The validated preset.
  */
-function resolveAccess(options: { access?: AccessPreset; publicWrite?: boolean }): AccessPreset {
-    const { access, publicWrite } = options;
-    if (access !== undefined && publicWrite !== undefined && (access === "public") !== publicWrite) {
-        throw new Error('Conflicting access options: publicWrite is a deprecated alias for access: "public"');
-    }
-    const preset: AccessPreset = access ?? (publicWrite ? "public" : "creator-only");
+function resolveAccess(access: AccessPreset | undefined): AccessPreset {
+    const preset: AccessPreset = access ?? "creator-only";
     if (typeof preset === "object") {
         if (!Array.isArray(preset.allowlist) || preset.allowlist.length === 0) {
             throw new Error("access.allowlist must list at least one identity CID");
@@ -283,7 +283,7 @@ function resolveAccess(options: { access?: AccessPreset; publicWrite?: boolean }
  * @param access - The validated preset.
  * @returns The policy data to sign into the manifest.
  */
-function accessPolicyRule(access: AccessPreset): PolicyData {
+function accessPolicyRule(access: AccessPreset): PolicyDefinition {
     if (access === "public") {
         return { version: 1, name: "denkmit-access-public", description: "Any identity may write", logic: true };
     }
@@ -327,14 +327,15 @@ function accessPolicyRule(access: AccessPreset): PolicyData {
 }
 
 /**
- * Represents a Denkmit Database.
+ * The database implementation. Callers get it as a {@link Database}; the rest of
+ * its surface (tree, sync, merge) is internal.
  * @typeParam T - The type of values stored in the database.
  */
-export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
-    readonly manifest: ManifestInterface;
+export class DenkmitDatabase<T> implements Database<T> {
+    readonly manifest: Manifest;
     readonly maxPollardLength: number;
-    readonly layers: PollardInterface[][];
-    readonly heliaController: HeliaControllerInterface;
+    readonly layers: Pollard[][];
+    readonly heliaController: HeliaController;
     /**
      * Value cache, keyed by **entry CID** (not by database key). An entry's value
      * never changes, so a cached value can never be stale, whatever order reads,
@@ -342,27 +343,27 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * databases (KNOWN_ISSUES.md #30). Superseded values are deleted when a newer
      * record wins.
      */
-    readonly keyValueStorage: Keyv<T>;
+    readonly cache: Keyv<T>;
     private sortedItemsStore: SortedItemsStore;
     /** Signing controllers for identities other than the database's own (WriteOptions). */
-    private readonly signers = new Map<string, HeliaControllerInterface>();
-    private readonly syncController: SyncControllerInterface;
-    private head?: HeadInterface;
+    private readonly signers = new Map<string, HeliaController>();
+    private readonly syncController: SyncController;
+    private head?: Head;
     // Start key of the queued-but-not-yet-running tree rebuild, if any — the
     // coalescing state for createTaskUpdateLayers.
     private pendingRebuildFrom?: number;
-    private validationPolicy: PolicyInterface;
-    private accessPolicy: PolicyInterface;
-    // Whether this instance created keyValueStorage (vs. caller-supplied). Only an
+    private validationPolicy: Policy;
+    private accessPolicy: Policy;
+    // Whether this instance created its cache (vs. caller-supplied). Only an
     // owned store may be cleared on close (KNOWN_ISSUES.md D4).
-    private readonly ownsKeyValueStorage: boolean;
+    private readonly ownsCache: boolean;
     private log: Logger;
 
-    constructor(mdb: DenkmitDatabaseInput<T>) {
+    constructor(mdb: DatabaseInit<T>) {
         this.manifest = mdb.manifest;
         this.layers = [];
-        this.ownsKeyValueStorage = mdb.keyValueStorage === undefined;
-        this.keyValueStorage = mdb.keyValueStorage ?? new Keyv<T>();
+        this.ownsCache = mdb.cache === undefined;
+        this.cache = mdb.cache ?? new Keyv<T>();
         this.sortedItemsStore = new SortedItemsStore();
         this.maxPollardLength = 2 ** mdb.manifest.order;
         this.heliaController = mdb.heliaController;
@@ -378,7 +379,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * database creator — so every replica reaches the same decision.
      */
     private async isAuthorized(entryCreator: CID, entryKey: string, entryOperation: EntryOperation): Promise<boolean> {
-        return this.accessPolicy.execute({
+        return evaluatePolicy(this.accessPolicy, {
             entryCreator: entryCreator.toString(),
             databaseCreator: this.manifest.creator.toString(),
             entryKey,
@@ -393,7 +394,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * for the same entry (specs/ordering.md §4, KNOWN_ISSUES.md #25).
      */
     private async isValid(entry: { timestamp: number; creator: CID; key: string; deleted?: boolean }): Promise<boolean> {
-        return this.validationPolicy.execute({
+        return evaluatePolicy(this.validationPolicy, {
             databaseCreator: this.manifest.creator.toString(),
             entryTimestamp: entry.timestamp,
             entryCreator: entry.creator.toString(),
@@ -408,12 +409,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * by legacy (v1-manifest) databases, so 3.0.0 data stays readable while new
      * databases are immune to cross-database replay (KNOWN_ISSUES.md #24).
      */
-    private isBoundHere(entry: EntryInterface<unknown>): boolean {
+    private isBoundHere(entry: Entry<unknown>): boolean {
         if (entry.version === ENTRY_VERSION) return entry.manifest?.equals(this.manifest.cid) === true;
         return entry.version === LEGACY_ENTRY_VERSION && this.manifest.version === LEGACY_MANIFEST_VERSION;
     }
 
-    get identity(): IdentityInterface {
+    get identity(): SigningIdentity {
         return this.heliaController.identity;
     }
 
@@ -449,7 +450,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // A concurrently-known entry with a greater composite key already wins.
         if (!result.applied) return;
 
-        await this.keyValueStorage.set(entry.cid.toString(), value);
+        await this.cache.set(entry.cid.toString(), value);
         await this.forgetCached(result.previousCid);
         const rebuildFrom = Math.min(entry.timestamp, result.previousTimestamp ?? entry.timestamp);
         await this.createTaskUpdateLayers(rebuildFrom);
@@ -473,7 +474,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             throw new Error(`Access denied: this identity may not delete key "${key}" in this database`);
         }
 
-        const entry = await createTombstone<T>(key, signer, this.manifest.cid);
+        const entry = await createTombstone(key, signer, this.manifest.cid);
         if (!(await this.isValid(entry))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
@@ -488,7 +489,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * The controller that signs a write: the database's own unless another identity
      * is given. One controller per identity is kept, so its identity cache is reused.
      */
-    private signerFor(identity?: IdentityInterface): HeliaControllerInterface {
+    private signerFor(identity?: SigningIdentity): HeliaController {
         if (!identity || identity.cid.equals(this.identity.cid)) return this.heliaController;
         const key = identity.cid.toString();
         let signer = this.signers.get(key);
@@ -501,7 +502,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
 
     /** Drops a superseded record's cached value (no-op for tombstones / no record). */
     private async forgetCached(cid: CID | undefined): Promise<void> {
-        if (cid) await this.keyValueStorage.delete(cid.toString());
+        if (cid) await this.cache.delete(cid.toString());
     }
 
     /**
@@ -518,7 +519,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // Falsy values (0, "", false, null) are valid — distinguish them from a
         // cache miss with an explicit undefined check (KNOWN_ISSUES.md #18).
         const cacheKey = item.cid.toString();
-        const cached = await this.keyValueStorage.get(cacheKey);
+        const cached = await this.cache.get(cacheKey);
         if (cached !== undefined) return cached;
         let entry;
         try {
@@ -534,7 +535,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         if (!entry || entry.deleted || entry.value === undefined) return;
         // Caching under the entry CID is safe even if a newer record won while this
         // fetch was in flight: this value is still exactly that entry's value.
-        await this.keyValueStorage.set(cacheKey, entry.value);
+        await this.cache.set(cacheKey, entry.value);
         return entry.value;
     }
 
@@ -546,15 +547,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @param key - The key to inspect.
      * @returns The provenance record, or undefined if the key is unknown.
      */
-    async provenance(
-        key: string,
-    ): Promise<{ cid: CID; creator: CID; timestamp: number; deleted: boolean } | undefined> {
+    async provenance(key: string): Promise<Provenance | undefined> {
         // Served entirely from the index: creator/timestamp/deleted were taken from
         // the SIGNED entry when it was verified and indexed, so no refetch is needed
         // — and a missing block cannot make provenance throw.
         const item = await this.sortedItemsStore.getByKey(key);
         if (!item) return undefined;
-        return { cid: item.cid, creator: item.creator, timestamp: item.sortField, deleted: item.deleted === true };
+        return { cid: item.cid, creator: item.creator, timestamp: item.timestamp, deleted: item.deleted === true };
     }
 
     /**
@@ -609,14 +608,14 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         } finally {
             // Only clear a store we created; a caller-supplied (possibly persistent)
             // Keyv is theirs, and clearing it would destroy their data (D4).
-            if (this.ownsKeyValueStorage) await this.keyValueStorage.clear();
+            if (this.ownsCache) await this.cache.clear();
             this.layers.length = 0;
             this.sortedItemsStore.clear();
         }
     }
 
-    async getManifest(): Promise<ManifestInterface> {
-        return this.manifest;
+    get policies(): { readonly access: Policy; readonly validation: Policy } {
+        return { access: this.accessPolicy, validation: this.validationPolicy };
     }
 
     /**
@@ -627,7 +626,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return this.manifest.cid;
     }
 
-    getLayers(): PollardInterface[][] {
+    getLayers(): Pollard[][] {
         return this.layers;
     }
 
@@ -637,13 +636,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return await lastLayer[0].getCID();
     }
 
-    async createOnlyNewHead(): Promise<HeadInterface | undefined> {
+    async createOnlyNewHead(): Promise<Head | undefined> {
         if (this.size === 0) return undefined;
         const root = await this.getCID();
 
         if (this.head && this.head.root.equals(root)) return undefined;
 
-        const headInput: HeadData = {
+        const headInput: HeadPayload = {
             version: HEAD_VERSION,
             manifest: this.manifest.cid,
             root,
@@ -661,13 +660,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return this.head;
     }
 
-    async createHead(): Promise<HeadInterface> {
+    async createHead(): Promise<Head> {
         const head = (await this.createOnlyNewHead()) ?? this.head;
         if (!head) throw new Error("Cannot create head: database is empty");
         return head;
     }
 
-    async fetchHead(cid: CID): Promise<HeadInterface> {
+    async fetchHead(cid: CID): Promise<Head> {
         return await fetchHead(cid, this.heliaController);
     }
 
@@ -675,7 +674,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return this.sortedItemsStore.size;
     }
 
-    async compare(head: HeadInterface): Promise<{ isEqual: boolean; difference: [LeafType[], LeafType[]] }> {
+    async compare(head: Head): Promise<{ isEqual: boolean; difference: [Leaf[], Leaf[]] }> {
         const layersCount = Math.max(this.layers.length, head.layers);
         const budget = new TreeWalkBudget(this.maxPollardsFor(head));
 
@@ -686,8 +685,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             budget,
         );
 
-        difference[0] = difference[0].filter((x) => x.type !== LeafTypes.Empty);
-        difference[1] = difference[1].filter((x) => x.type !== LeafTypes.Empty);
+        difference[0] = difference[0].filter((x) => x.type !== LeafKind.Empty);
+        difference[1] = difference[1].filter((x) => x.type !== LeafKind.Empty);
 
         const isEqual = difference[0].length === 0 && difference[1].length === 0;
 
@@ -704,7 +703,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @param head - The head to be merged with the current state of the database.
      * @returns A promise that resolves when the merge operation is completed.
      */
-    async merge(head: HeadInterface): Promise<void> {
+    async merge(head: Head): Promise<void> {
         const { isEqual, difference } = await this.compare(head);
         if (isEqual) return;
 
@@ -712,7 +711,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         let mergedAny = false;
 
         for (const leaf of difference[1]) {
-            if (leaf.type !== LeafTypes.SortedEntry) continue;
+            if (leaf.type !== LeafKind.SortedEntry) continue;
             const timestamp = await this.processLeafMerging(leaf);
             if (timestamp === undefined) continue; // unverifiable, forged, or lost the conflict
             mergedAny = true;
@@ -736,10 +735,10 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         remote: CID | undefined,
         { layerIndex, position }: PollardLocation,
         budget: TreeWalkBudget,
-    ): Promise<[LeafType[], LeafType[]]> {
-        const result: [LeafType[], LeafType[]] = [[], []];
+    ): Promise<[Leaf[], Leaf[]]> {
+        const result: [Leaf[], Leaf[]] = [[], []];
         const thisPollard = this.getPollardTreeNode({ layerIndex, position }).pollard;
-        const append = (next: [LeafType[], LeafType[]]) => {
+        const append = (next: [Leaf[], Leaf[]]) => {
             for (const leaf of next[0]) result[0].push(leaf);
             for (const leaf of next[1]) result[1].push(leaf);
         };
@@ -770,14 +769,14 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const width = Math.max(thisPollard?.length ?? 0, otherPollard?.length ?? 0);
         for (let i = 0; i < width; i++) {
             const leaf = otherPollard && i < otherPollard.length ? otherPollard.getLeaf(i) : undefined;
-            append(await descend(i, leaf?.type === LeafTypes.Pollard ? leaf.link : undefined));
+            append(await descend(i, leaf?.type === LeafKind.Pollard ? leaf.link : undefined));
         }
 
         return result;
     }
 
     /** Pollard budget for walking a head's tree: what an honest tree of its size needs. */
-    private maxPollardsFor(head: HeadInterface): number {
+    private maxPollardsFor(head: Head): number {
         return 2 * Math.ceil(head.size / this.maxPollardLength) + head.layers + 1;
     }
 
@@ -786,7 +785,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * shapes no honest replica of this database builds: another order, or a
      * length/width beyond the fan-out (the loop bounds come from these fields).
      */
-    private async getRemotePollard(cid: CID, budget: TreeWalkBudget): Promise<PollardInterface | undefined> {
+    private async getRemotePollard(cid: CID, budget: TreeWalkBudget): Promise<Pollard | undefined> {
         budget.visit(cid);
         const pollard = await this.getPollard(cid);
         if (!pollard) return undefined;
@@ -808,7 +807,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * is walked: an integer layer count within what 2^40 entries need, and a size
      * that fits those layers (KNOWN_ISSUES.md #26).
      */
-    private isPlausibleHead(head: HeadInterface): boolean {
+    private isPlausibleHead(head: Head): boolean {
         const { layers, size } = head;
         if (!Number.isSafeInteger(layers) || layers < 1 || layers > maxHeadLayers(this.order)) return false;
         if (!Number.isSafeInteger(size) || size < 1) return false;
@@ -824,8 +823,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * `undefined` if it was unverifiable, rejected by consensus, or lost the
      * last-write-wins conflict.
      */
-    private async processLeafMerging(leaf: LeafType): Promise<number | undefined> {
-        if (leaf.type !== LeafTypes.SortedEntry) return;
+    private async processLeafMerging(leaf: Leaf): Promise<number | undefined> {
+        if (leaf.type !== LeafKind.SortedEntry) return;
         const cid = leaf.link;
 
         let entry;
@@ -936,7 +935,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         for await (const item of this.sortedItemsStore.iteratorFromIndex(startIndex)) {
             const { cid, key, creator } = item;
             ({ pollard, position } = await this.handlePollardCreation(pollard, layerIndex, position));
-            await pollard.append(LeafTypes.SortedEntry, cid, creator, [item.sortField], key);
+            await pollard.append(LeafKind.SortedEntry, cid, creator, [item.timestamp], key);
         }
 
         await this.handlePollardUpdate(pollard, layerIndex, position);
@@ -953,7 +952,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             const slicedLayer = this.layers[layerIndex - 1].slice(startIndexInLowerLayer);
             for (const pollardNode of slicedLayer) {
                 ({ pollard, position } = await this.handlePollardCreation(pollard, layerIndex, position));
-                await pollard.append(LeafTypes.Pollard, await pollardNode.getCID());
+                await pollard.append(LeafKind.Pollard, await pollardNode.getCID());
             }
             await this.handlePollardUpdate(pollard, layerIndex, position);
         }
@@ -963,7 +962,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return Math.floor(entryPosition / this.maxPollardLength ** layerIndex);
     }
 
-    private async handlePollardCreation(pollard: PollardInterface, layerIndex: number, position: number) {
+    private async handlePollardCreation(pollard: Pollard, layerIndex: number, position: number) {
         if (!pollard.isFree()) {
             await this.handlePollardUpdate(pollard, layerIndex, position);
             pollard = await createEmptyPollard(this.order);
@@ -972,7 +971,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         return { pollard, position };
     }
 
-    private async handlePollardUpdate(pollard: PollardInterface, layerIndex: number, position: number) {
+    private async handlePollardUpdate(pollard: Pollard, layerIndex: number, position: number) {
         await pollard.updateLayers();
         // Stored unpinned: pinning every rebuilt pollard walks the whole DAG below
         // it on every write (O(database) per write). The signed head pins the root
@@ -1006,7 +1005,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * @param head - The head interface containing the root bytes.
      * @returns A promise that resolves when the loading is complete.
      */
-    async load(head: HeadInterface): Promise<void> {
+    async load(head: Head): Promise<void> {
         // load() fully replaces local state with the authenticated contents of the
         // remote tree (KNOWN_ISSUES.md #17). The remote pollards are only walked to
         // discover entries; the honest tree is rebuilt from the verified index, so
@@ -1016,7 +1015,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // head's own layer count (KNOWN_ISSUES.md #26): a repeated or misshapen
         // pollard rejects the head before any local state is touched.
         const budget = new TreeWalkBudget(this.maxPollardsFor(head));
-        const leaves: LeafType[] = [];
+        const leaves: Leaf[] = [];
         let links: CID[] = [head.root];
         for (let level = 0; links.length > 0; level++) {
             if (level >= head.layers) throw new TreeRejectedError("tree is deeper than the head claims");
@@ -1025,8 +1024,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             for (const pollard of pollards) {
                 if (!pollard) continue; // missing or wrong version — skip
                 for (const leaf of pollard.iterator()) {
-                    if (leaf.type === LeafTypes.Pollard) next.push(leaf.link);
-                    else if (leaf.type === LeafTypes.SortedEntry) leaves.push(leaf);
+                    if (leaf.type === LeafKind.Pollard) next.push(leaf.link);
+                    else if (leaf.type === LeafKind.SortedEntry) leaves.push(leaf);
                 }
             }
             links = next;
@@ -1038,11 +1037,11 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // caller-supplied (possibly shared/persistent) Keyv only has the keys THIS
         // database indexed deleted from it — clear() would destroy whatever else
         // the caller keeps there (same ownership rule as close(), D4).
-        if (this.ownsKeyValueStorage) {
-            await this.keyValueStorage.clear();
+        if (this.ownsCache) {
+            await this.cache.clear();
         } else {
             for await (const { cid } of this.sortedItemsStore.iterator()) {
-                await this.keyValueStorage.delete(cid.toString());
+                await this.cache.delete(cid.toString());
             }
         }
         await this.sortedItemsStore.clear();
@@ -1061,7 +1060,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         await this.createTaskUpdateLayers(0);
     }
 
-    private async getPollard(cid: CID): Promise<PollardInterface | undefined> {
+    private async getPollard(cid: CID): Promise<Pollard | undefined> {
         const pollardInput = await this.heliaController.get<PollardType>(cid);
         if (!pollardInput) return;
         if (pollardInput.version !== POLLARD_VERSION) {
@@ -1075,7 +1074,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const cid = CID.decode(data);
         this.log("syncNewHead %s", cid.toString());
         await this.syncController.addTask(async () => {
-            let head: HeadInterface;
+            let head: Head;
             try {
                 head = await this.fetchHead(cid);
             } catch {

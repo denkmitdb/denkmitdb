@@ -11,17 +11,14 @@ import {
     encryptedRecipients,
     encryptValueFor,
     fetchIdentity,
-    fetchPolicy,
     isEncryptedValue,
 } from "@denkmitdb/denkmitdb";
-import type { HeliaStorage } from "@denkmitdb/denkmitdb";
-import { CID } from "multiformats/cid";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
-import type { IdentityInterface } from "@denkmitdb/denkmitdb";
+import type { SigningIdentity } from "@denkmitdb/denkmitdb";
 
 /** The identity an MCP session acts as. */
 export type MemorySession = {
-    identity: IdentityInterface;
+    identity: SigningIdentity;
     /** Identity name in the node's keychain (e.g. "lab" or "lab-codex"). */
     name: string;
     /** Agent name when the session is bound to a daemon agent identity. */
@@ -139,7 +136,7 @@ export function createMemoryServer(
                 const others = await Promise.all(
                     encryptFor.map(async (cid) => {
                         try {
-                            return await fetchIdentity(CID.parse(cid), db.heliaController as unknown as HeliaStorage);
+                            return await fetchIdentity(cid, node.helia);
                         } catch (error) {
                             throw new Error(`Cannot encrypt to ${cid}: identity not found or invalid`, {
                                 cause: error,
@@ -295,8 +292,8 @@ export function createMemoryServer(
         },
         async () => {
             const peers = node.helia.libp2p.getPeers().map((p: { toString(): string }) => p.toString());
-            const manifest = await db.getManifest();
-            const access = await fetchPolicy(manifest.access, db.heliaController);
+            const { manifest } = db;
+            const { access } = db.policies;
             const isCreator = manifest.creator.equals(identity.cid);
             return okJson({
                 databaseAddress: db.address.toString(),

@@ -20,15 +20,15 @@ import { sha256 } from "multiformats/hashes/sha2";
 import type { RulesLogic } from "json-logic-js";
 import { toString as toHex, fromString as fromHex } from "uint8arrays";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createEntry,
     createManifest,
     createPolicy,
     createTombstone,
     HeliaController,
     openIdentity,
-} from "../../src/functions";
-import type { DenkmitHeliaInterface, IdentityInterface } from "../../src/types";
+} from "../../src/internal";
+import type { HeliaNode, SigningIdentity } from "../../src/internal";
 
 export const FIXTURE_IDENTITY = { name: "wire-fixture", passphrase: "wire-fixture-passphrase" };
 const T0 = 1_800_000_000_000;
@@ -43,12 +43,12 @@ export type DeterministicRecord = {
  * The stand-in signer records each payload and returns CID(sha256(payload)).
  */
 export async function runDeterministicFlows(
-    helia: DenkmitHeliaInterface,
-    identity: IdentityInterface,
+    helia: HeliaNode,
+    identity: SigningIdentity,
 ): Promise<DeterministicRecord> {
     const payloads: string[] = [];
     const proto = HeliaController.prototype as unknown as {
-        addSigned: (this: { identity: IdentityInterface }, data: unknown) => Promise<unknown>;
+        addSigned: (this: { identity: SigningIdentity }, data: unknown) => Promise<unknown>;
     };
     const realAddSigned = proto.addSigned;
     const realNow = Date.now;
@@ -57,16 +57,19 @@ export async function runDeterministicFlows(
         const bytes = codec.encode(data);
         payloads.push(toHex(bytes, "hex"));
         const cid = CID.create(1, codec.code, await sha256.digest(bytes));
+        t += 1000; // the clock advances per signed payload only
         return { data, cid, creator: this.identity.cid };
     };
-    Date.now = () => (t += 1000);
+    // A constant clock between signings: background work (queues, sync timers)
+    // also reads Date.now, and how often depends on scheduling.
+    Date.now = () => t;
     const cids: Record<string, string> = {};
     try {
-        const plain = await createDenkmitDatabase<unknown>("wire-plain", { helia, identity });
+        const plain = await createDatabase<unknown>("wire-plain", { helia, identity });
         cids.plainAddress = plain.address.toString();
         await plain.close();
 
-        const ns = await createDenkmitDatabase<unknown>("wire-ns", {
+        const ns = await createDatabase<unknown>("wire-ns", {
             helia,
             identity,
             access: "namespace-per-writer",
@@ -85,7 +88,7 @@ export async function runDeterministicFlows(
         cids.nsHead = head.cid.toString();
         await ns.close();
 
-        const custom = await createDenkmitDatabase<unknown>("wire-custom", {
+        const custom = await createDatabase<unknown>("wire-custom", {
             helia,
             identity,
             accessPolicy: {
@@ -137,7 +140,7 @@ export type CapturedBlocks = {
 };
 
 /** Reads one block's bytes from the blockstore (helia 7 returns them directly or as chunks). */
-export async function blockBytes(helia: DenkmitHeliaInterface, cid: CID): Promise<Uint8Array> {
+export async function blockBytes(helia: HeliaNode, cid: CID): Promise<Uint8Array> {
     const got = (await (helia.blockstore as unknown as { get(c: CID): unknown }).get(cid)) as
         | Uint8Array
         | AsyncIterable<Uint8Array>;
@@ -148,7 +151,7 @@ export async function blockBytes(helia: DenkmitHeliaInterface, cid: CID): Promis
 }
 
 /** Loads captured blocks and the fixture identity's key into a node. */
-export async function installCaptured(helia: DenkmitHeliaInterface, captured: CapturedBlocks): Promise<IdentityInterface> {
+export async function installCaptured(helia: HeliaNode, captured: CapturedBlocks): Promise<SigningIdentity> {
     for (const [cid, hex] of Object.entries(captured.blocks)) {
         await helia.blockstore.put(CID.parse(cid), fromHex(hex, "hex"));
     }

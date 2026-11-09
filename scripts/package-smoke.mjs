@@ -1,20 +1,22 @@
 /**
  * Package smoke test: proves the *packed* artifact is a loadable ESM package
- * with resolvable types — the failure mode that shipped broken in v1.0.0
- * (extensionless relative specifiers, see KNOWN_ISSUES.md "Packaging").
+ * with resolvable types and exactly the public API — no more, no less.
  *
  * What it does:
  *   1. `pnpm pack` the repository.
  *   2. Extract the tarball to a temp directory.
  *   3. Verify the manifest's entry points exist in the tarball.
- *   4. Import the real entry file and assert the core API surface.
+ *   4. Import the real entry file and assert the runtime exports equal PUBLIC_EXPORTS
+ *      (an internal leaking out is a failure, like a public name going missing).
+ *   5. Typecheck a small consumer against the packed declarations: the public
+ *      types resolve, and internals (tree, sync, storage) stay out of reach.
  *
  * Dependencies are satisfied by symlinking the repo's node_modules next to the
  * extracted package rather than doing a full install of the tarball — that keeps
  * the smoke test fast and offline while still exercising the packed entry point.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -22,23 +24,57 @@ import { pathToFileURL } from "node:url";
 const root = new URL("..", import.meta.url).pathname;
 const workDir = mkdtempSync(join(tmpdir(), "denkmitdb-pack-"));
 
-const EXPECTED_EXPORTS = [
-    "createDenkmitDatabase",
-    "openDenkmitDatabase",
+/** The runtime surface of the package. Keep in sync with src/index.ts. */
+const PUBLIC_EXPORTS = [
+    "createDatabase",
     "createIdentity",
+    "decryptValue",
+    "encryptValueFor",
+    "encryptedRecipients",
+    "fetchIdentity",
+    "hasIdentity",
+    "isEncryptedValue",
+    "openDatabase",
     "openIdentity",
-    "createEntry",
-    "fetchEntry",
-    "createPollard",
-    "createEmptyPollard",
-    "createLeaf",
-    "createHead",
-    "createManifest",
-    "createSyncController",
-    "createPolicy",
-    "HeliaController",
-    "SortedItemsStore",
-];
+].sort();
+
+const CONSUMER = `
+import {
+    createDatabase,
+    openDatabase,
+    isEncryptedValue,
+    type CreateDatabaseOptions,
+    type Database,
+    type HeliaNode,
+    type Identity,
+    type PolicyDefinition,
+    type Provenance,
+    type SigningIdentity,
+} from "@denkmitdb/denkmitdb";
+
+declare const helia: HeliaNode;
+declare const identity: SigningIdentity;
+declare const db: Database<{ n: number }>;
+
+const created: Promise<Database<{ n: number }>> = createDatabase<{ n: number }>("x", { helia, identity, access: "public" });
+const opened: Promise<Database<unknown>> = openDatabase("bafy", { helia, identity });
+const provenance: Promise<Provenance | undefined> = db.provenance("k");
+const asPublic: Identity = identity;
+const accessName: string = db.policies.access.name;
+const isEnc: boolean = isEncryptedValue(null);
+const policy: PolicyDefinition = { version: 1, name: "p", description: "d", logic: true };
+
+// @ts-expect-error the tree is internal
+void db.layers;
+// @ts-expect-error merging is internal
+void db.merge;
+// @ts-expect-error a preset and a custom access policy are exclusive
+const both: CreateDatabaseOptions<unknown> = { helia, identity, access: "public", accessPolicy: policy };
+// @ts-expect-error a fetched identity cannot sign
+void (asPublic as Identity).sign;
+
+export { created, opened, provenance, accessName, isEnc, both };
+`;
 
 try {
     const tarball = execFileSync("pnpm", ["pack", "--pack-destination", workDir], { cwd: root, encoding: "utf8" })
@@ -59,15 +95,38 @@ try {
     symlinkSync(join(root, "node_modules"), join(pkgDir, "node_modules"), "dir");
     const mod = await import(pathToFileURL(join(pkgDir, manifest.exports["."].import)).href);
 
-    const missing = EXPECTED_EXPORTS.filter((name) => typeof mod[name] === "undefined");
+    const actual = Object.keys(mod).sort();
+    const missing = PUBLIC_EXPORTS.filter((name) => !actual.includes(name));
+    const extra = actual.filter((name) => !PUBLIC_EXPORTS.includes(name));
     if (missing.length > 0) throw new Error(`missing exports: ${missing.join(", ")}`);
-    console.log(`imported OK: ${Object.keys(mod).length} exports, all ${EXPECTED_EXPORTS.length} expected names present`);
+    if (extra.length > 0) throw new Error(`unexpected (internal?) exports: ${extra.join(", ")}`);
+    console.log(`imported OK: exactly the ${PUBLIC_EXPORTS.length} public exports`);
 
-    // Minimal no-network behavioral check through the packed code path.
-    const pollard = await mod.createEmptyPollard(3);
-    const leafCid = await pollard.getCID();
-    if (!leafCid || pollard.maxLength !== 8) throw new Error("packed pollard behaves unexpectedly");
-    console.log("packed pollard works, empty root CID:", leafCid.toString());
+    if (mod.isEncryptedValue({ denkmitEncrypted: 1 }) !== false) throw new Error("packed isEncryptedValue misbehaves");
+
+    // Typecheck a consumer against the packed declarations.
+    const consumerDir = join(workDir, "consumer");
+    mkdirSync(join(consumerDir, "node_modules", "@denkmitdb"), { recursive: true });
+    symlinkSync(pkgDir, join(consumerDir, "node_modules", "@denkmitdb", "denkmitdb"), "dir");
+    writeFileSync(join(consumerDir, "consumer.ts"), CONSUMER);
+    writeFileSync(
+        join(consumerDir, "tsconfig.json"),
+        JSON.stringify({
+            compilerOptions: {
+                module: "NodeNext",
+                moduleResolution: "NodeNext",
+                target: "ES2022",
+                lib: ["ES2022", "DOM"],
+                strict: true,
+                noEmit: true,
+                skipLibCheck: true,
+                types: [],
+            },
+            files: ["consumer.ts"],
+        }),
+    );
+    execFileSync(join(root, "node_modules", ".bin", "tsc"), ["-p", consumerDir], { stdio: "inherit" });
+    console.log("consumer typechecks against the packed declarations");
 
     console.log("PACKAGE SMOKE TEST PASSED");
 } finally {

@@ -1,6 +1,10 @@
 import { CID } from "multiformats/cid";
 
-export enum LeafTypes {
+/** Pollard (tree node block) format. */
+export const POLLARD_VERSION = 2;
+
+/** Leaf kinds. Numeric on the wire — never renumber. */
+export enum LeafKind {
     Empty = 0,
     Hash = 1,
     Pollard = 2,
@@ -10,36 +14,36 @@ export enum LeafTypes {
 }
 
 export type EmptyLeaf = {
-    type: LeafTypes.Empty;
+    type: LeafKind.Empty;
 };
 
 export type HashLeaf = {
-    type: LeafTypes.Hash;
+    type: LeafKind.Hash;
     hash: Uint8Array;
 };
 
 export type PollardLeaf = {
-    type: LeafTypes.Pollard;
+    type: LeafKind.Pollard;
     link: CID;
 };
 
 export type EntryLeaf = {
-    type: LeafTypes.Entry;
+    type: LeafKind.Entry;
     link: CID;
     creator: CID;
 };
 
 export type IdentityLeaf = {
-    type: LeafTypes.Identity;
+    type: LeafKind.Identity;
     link: CID;
 };
 
 export type SortedEntryLeaf = {
-    type: LeafTypes.SortedEntry;
+    type: LeafKind.SortedEntry;
     link: CID;
     sort: number[];
     key: string;
     creator: CID;
 };
 
-export type LeafType = EmptyLeaf | HashLeaf | PollardLeaf | EntryLeaf | IdentityLeaf | SortedEntryLeaf;
+export type Leaf = EmptyLeaf | HashLeaf | PollardLeaf | EntryLeaf | IdentityLeaf | SortedEntryLeaf;

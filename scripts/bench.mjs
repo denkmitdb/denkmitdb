@@ -31,10 +31,10 @@ import { identify } from "@libp2p/identify";
 import { tcp } from "@libp2p/tcp";
 import { createHeliaLight } from "helia";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
-    openDenkmitDatabase,
-} from "../dist/functions/index.js";
+    openDatabase,
+} from "../dist/internal.js";
 
 const N = Number(process.argv[2] ?? 10_000);
 if (!Number.isInteger(N) || N < 1) {
@@ -67,7 +67,7 @@ function record(name, totalMs, count) {
 
 console.error(`bench: N=${N} …`);
 const writer = await makeNode("bench-writer");
-const db = await createDenkmitDatabase("bench", { helia: writer.helia, identity: writer.identity });
+const db = await createDatabase("bench", { helia: writer.helia, identity: writer.identity });
 
 // 1. writes
 let t = now();
@@ -86,7 +86,7 @@ record("get() warm (Keyv cache)", now() - t, Math.min(N, 1000));
 
 // cold: new instance over the same helia — same blocks, empty cache
 const head = await db.createHead();
-const cold = await openDenkmitDatabase(db.address, { helia: writer.helia, identity: writer.identity });
+const cold = await openDatabase(db.address, { helia: writer.helia, identity: writer.identity });
 await cold.syncNewHead(head.cid.bytes);
 await cold.idle();
 t = now();
@@ -110,7 +110,7 @@ record("createHead() over settled tree", now() - t, 1);
 // 5. replication to a second node (full-database load() over TCP+bitswap)
 const reader = await makeNode("bench-reader");
 await reader.helia.libp2p.dial(writer.helia.libp2p.getMultiaddrs());
-const replica = await openDenkmitDatabase(db.address, { helia: reader.helia, identity: reader.identity });
+const replica = await openDatabase(db.address, { helia: reader.helia, identity: reader.identity });
 t = now();
 await replica.syncNewHead(head.cid.bytes);
 await replica.idle();
@@ -125,7 +125,7 @@ await reader.helia.stop();
 
 // 6. reopen from the persisted head pointer (same helia, D4 path)
 t = now();
-const reopened = await openDenkmitDatabase(db.address, { helia: writer.helia, identity: writer.identity });
+const reopened = await openDatabase(db.address, { helia: writer.helia, identity: writer.identity });
 await reopened.idle();
 const tReopen = now() - t;
 if (reopened.size !== N) throw new Error(`reopen restored ${reopened.size}/${N} records`);

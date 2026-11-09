@@ -2,13 +2,14 @@ import type { Message } from "@libp2p/floodsub";
 import type { Logger } from "@libp2p/interface";
 import delay, { clearDelay } from "delay";
 import PQueue from "p-queue";
-import { HeadInterface, HeliaControllerInterface, SyncControllerInterface } from "../types/index.js";
+import type { Head } from "./head.js";
+import type { HeliaController } from "./storage/helia.js";
 
 /**
  * Represents a SyncController that handles synchronization operations.
  */
-export class SyncController implements SyncControllerInterface {
-    heliaController: HeliaControllerInterface;
+export class SyncController {
+    heliaController: HeliaController;
     name: string;
     queue: PQueue = new PQueue({ concurrency: 1 });
     scheduleQueue: PQueue = new PQueue({ concurrency: 1 });
@@ -21,7 +22,7 @@ export class SyncController implements SyncControllerInterface {
     private readonly subscriptionChangeHandler = (event: unknown) => this.log("subscription-change %o", event);
     private repetitiveDelay?: Promise<void>;
 
-    constructor(heliaController: HeliaControllerInterface, name: string) {
+    constructor(heliaController: HeliaController, name: string) {
         this.heliaController = heliaController;
         this.name = name;
         this.log = heliaController.helia.logger.forComponent("denkmitdb:sync");
@@ -46,7 +47,7 @@ export class SyncController implements SyncControllerInterface {
         this.heliaController.libp2p.services.pubsub.subscribe(this.name);
     }
 
-    async sendHead(head: HeadInterface): Promise<void> {
+    async sendHead(head: Head): Promise<void> {
         await this.heliaController.libp2p.services.pubsub.publish(this.name, head.cid.bytes);
     }
 
@@ -119,7 +120,7 @@ export class SyncController implements SyncControllerInterface {
  */
 export async function createSyncController(
     name: string,
-    heliaController: HeliaControllerInterface,
-): Promise<SyncControllerInterface> {
+    heliaController: HeliaController,
+): Promise<SyncController> {
     return new SyncController(heliaController, name);
 }

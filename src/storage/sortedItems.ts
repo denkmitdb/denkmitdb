@@ -1,6 +1,29 @@
 import { OrderedMap } from "js-sdsl";
 import { CID } from "multiformats/cid";
-import { SetResult, SortedItemsStoreInterface, SortedItemType } from "../../types/index.js";
+
+/** One record in the sorted index. */
+export type SortedItem = {
+    readonly timestamp: number;
+    readonly cid: CID;
+    readonly key: string;
+    readonly creator: CID;
+    readonly index: number;
+    /** True when the record is a tombstone (the key is deleted). */
+    readonly deleted?: boolean;
+};
+
+/**
+ * Outcome of {@link SortedItemsStore.set}. `applied` is true when the record
+ * became the live record for its key (last-write-wins). When it displaced an
+ * earlier record, `previousTimestamp` is that record's timestamp, so the tree can
+ * be rebuilt from the earlier of the two positions.
+ */
+export type SetResult = {
+    readonly applied: boolean;
+    readonly previousTimestamp?: number;
+    /** CID of the record this one superseded, when it won over a previous record. */
+    readonly previousCid?: CID;
+};
 
 /**
  * The canonical order over entries (specs/ordering.md): timestamp first, entry
@@ -25,7 +48,7 @@ function compareKeys(a: CompositeKey, b: CompositeKey): number {
     return compareBytes(a.cid, b.cid);
 }
 
-export class SortedItemsStore implements SortedItemsStoreInterface {
+export class SortedItemsStore {
     private sortedMap: OrderedMap<CompositeKey, Record>;
     private keyMap: Map<string, { timestamp: number; cid: CID; creator: CID; deleted?: boolean }>;
 
@@ -44,8 +67,8 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
      *   record's timestamp so callers can rebuild the tree from the earlier of
      *   the two positions.
      */
-    async set(sortField: number, key: string, cid: CID, creator: CID, deleted?: boolean): Promise<SetResult> {
-        const incoming: CompositeKey = { timestamp: sortField, cid: cid.bytes };
+    async set(timestamp: number, key: string, cid: CID, creator: CID, deleted?: boolean): Promise<SetResult> {
+        const incoming: CompositeKey = { timestamp, cid: cid.bytes };
         const existing = this.keyMap.get(key);
 
         if (existing) {
@@ -55,28 +78,28 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
             // Incoming wins: drop the superseded record from the ordered index so
             // exactly one live record per key remains (KNOWN_ISSUES.md #2 part 2).
             this.sortedMap.eraseElementByKey(current);
-            this.keyMap.set(key, { timestamp: sortField, cid, creator, ...(deleted ? { deleted } : {}) });
+            this.keyMap.set(key, { timestamp, cid, creator, ...(deleted ? { deleted } : {}) });
             this.sortedMap.setElement(incoming, { cid, key, creator, ...(deleted ? { deleted } : {}) });
             return { applied: true, previousTimestamp: existing.timestamp, previousCid: existing.cid };
         }
 
-        this.keyMap.set(key, { timestamp: sortField, cid, creator, ...(deleted ? { deleted } : {}) });
+        this.keyMap.set(key, { timestamp, cid, creator, ...(deleted ? { deleted } : {}) });
         this.sortedMap.setElement(incoming, { cid, key, creator, ...(deleted ? { deleted } : {}) });
         return { applied: true };
     }
 
     /**
-     * Whether `set(sortField, key, cid, …)` would make this record the live record
+     * Whether `set(timestamp, key, cid, …)` would make this record the live record
      * for `key` — the same last-write-wins comparison, without mutating anything.
      * Lets ingestion do fallible work (pinning) before it touches the index
      * (KNOWN_ISSUES.md #31).
      */
-    wouldApply(sortField: number, key: string, cid: CID): boolean {
+    wouldApply(timestamp: number, key: string, cid: CID): boolean {
         const existing = this.keyMap.get(key);
         if (!existing) return true;
         return (
             compareKeys(
-                { timestamp: sortField, cid: cid.bytes },
+                { timestamp, cid: cid.bytes },
                 { timestamp: existing.timestamp, cid: existing.cid.bytes },
             ) > 0
         );
@@ -90,45 +113,45 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
         return this.keyMap.get(key);
     }
 
-    async getByKey(key: string): Promise<SortedItemType | undefined> {
+    async getByKey(key: string): Promise<SortedItem | undefined> {
         const res = this.keyMap.get(key);
         if (!res) return undefined;
         const composite: CompositeKey = { timestamp: res.timestamp, cid: res.cid.bytes };
         const it = this.sortedMap.find(composite);
-        return { cid: res.cid, key, creator: res.creator, sortField: res.timestamp, index: it.index, ...(res.deleted ? { deleted: true } : {}) };
+        return { cid: res.cid, key, creator: res.creator, timestamp: res.timestamp, index: it.index, ...(res.deleted ? { deleted: true } : {}) };
     }
 
-    async *iterator(): AsyncGenerator<SortedItemType> {
+    async *iterator(): AsyncGenerator<SortedItem> {
         let index = 0;
         for (const [composite, entry] of this.sortedMap) {
-            yield { ...entry, sortField: composite.timestamp, index };
+            yield { ...entry, timestamp: composite.timestamp, index };
             index++;
         }
     }
 
     /**
      * The index of the first record whose composite key is at or after
-     * `sortField` (interpreted as a timestamp lower bound). Used to locate where a
+     * `timestamp` (interpreted as a timestamp lower bound). Used to locate where a
      * tree rebuild must start. Returns `size` when nothing is at or after it.
      */
-    async find(sortField: number): Promise<SortedItemType> {
-        const lower: CompositeKey = { timestamp: sortField, cid: new Uint8Array(0) };
+    async find(timestamp: number): Promise<SortedItem> {
+        const lower: CompositeKey = { timestamp, cid: new Uint8Array(0) };
         const it = this.sortedMap.lowerBound(lower);
         if (it.equals(this.sortedMap.end())) {
             return {
                 cid: undefined as unknown as CID,
                 key: "",
                 creator: undefined as unknown as CID,
-                sortField,
+                timestamp,
                 index: this.sortedMap.size(),
             };
         }
-        return { ...it.pointer[1], sortField: it.pointer[0].timestamp, index: it.index };
+        return { ...it.pointer[1], timestamp: it.pointer[0].timestamp, index: it.index };
     }
 
-    async getByIndex(index: number): Promise<SortedItemType> {
+    async getByIndex(index: number): Promise<SortedItem> {
         const [composite, entry] = this.sortedMap.getElementByPos(index);
-        return { ...entry, sortField: composite.timestamp, index };
+        return { ...entry, timestamp: composite.timestamp, index };
     }
 
     /**
@@ -141,15 +164,15 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
      * records, and a concurrent `set()` that supersedes a record erases its tree
      * node, which would invalidate a live iterator.
      */
-    async *iteratorFromIndex(startIndex: number): AsyncGenerator<SortedItemType> {
+    async *iteratorFromIndex(startIndex: number): AsyncGenerator<SortedItem> {
         if (startIndex >= this.sortedMap.size()) return;
         const [first] = this.sortedMap.getElementByPos(Math.max(0, startIndex));
-        const snapshot: SortedItemType[] = [];
+        const snapshot: SortedItem[] = [];
         const end = this.sortedMap.end();
         let index = Math.max(0, startIndex);
         for (let it = this.sortedMap.find(first); !it.equals(end); it = it.next()) {
             const [composite, entry] = it.pointer;
-            snapshot.push({ ...entry, sortField: composite.timestamp, index });
+            snapshot.push({ ...entry, timestamp: composite.timestamp, index });
             index++;
         }
         yield* snapshot;

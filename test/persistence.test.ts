@@ -1,6 +1,6 @@
 import Keyv from "keyv";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDenkmitDatabase, headStoreKey, openDenkmitDatabase } from "../src/functions";
+import { createDatabase, headStoreKey, openDatabase } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -24,7 +24,7 @@ describe("Local head persistence (D4)", () => {
     });
 
     it("persists the head pointer under the manifest-namespaced key", async () => {
-        const db = await createDenkmitDatabase<Value>("persist-key", {
+        const db = await createDatabase<Value>("persist-key", {
             helia: node.helia,
             identity: node.identity,
         });
@@ -38,7 +38,7 @@ describe("Local head persistence (D4)", () => {
     });
 
     it("reopens its own state with no live peer", async () => {
-        const db = await createDenkmitDatabase<Value>("persist-reopen", {
+        const db = await createDatabase<Value>("persist-reopen", {
             helia: node.helia,
             identity: node.identity,
         });
@@ -51,7 +51,7 @@ describe("Local head persistence (D4)", () => {
 
         // Reopen by address only — no peer announces anything. Restore goes through
         // syncNewHead, so the head is re-validated like a remote announcement.
-        const reopened = await openDenkmitDatabase<Value>(address, {
+        const reopened = await openDatabase<Value>(address, {
             helia: node.helia,
             identity: node.identity,
         });
@@ -67,10 +67,10 @@ describe("Local head persistence (D4)", () => {
 
     it("does not clear a caller-supplied Keyv on close", async () => {
         const myStore = new Keyv<Value>();
-        const db = await createDenkmitDatabase<Value>("persist-keyv", {
+        const db = await createDatabase<Value>("persist-keyv", {
             helia: node.helia,
             identity: node.identity,
-            keyValueStorage: myStore,
+            cache: myStore,
         });
         await db.set("mine", { value: "kept" });
         await db.idle();

@@ -2,15 +2,8 @@ import * as codec from "@ipld/dag-cbor";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 
-import {
-    LeafType,
-    LeafTypes,
-    POLLARD_VERSION,
-    PollardInput,
-    PollardInterface,
-    PollardOptions,
-    PollardType,
-} from "../../types/index.js";
+import { Leaf, LeafKind, POLLARD_VERSION } from "../protocol/tree.js";
+import type { PollardInput, PollardOptions, PollardType } from "./types.js";
 import { createLeaf, isLeavesEqual } from "./leaf.js";
 
 /**
@@ -18,13 +11,13 @@ import { createLeaf, isLeavesEqual } from "./leaf.js";
  * The Pollard data structure is used for efficient storage and retrieval of data in a tree-like structure.
  * It supports operations like appending data, retrieving data, updating layers, and comparing with other Pollard instances.
  */
-class Pollard implements PollardInterface {
+export class Pollard implements PollardType {
     readonly version = POLLARD_VERSION;
     readonly order: number;
     readonly maxLength: number;
     readonly codec;
     private readonly _hashFunc: (data: Uint8Array) => Promise<Uint8Array>;
-    private _layers: LeafType[][];
+    private _layers: Leaf[][];
     private _length: number = 0;
     private _needUpdate: boolean = true;
     private _cid: CID | undefined;
@@ -59,14 +52,14 @@ class Pollard implements PollardInterface {
     }
 
     async append(): Promise<boolean>;
-    async append(type: LeafTypes.Empty): Promise<boolean>;
-    async append(type: LeafTypes.Hash, data: Uint8Array): Promise<boolean>;
-    async append(type: LeafTypes.Pollard, data: CID): Promise<boolean>;
-    async append(type: LeafTypes.Identity, data: CID): Promise<boolean>;
-    async append(type: LeafTypes.Entry, data: CID, creator: CID): Promise<boolean>;
-    async append(type: LeafTypes.SortedEntry, data: CID, creator: CID, sort: number[], key: string): Promise<boolean>;
+    async append(type: LeafKind.Empty): Promise<boolean>;
+    async append(type: LeafKind.Hash, data: Uint8Array): Promise<boolean>;
+    async append(type: LeafKind.Pollard, data: CID): Promise<boolean>;
+    async append(type: LeafKind.Identity, data: CID): Promise<boolean>;
+    async append(type: LeafKind.Entry, data: CID, creator: CID): Promise<boolean>;
+    async append(type: LeafKind.SortedEntry, data: CID, creator: CID, sort: number[], key: string): Promise<boolean>;
     async append(
-        type?: LeafTypes,
+        type?: LeafKind,
         data?: CID | Uint8Array,
         creator?: CID,
         sort?: number[],
@@ -76,22 +69,22 @@ class Pollard implements PollardInterface {
 
         switch (type) {
             case undefined:
-            case LeafTypes.Empty:
+            case LeafKind.Empty:
                 leaf = createLeaf();
                 break;
-            case LeafTypes.Hash:
+            case LeafKind.Hash:
                 leaf = createLeaf(type, data as Uint8Array);
                 break;
-            case LeafTypes.Pollard:
+            case LeafKind.Pollard:
                 leaf = createLeaf(type, data as CID);
                 break;
-            case LeafTypes.Identity:
+            case LeafKind.Identity:
                 leaf = createLeaf(type, data as CID);
                 break;
-            case LeafTypes.Entry:
+            case LeafKind.Entry:
                 leaf = createLeaf(type, data as CID, creator as CID);
                 break;
-            case LeafTypes.SortedEntry:
+            case LeafKind.SortedEntry:
                 leaf = createLeaf(type, data as CID, creator as CID, sort as number[], key as string);
                 break;
             default:
@@ -107,7 +100,7 @@ class Pollard implements PollardInterface {
         return this._length < this.maxLength;
     }
 
-    addLeaf(leaf: LeafType): boolean {
+    addLeaf(leaf: Leaf): boolean {
         if (!this.isFree()) return false;
 
         this._layers[0][this._length] = { ...leaf };
@@ -118,7 +111,7 @@ class Pollard implements PollardInterface {
         return true;
     }
 
-    getLeaf(index: number): LeafType {
+    getLeaf(index: number): Leaf {
         return this._layers[0][index];
     }
 
@@ -139,7 +132,7 @@ class Pollard implements PollardInterface {
             combined.set(hash2, hash1.length);
             const hash = await this._hashFunc(combined);
             const nextLayerIndex = startIndex >> 1;
-            this._layers[i + 1][nextLayerIndex] = createLeaf(LeafTypes.Hash, hash);
+            this._layers[i + 1][nextLayerIndex] = createLeaf(LeafKind.Hash, hash);
             startIndex = (nextLayerIndex >> 1) << 1;
         }
 
@@ -151,17 +144,17 @@ class Pollard implements PollardInterface {
         return this._cid;
     }
 
-    private getHashes(left: LeafType, right: LeafType) {
+    private getHashes(left: Leaf, right: Leaf) {
         let hash1;
         let hash2;
         switch (left.type) {
-            case LeafTypes.Hash:
+            case LeafKind.Hash:
                 hash1 = left.hash;
                 break;
-            case LeafTypes.Pollard:
-            case LeafTypes.Entry:
-            case LeafTypes.SortedEntry:
-            case LeafTypes.Identity:
+            case LeafKind.Pollard:
+            case LeafKind.Entry:
+            case LeafKind.SortedEntry:
+            case LeafKind.Identity:
                 hash1 = left.link.bytes;
                 break;
             default:
@@ -170,13 +163,13 @@ class Pollard implements PollardInterface {
         }
 
         switch (right.type) {
-            case LeafTypes.Hash:
+            case LeafKind.Hash:
                 hash2 = right.hash;
                 break;
-            case LeafTypes.Pollard:
-            case LeafTypes.Entry:
-            case LeafTypes.SortedEntry:
-            case LeafTypes.Identity:
+            case LeafKind.Pollard:
+            case LeafKind.Entry:
+            case LeafKind.SortedEntry:
+            case LeafKind.Identity:
                 hash2 = right.link.bytes;
                 break;
             default:
@@ -202,7 +195,7 @@ class Pollard implements PollardInterface {
                 combined.set(hash2, hash1.length);
                 const hash = await this._hashFunc(combined);
                 const nextLayerIndex = j >> 1;
-                this._layers[i + 1][nextLayerIndex] = createLeaf(LeafTypes.Hash, hash);
+                this._layers[i + 1][nextLayerIndex] = createLeaf(LeafKind.Hash, hash);
             }
             startIndex = ((startIndex >> 1) >> 1) << 1;
         }
@@ -222,7 +215,7 @@ class Pollard implements PollardInterface {
         return this._cid;
     }
 
-    async getNode(layerIndex: number, position: number): Promise<LeafType> {
+    async getNode(layerIndex: number, position: number): Promise<Leaf> {
         if (this._needUpdate) {
             await this.updateLayers();
         }
@@ -241,9 +234,9 @@ class Pollard implements PollardInterface {
     /**
      * Retrieves all the elements in the first layer of the Pollard object.
      *
-     * @returns An array of LeafType elements representing all the elements in the first layer.
+     * @returns An array of Leaf elements representing all the elements in the first layer.
      */
-    all(): LeafType[] {
+    all(): Leaf[] {
         // Snapshot: callers must not be able to mutate internal tree state (#20).
         return this._layers[0].map((leaf) => ({ ...leaf }));
     }
@@ -252,26 +245,26 @@ class Pollard implements PollardInterface {
      * Returns an iterator that yields each leaf in the tree.
      * @returns A generator that yields each leaf in the tree.
      */
-    *iterator(): Generator<LeafType> {
+    *iterator(): Generator<Leaf> {
         for (const leaf of this._layers[0]) {
             yield leaf;
         }
     }
 
-    async getRoot(): Promise<LeafType> {
+    async getRoot(): Promise<Leaf> {
         if (this._needUpdate || !this._cid) {
             this._cid = await this.updateLayers();
         }
 
-        return createLeaf(LeafTypes.Pollard, this._cid);
+        return createLeaf(LeafKind.Pollard, this._cid);
     }
 
-    get layers(): LeafType[][] {
+    get layers(): Leaf[][] {
         // Snapshot: callers must not be able to mutate internal tree state (#20).
         return this._layers.map((layer) => layer.map((leaf) => ({ ...leaf })));
     }
 
-    async getLayers(): Promise<LeafType[][]> {
+    async getLayers(): Promise<Leaf[][]> {
         if (this._needUpdate) {
             await this.updateLayers();
         }
@@ -329,11 +322,11 @@ class Pollard implements PollardInterface {
      * @returns A promise that resolves to an array of two arrays, where the first array contains the nodes from the current tree and the second array contains the nodes from the other tree.
      */
     private async comparePollardNodesOrdered(
-        other: PollardInterface,
+        other: Pollard,
         layerIndex: number,
         position: number,
-    ): Promise<[LeafType[], LeafType[]]> {
-        const result: [LeafType[], LeafType[]] = [[], []];
+    ): Promise<[Leaf[], Leaf[]]> {
+        const result: [Leaf[], Leaf[]] = [[], []];
         const leaf1 = await this.getNode(layerIndex, position);
         const leaf2 = await other.getNode(layerIndex, position);
         let next;
@@ -365,7 +358,7 @@ class Pollard implements PollardInterface {
         return result;
     }
 
-    async compare(other?: PollardInterface): Promise<{ isEqual: boolean; difference: [LeafType[], LeafType[]] }> {
+    async compare(other?: Pollard): Promise<{ isEqual: boolean; difference: [Leaf[], Leaf[]] }> {
         other = other || (await createEmptyPollard(this.order));
 
         if (this.order !== other.order) {
@@ -374,7 +367,7 @@ class Pollard implements PollardInterface {
 
         const difference = await this.comparePollardNodesOrdered(other, this.order, 0);
 
-        const isEqual = difference.every((x) => x.every((y) => y.type === LeafTypes.Empty));
+        const isEqual = difference.every((x) => x.every((y) => y.type === LeafKind.Empty));
 
         return { isEqual, difference };
     }
@@ -387,7 +380,7 @@ class Pollard implements PollardInterface {
  * @param options - The options for the Pollard instance.
  * @returns A Promise that resolves to the created Pollard instance.
  */
-export async function createPollard(pollard: PollardInput, options: PollardOptions = {}): Promise<PollardInterface> {
+export async function createPollard(pollard: PollardInput, options: PollardOptions = {}): Promise<Pollard> {
     const res = new Pollard(pollard, options);
     if (options.noUpdate) return res;
     await res.updateLayers();
@@ -397,9 +390,9 @@ export async function createPollard(pollard: PollardInput, options: PollardOptio
 /**
  * Creates an empty Pollard with the specified order.
  * @param order - The order of the Pollard.
- * @returns A Promise that resolves to a PollardInterface representing the empty Pollard.
+ * @returns A Promise that resolves to a Pollard representing the empty Pollard.
  */
-export async function createEmptyPollard(order: number): Promise<PollardInterface> {
+export async function createEmptyPollard(order: number): Promise<Pollard> {
     const pollard: PollardInput = {
         order,
         length: 0,

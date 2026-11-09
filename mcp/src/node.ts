@@ -1,18 +1,18 @@
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
     hasIdentity,
-    openDenkmitDatabase,
+    openDatabase,
     openIdentity,
 } from "@denkmitdb/denkmitdb";
 import type {
     AccessPreset,
-    DenkmitDatabaseInterface,
-    DenkmitHeliaInterface,
-    IdentityInterface,
-    PolicyData,
+    Database,
+    HeliaNode,
+    SigningIdentity,
+    PolicyDefinition,
 } from "@denkmitdb/denkmitdb";
 import { withBitswap } from "@helia/bitswap";
 import { withLibp2pLight } from "@helia/libp2p";
@@ -24,7 +24,6 @@ import { tcp } from "@libp2p/tcp";
 import { FsBlockstore } from "blockstore-fs";
 import { FsDatastore } from "datastore-fs";
 import { createHeliaLight } from "helia";
-import { CID } from "multiformats/cid";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -32,11 +31,11 @@ import { dirname, join } from "node:path";
 export type MemoryValue = unknown;
 
 export type MemoryNode = {
-    helia: DenkmitHeliaInterface;
-    identity: IdentityInterface;
+    helia: HeliaNode;
+    identity: SigningIdentity;
     /** Agent identities held by this node (daemon, DENKMIT_AGENTS), by agent name. */
-    agents: Map<string, IdentityInterface>;
-    db: DenkmitDatabaseInterface<MemoryValue>;
+    agents: Map<string, SigningIdentity>;
+    db: Database<MemoryValue>;
     created: boolean;
     stop: () => Promise<void>;
 };
@@ -64,7 +63,7 @@ export type MemoryNodeConfig = {
     announce: string[];
     /**
      * JSON file with custom policies for a created database:
-     * `{ "accessPolicy"?: PolicyData, "validationPolicy"?: PolicyData }` (docs/policies.md).
+     * `{ "accessPolicy"?: PolicyDefinition, "validationPolicy"?: PolicyDefinition }` (docs/policies.md).
      * An accessPolicy here replaces DENKMIT_ACCESS.
      */
     policyFile?: string;
@@ -211,13 +210,13 @@ export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
  * @param path - JSON file with optional `accessPolicy` / `validationPolicy`.
  * @returns The policies found in the file.
  */
-async function readPolicyFile(path: string): Promise<{ accessPolicy?: PolicyData; validationPolicy?: PolicyData }> {
+async function readPolicyFile(path: string): Promise<{ accessPolicy?: PolicyDefinition; validationPolicy?: PolicyDefinition }> {
     const parsed = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
     const unknownKeys = Object.keys(parsed).filter((k) => k !== "accessPolicy" && k !== "validationPolicy");
     if (unknownKeys.length > 0) {
         throw new Error(`DENKMIT_POLICY_FILE: unexpected keys ${unknownKeys.join(", ")}`);
     }
-    return parsed as { accessPolicy?: PolicyData; validationPolicy?: PolicyData };
+    return parsed as { accessPolicy?: PolicyDefinition; validationPolicy?: PolicyDefinition };
 }
 
 /**
@@ -258,7 +257,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         ),
     );
     await node.start();
-    const helia = node as unknown as DenkmitHeliaInterface;
+    const helia = node as unknown as HeliaNode;
     const libp2p = helia.libp2p;
 
     const openOrCreate = async (name: string) =>
@@ -266,7 +265,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
             ? await openIdentity(name, config.passphrase, helia)
             : await createIdentity(name, config.passphrase, helia);
     const identity = await openOrCreate(config.identityName);
-    const agents = new Map<string, IdentityInterface>();
+    const agents = new Map<string, SigningIdentity>();
     for (const agent of config.agents) {
         agents.set(agent, await openOrCreate(agentIdentityName(config.identityName, agent)));
     }
@@ -326,12 +325,12 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         );
     }
 
-    let db: DenkmitDatabaseInterface<MemoryValue>;
+    let db: Database<MemoryValue>;
     if (address) {
-        db = await openDenkmitDatabase<MemoryValue>(CID.parse(address), { helia, identity });
+        db = await openDatabase<MemoryValue>(address, { helia, identity });
     } else {
         const custom = config.policyFile ? await readPolicyFile(config.policyFile) : {};
-        db = await createDenkmitDatabase<MemoryValue>(config.databaseName, {
+        db = await createDatabase<MemoryValue>(config.databaseName, {
             helia,
             identity,
             ...(custom.accessPolicy ? { accessPolicy: custom.accessPolicy } : { access: config.access }),

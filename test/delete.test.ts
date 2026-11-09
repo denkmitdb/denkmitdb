@@ -1,12 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
     createTombstone,
     HeliaController,
-    openDenkmitDatabase,
-} from "../src/functions";
-import { IdentityInterface } from "../src/types";
+    openDatabase,
+} from "../src/internal";
+import { SigningIdentity } from "../src/internal";
 import { buildHead, createTestNode, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -18,7 +18,7 @@ type Value = { value: string };
  */
 describe("Delete (tombstones)", () => {
     let node: TestNode;
-    let other: IdentityInterface;
+    let other: SigningIdentity;
 
     beforeAll(async () => {
         node = await createTestNode("delete-owner");
@@ -30,7 +30,7 @@ describe("Delete (tombstones)", () => {
     });
 
     it("hides a deleted key from get and iterator; record stays in the tree", async () => {
-        const db = await createDenkmitDatabase<Value>("del-basic", {
+        const db = await createDatabase<Value>("del-basic", {
             helia: node.helia,
             identity: node.identity,
         });
@@ -53,7 +53,7 @@ describe("Delete (tombstones)", () => {
     });
 
     it("a newer set resurrects a deleted key", async () => {
-        const db = await createDenkmitDatabase<Value>("del-resurrect", {
+        const db = await createDatabase<Value>("del-resurrect", {
             helia: node.helia,
             identity: node.identity,
         });
@@ -75,7 +75,7 @@ describe("Delete (tombstones)", () => {
             const { connectNodes } = await import("./helpers");
             await connectNodes(node, nodeB);
 
-            const dbA = await createDenkmitDatabase<Value>("del-repl", {
+            const dbA = await createDatabase<Value>("del-repl", {
                 helia: node.helia,
                 identity: node.identity,
             });
@@ -83,7 +83,7 @@ describe("Delete (tombstones)", () => {
             await dbA.set("kept", { value: "y" });
             await dbA.idle();
 
-            const dbB = await openDenkmitDatabase<Value>(dbA.address, {
+            const dbB = await openDatabase<Value>(dbA.address, {
                 helia: nodeB.helia,
                 identity: nodeB.identity,
             });
@@ -91,7 +91,7 @@ describe("Delete (tombstones)", () => {
             // Announce only after both sides see each other on the topic, so the
             // test doesn't depend on the 30 s periodic re-announcement.
             const { waitFor } = await import("./helpers");
-            const { syncTopic } = await import("../src/functions");
+            const { syncTopic } = await import("../src/internal");
             const topic = syncTopic(dbA.address);
             await waitFor(
                 () =>
@@ -126,20 +126,20 @@ describe("Delete (tombstones)", () => {
 
     it("rejects an unauthorized tombstone locally and through merge", async () => {
         // Creator-only database: B cannot delete, locally or via a crafted head.
-        const db = await createDenkmitDatabase<Value>("del-authz", {
+        const db = await createDatabase<Value>("del-authz", {
             helia: node.helia,
             identity: node.identity,
         });
         await db.set("target", { value: "protected" });
         await db.idle();
 
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         await expect(dbAsB.delete("target")).rejects.toThrow(/access denied/i);
         await dbAsB.close();
 
         // Merge path: a head containing B's tombstone for the key must not apply it.
         const bController = new HeliaController(node.helia, other);
-        const tomb = await createTombstone<Value>("target", bController);
+        const tomb = await createTombstone("target", bController);
         const head = await buildHead(bController, db.address, [
             { cid: tomb.cid, creator: tomb.creator, sort: [tomb.timestamp], key: "target" },
         ]);
@@ -151,7 +151,7 @@ describe("Delete (tombstones)", () => {
     });
 
     it("a delete survives reopen from the persisted head", async () => {
-        const db = await createDenkmitDatabase<Value>("del-persist", {
+        const db = await createDatabase<Value>("del-persist", {
             helia: node.helia,
             identity: node.identity,
         });
@@ -163,7 +163,7 @@ describe("Delete (tombstones)", () => {
         await db.createHead(); // persist the pointer
         await db.close();
 
-        const reopened = await openDenkmitDatabase<Value>(address, {
+        const reopened = await openDatabase<Value>(address, {
             helia: node.helia,
             identity: node.identity,
         });

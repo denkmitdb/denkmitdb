@@ -1,0 +1,52 @@
+import jsonLogic from "json-logic-js";
+import { CID } from "multiformats/cid";
+import type { PolicyDefinition } from "./protocol/policy.js";
+import type { Signed } from "./protocol/signed.js";
+import type { HeliaController } from "./storage/helia.js";
+import type { Policy } from "./types.js";
+
+/** Deterministic inputs a policy is evaluated over (docs/policies.md). */
+export type PolicyInput = Record<string, number | string>;
+
+// Deterministic custom operations available to manifest policies. Every replica
+// registers the same set at module load, so evaluation stays a pure function of
+// (manifest, signed entry) — the D1/D3 rule. Keep this list total and
+// side-effect-free; never register anything that reads node-local state.
+jsonLogic.add_operation("startsWith", (value: unknown, prefix: unknown): boolean => {
+    return typeof value === "string" && typeof prefix === "string" && value.startsWith(prefix);
+});
+
+/**
+ * Evaluates a policy. Strict: only a literal `true` result authorizes — json-logic
+ * readily returns strings, numbers and arrays, and treating truthiness as
+ * authorization would make a buggy policy fail open (KNOWN_ISSUES.md #25). A rule
+ * that throws (unknown operation, bad arguments) denies; it throws identically on
+ * every replica, so this stays deterministic.
+ *
+ * @param policy - The policy to evaluate.
+ * @param input - Deterministic inputs only (manifest + signed-entry data).
+ */
+export function evaluatePolicy(policy: PolicyDefinition, input: PolicyInput): boolean {
+    try {
+        return jsonLogic.apply(policy.logic, input) === true;
+    } catch {
+        return false;
+    }
+}
+
+function toPolicy(signed: Signed<PolicyDefinition>): Policy {
+    const { version, name, description, logic } = signed.data;
+    return { version, name, description, logic, cid: signed.cid, creator: signed.creator };
+}
+
+/** Signs and stores a policy. */
+export async function createPolicy(definition: PolicyDefinition, controller: HeliaController): Promise<Policy> {
+    return toPolicy(await controller.addSigned(definition));
+}
+
+/** Fetches and verifies a policy. */
+export async function fetchPolicy(cid: CID, controller: HeliaController): Promise<Policy> {
+    const result = await controller.getSigned<PolicyDefinition>(cid);
+    if (!result) throw new Error("Policy not found");
+    return toPolicy(result);
+}

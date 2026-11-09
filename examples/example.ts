@@ -7,8 +7,8 @@ import { withBitswap } from "@helia/bitswap";
 import { withLibp2pLight } from "@helia/libp2p";
 import * as dagCborCodec from "@ipld/dag-cbor";
 import { createHeliaLight } from "helia";
-import { createDenkmitDatabase, createIdentity } from "../src/functions";
-import type { DenkmitHeliaInterface } from "../src/types";
+import { createDatabase, createIdentity } from "../src/index";
+import type { HeliaNode } from "../src/index";
 
 // helia 7: compose a light Helia (dag-cbor codec) with the libp2p and bitswap
 // mixins. The libp2p config is passed verbatim (no defaults merged) and the
@@ -28,12 +28,12 @@ const node = withBitswap(
     }),
 );
 await node.start();
-const helia = node as unknown as DenkmitHeliaInterface;
+const helia = node as unknown as HeliaNode;
 
 //  Create a new identity for Database
 const identity = await createIdentity("user", "password", helia);
 
-const db = await createDenkmitDatabase("test", { helia, identity });
+const db = await createDatabase("test", { helia, identity });
 console.log("Database address: ", db.address);
 
 await db.set("key1", { value: "value1" });
