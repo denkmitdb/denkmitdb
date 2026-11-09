@@ -9,6 +9,7 @@ import {
     HeadInterface,
     IdentityInterface,
     ManifestInterface,
+    PolicyData,
     PolicyInterface,
 } from "./index.js";
 
@@ -172,11 +173,18 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
  * - "public": any identity writes (provenance still attributes every record).
  * - "prefix-per-writer": the creator writes anywhere; any other identity writes
  *   (and deletes) only under `agents/<its-identity-cid>/…`.
+ * - "namespace-per-writer": every identity, the creator included, writes and
+ *   deletes only under `agents/<its-identity-cid>/…` — no privileged party.
  * - `{ allowlist }`: exactly the listed identity CIDs write.
  *
  * See docs/policies.md.
  */
-export type AccessPreset = "creator-only" | "public" | "prefix-per-writer" | { allowlist: string[] };
+export type AccessPreset =
+    | "creator-only"
+    | "public"
+    | "prefix-per-writer"
+    | "namespace-per-writer"
+    | { allowlist: string[] };
 
 export type DenkmitDatabaseOptions<T> = {
     helia: DenkmitHeliaInterface;
@@ -195,6 +203,19 @@ export type DenkmitDatabaseOptions<T> = {
      * write. See {@link AccessPreset}.
      */
     access?: AccessPreset;
+    /**
+     * A custom access policy for a new database, instead of a preset (create only).
+     * json-logic over the deterministic inputs listed in docs/policies.md, including
+     * `entryOperation` ("put" | "delete"). Mutually exclusive with `access` and
+     * `publicWrite`.
+     */
+    accessPolicy?: PolicyData;
+    /**
+     * A custom validation policy for a new database (create only). Default accepts
+     * every authorized entry. Same deterministic inputs as the access policy, plus
+     * `entryTimestamp`.
+     */
+    validationPolicy?: PolicyData;
     /**
      * @deprecated Use `access: "public"`. `publicWrite: true` is kept as an alias;
      * combining it with a different `access` preset is an error.

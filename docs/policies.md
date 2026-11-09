@@ -20,14 +20,16 @@ manifest:
 | `entryCreator` | identity CID of the entry's signer (signature verified) | ✓ | ✓ |
 | `databaseCreator` | identity CID of the manifest's signer | ✓ | ✓ |
 | `entryKey` | the key being written or deleted | ✓ | ✓ |
+| `entryOperation` | `"put"` or `"delete"` (a signed tombstone) | ✓ | ✓ |
 | `entryTimestamp` | the signed entry's timestamp (ms since epoch) | | ✓ |
 
 Custom operations, registered identically on every replica:
 `startsWith(value, prefix)` — true only when both are strings and `value` starts
 with `prefix`.
 
-A result other than literal `true` denies. json-logic has no loops or recursion,
-so evaluation always terminates.
+A result other than literal `true` denies, and so does a rule that throws (an
+unknown operation, say) — on every replica alike. json-logic has no loops or
+recursion, so evaluation always terminates.
 
 ## Presets — the `access` option of `createDenkmitDatabase`
 
@@ -67,10 +69,22 @@ readers can decide whom to trust — but anyone can overwrite any key.
 ```
 
 The creator writes anywhere; every other identity owns exactly its
-`agents/<identity-cid>/…` namespace — sets **and deletes**. One party can never
-overwrite or tombstone another party's facts, so last-write-wins races between
-agents become structurally impossible. This is the recommended preset for
-exchanging signed facts between parties that do not trust each other.
+`agents/<identity-cid>/…` namespace — sets **and deletes**. Other parties can
+never overwrite or tombstone each other's facts — but the creator can. Use it when
+the creator is a trusted coordinator; otherwise use `namespace-per-writer`.
+
+### namespace-per-writer
+
+```json
+{ "startsWith": [{ "var": "entryKey" },
+    { "cat": ["agents/", { "var": "entryCreator" }, "/"] }] }
+```
+
+Every identity — **the creator included** — owns exactly its
+`agents/<identity-cid>/…` namespace, and nobody else's. No party is privileged,
+so last-write-wins races between parties are structurally impossible and a
+fast clock can only ever shadow the writer's own facts. This is the recommended
+preset for exchanging signed facts between parties that do not trust each other.
 `memory_status` (MCP) reports an agent's own namespace.
 
 ### allowlist
@@ -90,14 +104,40 @@ a listed identity fail to match) and the list must not be empty. The creator is
 
 ## Custom policies
 
-Presets are just `PolicyData` values. A database with a hand-written policy is
-created by signing the policies and a manifest yourself (see `createCustomDb` in
-`test/helpers.ts` for the exact calls) and opening it by address. Examples:
+Presets are just `PolicyData` values; you can pass your own instead. They are
+checked when the database is created and then signed into its manifest for good:
+
+```ts
+const db = await createDenkmitDatabase("team", {
+    helia,
+    identity,
+    accessPolicy: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } },
+    validationPolicy: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } },
+});
+```
+
+`accessPolicy` replaces the `access` preset (passing both is an error); the
+default `validationPolicy` accepts everything. The MCP server reads the same two
+objects from a JSON file named by `DENKMIT_POLICY_FILE`:
+`{ "accessPolicy": { … }, "validationPolicy": { … } }`. Examples:
 
 ```json
-{ "startsWith": [{ "var": "entryKey" }, "facts/"] }
+{ "or": [
+    { "==": [{ "var": "entryOperation" }, "put"] },
+    { "==": [{ "var": "entryCreator" }, { "var": "databaseCreator" }] }
+] }
 ```
-Key-schema enforcement: only `facts/…` keys exist in this database.
+Anyone may write; only the creator may delete.
+
+```json
+{ "and": [
+    { "startsWith": [{ "var": "entryKey" }, "facts/"] },
+    { "==": [{ "var": "entryOperation" }, "put"] }
+] }
+```
+As a validation policy: only `facts/…` keys exist, and nothing is ever deleted.
+(A policy can refuse tombstones; it cannot un-publish data a writer already
+signed and shared — no content-addressed P2P system can.)
 
 ```json
 { "and": [

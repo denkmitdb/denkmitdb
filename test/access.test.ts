@@ -1,3 +1,4 @@
+import type { RulesLogic } from "json-logic-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
     createDenkmitDatabase,
@@ -6,8 +7,8 @@ import {
     HeliaController,
     openDenkmitDatabase,
 } from "../src/functions";
-import { IdentityInterface } from "../src/types";
-import { buildHead, createTestNode, putSignedEntry, TestNode } from "./helpers";
+import { IdentityInterface, PolicyData } from "../src/types";
+import { buildHead, createTestNode, putSignedEntry, putSignedTombstone, TestNode } from "./helpers";
 
 type Value = { value: string };
 
@@ -217,5 +218,140 @@ describe("Access presets", () => {
                 publicWrite: true,
             }),
         ).rejects.toThrow(/publicWrite/);
+    });
+
+    it("namespace-per-writer: nobody, the creator included, writes outside its own namespace", async () => {
+        const db = await createDenkmitDatabase<Value>("acc-strict", {
+            helia: node.helia,
+            identity: node.identity,
+            access: "namespace-per-writer",
+        });
+        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const creatorNs = `agents/${node.identity.cid.toString()}/`;
+        const otherNs = `agents/${other.cid.toString()}/`;
+
+        await db.set(`${creatorNs}decision`, { value: "creator" });
+        await dbAsB.set(`${otherNs}finding`, { value: "b" });
+        // The creator has no override: not outside its namespace, not in B's.
+        await expect(db.set("shared/key", { value: "x" })).rejects.toThrow(/access denied/i);
+        await expect(db.set(`${otherNs}finding`, { value: "overwrite" })).rejects.toThrow(/access denied/i);
+        await expect(db.delete(`${otherNs}finding`)).rejects.toThrow(/access denied/i);
+        await expect(dbAsB.set(`${creatorNs}decision`, { value: "x" })).rejects.toThrow(/access denied/i);
+
+        // Merge path: a creator-signed tombstone for B's key is not indexed.
+        await dbAsB.idle();
+        const creatorController = new HeliaController(node.helia, node.identity);
+        const tomb = await putSignedTombstone(creatorController, `${otherNs}finding`, Date.now() + 10, db.address);
+        await dbAsB.syncNewHead(
+            (
+                await buildHead(creatorController, db.address, [
+                    { cid: tomb.cid, creator: tomb.creator, sort: [tomb.timestamp], key: tomb.key },
+                ])
+            ).cid.bytes,
+        );
+        await dbAsB.idle();
+        expect(await dbAsB.get(`${otherNs}finding`)).toEqual({ value: "b" });
+
+        await dbAsB.close();
+        await db.close();
+    });
+});
+
+describe("Custom policies and entryOperation", () => {
+    let node: TestNode;
+    let other: IdentityInterface;
+    let otherController: HeliaController;
+
+    beforeAll(async () => {
+        node = await createTestNode("custom-policy-owner");
+        other = await createIdentity("custom-policy-other", "pw", node.helia);
+        otherController = new HeliaController(node.helia, other);
+    }, 30_000);
+
+    afterAll(async () => {
+        await node.stop();
+    });
+
+    // Anyone may put; only the database creator may delete.
+    const onlyCreatorDeletes: PolicyData = {
+        version: 1,
+        name: "puts-open-deletes-creator-only",
+        description: "Any identity may put; only the creator may delete",
+        logic: {
+            or: [
+                { "==": [{ var: "entryOperation" }, "put"] },
+                { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
+            ],
+        } as unknown as RulesLogic,
+    };
+
+    it("a custom access policy can tell puts from deletes (local and merge path)", async () => {
+        const db = await createDenkmitDatabase<Value>("custom-deletes", {
+            helia: node.helia,
+            identity: node.identity,
+            accessPolicy: onlyCreatorDeletes,
+        });
+        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+
+        await dbAsB.set("note", { value: "from b" });
+        await expect(dbAsB.delete("note")).rejects.toThrow(/access denied/i);
+        await db.set("creator-note", { value: "c" });
+        await db.delete("creator-note"); // the creator may delete
+
+        // Merge path: B's signed tombstone is rejected by the creator's replica.
+        await dbAsB.idle();
+        await db.syncNewHead((await dbAsB.createHead()).cid.bytes);
+        await db.idle();
+        expect(await db.get("note")).toEqual({ value: "from b" });
+        const tomb = await putSignedTombstone(otherController, "note", Date.now() + 10, db.address);
+        await db.syncNewHead(
+            (
+                await buildHead(otherController, db.address, [
+                    { cid: tomb.cid, creator: tomb.creator, sort: [tomb.timestamp], key: tomb.key },
+                ])
+            ).cid.bytes,
+        );
+        await db.idle();
+        expect(await db.get("note")).toEqual({ value: "from b" });
+
+        const manifest = await db.getManifest();
+        const reopened = await openDenkmitDatabase<Value>(manifest.cid, { helia: node.helia, identity: other });
+        await expect(reopened.delete("note")).rejects.toThrow(/access denied/i); // the rule travels with the manifest
+        await reopened.close();
+        await dbAsB.close();
+        await db.close();
+    });
+
+    it("a custom validation policy is enforced and sees entryOperation and entryKey", async () => {
+        const db = await createDenkmitDatabase<Value>("custom-validation", {
+            helia: node.helia,
+            identity: node.identity,
+            validationPolicy: {
+                version: 1,
+                name: "facts-only-no-deletes",
+                description: "Only facts/… keys; nothing is ever deleted",
+                logic: {
+                    and: [
+                        { startsWith: [{ var: "entryKey" }, "facts/"] },
+                        { "==": [{ var: "entryOperation" }, "put"] },
+                    ],
+                } as unknown as RulesLogic,
+            },
+        });
+        await db.set("facts/a", { value: "1" });
+        await expect(db.set("notes/a", { value: "1" })).rejects.toThrow(/consensus/i);
+        await expect(db.delete("facts/a")).rejects.toThrow(/consensus/i);
+        expect(await db.get("facts/a")).toEqual({ value: "1" });
+        await db.close();
+    });
+
+    it("refuses malformed custom policies and a preset combined with a custom access policy", async () => {
+        const base = { helia: node.helia, identity: node.identity };
+        await expect(
+            createDenkmitDatabase<Value>("custom-bad", { ...base, accessPolicy: { logic: true } as unknown as PolicyData }),
+        ).rejects.toThrow(/policy/i);
+        await expect(
+            createDenkmitDatabase<Value>("custom-both", { ...base, access: "public", accessPolicy: onlyCreatorDeletes }),
+        ).rejects.toThrow(/access/i);
     });
 });

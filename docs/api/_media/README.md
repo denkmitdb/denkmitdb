@@ -1,123 +1,164 @@
 # denkmit-mcp
 
-An [MCP](https://modelcontextprotocol.io) stdio server that exposes
+An [MCP](https://modelcontextprotocol.io) server that exposes
 [DenkMitDB](https://github.com/denkmitdb/denkmitdb) as **shared, signed,
 peer-to-peer agent memory**. Any MCP-capable agent (Claude Code, Codex, …) gets a
-key-value memory where every write is signed by the agent's identity, replicates
-to other agents holding a replica, resolves conflicts deterministically
-(last-write-wins), and can be traced back to who wrote it and when.
+key-value memory where every write is signed, replicates to every peer holding a
+replica, resolves conflicts deterministically (last-write-wins), and can be traced
+back to who wrote it and when.
 
 ## Tools
 
 | Tool | Purpose |
 |---|---|
-| `memory_set` | Store a JSON value under a key (signed, replicated) |
-| `memory_get` | Read the current value for a key |
+| `memory_set` | Store a JSON value under a key (signed, replicated, size-capped) |
+| `memory_get` | Read the current value for a key, with its `writer` and `byThisAgent` |
 | `memory_delete` | Delete a key (signed tombstone; a later set resurrects) |
 | `memory_list` | List entries in write order, optional key prefix + limit (reports `truncated`) |
 | `memory_provenance` | Who wrote the current record for a key, and when |
-| `memory_status` | Database address, identity, record count, connected peers |
+| `memory_status` | Database address, identity, access policy and own namespace, peers, listen addresses |
+
+## Two ways to run
+
+```
+ Claude Code ─stdio─┐
+ Codex ──────stdio──┼─► denkmit-mcp (thin client) ─unix socket─► denkmitd (daemon)
+ another agent ─────┘                                              │
+                                                  libp2p/Helia node, identity, database,
+                                                  fixed port — a peer even with no agent open
+```
+
+- **Daemon (recommended).** `denkmitd` is one long-lived P2P node per machine (per
+  owner): it holds the identity and the database, listens on a fixed port
+  (`4001`), and keeps replicating — and serving data to other peers — while no
+  agent is open. Every agent on the machine connects through `denkmit-mcp`, which
+  simply pipes its stdio to the daemon's Unix socket; all of them sign with the
+  daemon's identity (the owner is the trust boundary, not the agent session).
+  The socket is owner-only (`0600`), so no token is needed, and nothing but libp2p
+  listens on the network.
+- **Embedded (zero setup).** With no daemon running, `denkmit-mcp` boots its own
+  node for the lifetime of the MCP session, as in earlier versions. Fine for one
+  agent on one machine; the node disappears when the agent closes.
+
+`DENKMIT_DAEMON=auto` (default) uses the daemon when its socket answers and falls
+back to embedded otherwise; `require` fails instead of falling back; `off` always
+runs embedded.
 
 ## Setup
 
-Published as [`@denkmitdb/mcp`](https://www.npmjs.com/package/@denkmitdb/mcp) — no checkout needed.
+Published as [`@denkmitdb/mcp`](https://www.npmjs.com/package/@denkmitdb/mcp).
 
-### Claude Code
-
-```bash
-claude mcp add denkmit \
-  --env DENKMIT_IDENTITY=claude \
-  --env DENKMIT_PASSPHRASE='choose-a-secret' \
-  -- npx -y @denkmitdb/mcp
-```
-
-Or in `.mcp.json`:
-
-```json
-{
-    "mcpServers": {
-        "denkmit": {
-            "command": "npx",
-            "args": ["-y", "@denkmitdb/mcp"],
-            "env": {
-                "DENKMIT_IDENTITY": "claude",
-                "DENKMIT_PASSPHRASE": "choose-a-secret"
-            }
-        }
-    }
-}
-```
-
-### From a checkout (development)
-
-The repo is a pnpm workspace — installing at the root covers `mcp/`:
+### 1. Run the daemon
 
 ```bash
-pnpm install
-cd mcp && pnpm build   # then: node mcp/dist/index.js
+npm install -g @denkmitdb/mcp                       # provides denkmitd and denkmit-mcp
+mkdir -p ~/.config/denkmit ~/.config/systemd/user
+cp "$(npm root -g)/@denkmitdb/mcp/systemd/denkmitd.env.example" ~/.config/denkmit/denkmitd.env
+chmod 600 ~/.config/denkmit/denkmitd.env            # then edit: passphrase, access, …
+cp "$(npm root -g)/@denkmitdb/mcp/systemd/denkmitd.service" ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now denkmitd
+loginctl enable-linger "$USER"                      # keep running without a login session
+journalctl --user -u denkmitd -f                    # shows the database address and dialable addresses
 ```
 
-### Sharing memory between agents
+(Or simply `DENKMIT_PASSPHRASE=… denkmitd` in a terminal.)
 
-Each agent runs its **own** server process with its **own identity** (and its own
-data directory — derived automatically from the identity name). To share one
-memory:
+### 2. Connect agents
 
-1. Start the first agent's server; it creates the database and logs its address
-   (also visible via `memory_status` → `databaseAddress`).
-2. Give every other agent that address via `DENKMIT_DB`, e.g. for Codex:
+Agents need no passphrase in daemon mode — the daemon holds the key.
+
+```bash
+claude mcp add denkmit -- npx -y @denkmitdb/mcp
+```
 
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.denkmit]
 command = "npx"
 args = ["-y", "@denkmitdb/mcp"]
-env = { DENKMIT_IDENTITY = "codex", DENKMIT_PASSPHRASE = "another-secret", DENKMIT_DB = "<address>" }
 ```
 
-Servers on the same machine that share a `DENKMIT_DATADIR` root find each other
-via a **file rendezvous** (each advertises its listen addresses under the data
-root and dials its siblings — works even where mdns multicast is blocked); mdns
-additionally discovers LAN peers where multicast works, and remote peers can be
-dialed explicitly via `DENKMIT_PEERS`.
+Embedded mode instead (no daemon): pass `DENKMIT_IDENTITY` and
+`DENKMIT_PASSPHRASE` in the agent's MCP config, e.g.
+`claude mcp add denkmit --env DENKMIT_IDENTITY=claude --env DENKMIT_PASSPHRASE='…' -- npx -y @denkmitdb/mcp`.
 
-> **First join:** the first time an agent opens a database by address, a peer
-> holding the data must be reachable (the manifest travels over bitswap). After
-> that the agent persists its own replica and reopens it with no peers online.
+### 3. Share one memory across machines
 
-> **Write access:** databases are **creator-only by default** — other agents can
-> read/replicate but their writes are rejected. For a fleet where every agent
-> writes, create the database with `DENKMIT_ACCESS=prefix-per-writer`: each agent
-> then owns `agents/<its-identity-cid>/…` (shown as `ownNamespace` by
-> `memory_status`) and no agent can overwrite or delete another's facts.
-> `DENKMIT_ACCESS=public` lets any identity write anything (provenance still
-> attributes every record); `allowlist:<cid>,<cid>` admits exactly those identities.
-> The preset is signed into the database when it is created — see
+Every machine runs its own daemon with its **own identity**. One of them creates the
+database; the others open it by address and dial at least one peer that has it:
+
+```bash
+# machine A (creates the database; its address is in the log and in memory_status)
+DENKMIT_ACCESS=namespace-per-writer
+
+# machine B
+DENKMIT_DB=<database address from A>
+DENKMIT_PEERS=/ip4/<A's address>/tcp/4001
+```
+
+**A seed is just a peer that is always on.** Run a daemon on any machine with a
+public address (a small VPS works), set `DENKMIT_ANNOUNCE=/ip4/<public-ip>/tcp/4001`
+and `DENKMIT_MDNS=off`, open TCP 4001 in its firewall, and point everyone's
+`DENKMIT_PEERS` at it. It has no special authority — it verifies and stores
+signed entries like any other replica, and any participant can run one — but it
+keeps the data reachable when everybody else is offline, and new peers can join
+through it. (Peer discovery by database address over a DHT, and NAT traversal
+through libp2p relays, are the next steps; today peers dial each other directly.)
+
+On one machine or LAN, peers also find each other without configuration: mDNS on
+the local network, and a file rendezvous for servers that share a
+`DENKMIT_DATADIR` root.
+
+> **First join:** the first time a node opens a database by address, a peer holding
+> the data must be reachable (the manifest travels over bitswap). After that the
+> node persists its own replica and reopens it with no peers online.
+
+> **Write access** is signed into the database when it is created. For parties
+> that don't trust each other use `DENKMIT_ACCESS=namespace-per-writer`: every
+> identity, the creator included, writes and deletes only under
+> `agents/<its-identity-cid>/…` (`memory_status` → `access.ownNamespace`), so nobody
+> can overwrite or delete anyone else's facts. Other presets: `creator-only`
+> (default), `public`, `prefix-per-writer` (like namespace-per-writer, but the
+> creator writes anywhere), `allowlist:<cid>,<cid>`. Custom json-logic rules —
+> e.g. "only the creator may delete" — go in a `DENKMIT_POLICY_FILE`; see
 > [docs/policies.md](../docs/policies.md).
 
 ## Configuration
 
+Daemon and embedded mode read the same variables; in daemon mode they belong in
+the daemon's environment, and the thin client only uses `DENKMIT_DAEMON`,
+`DENKMIT_SOCKET` and `DENKMIT_DATADIR` (to find the socket).
+
 | Env var | Default | Meaning |
 |---|---|---|
+| `DENKMIT_DAEMON` | `auto` | Client: `auto` (daemon if present, else embedded), `require`, `off` |
+| `DENKMIT_SOCKET` | `$DENKMIT_DATADIR/denkmitd.sock` | Daemon socket path |
 | `DENKMIT_DATADIR` | `~/.denkmit-mcp` | Root data directory (per-identity subdirs) |
 | `DENKMIT_IDENTITY` | `agent` | Identity name (also namespaces the data dir) |
-| `DENKMIT_PASSPHRASE` | **required** (server refuses to start without it) | Encrypts the signing key at rest |
+| `DENKMIT_PASSPHRASE` | **required** for the daemon / embedded mode | Encrypts the signing key at rest |
 | `DENKMIT_DB` | — | Database address to open; absent → create once and remember |
 | `DENKMIT_DB_NAME` | `agent-memory` | Name when creating |
-| `DENKMIT_ACCESS` | `creator-only` | Access preset for a created database: `creator-only`, `public`, `prefix-per-writer`, or `allowlist:<cid>,<cid>…` (unknown values refuse to start) |
+| `DENKMIT_ACCESS` | `creator-only` | Preset for a created database: `creator-only`, `public`, `prefix-per-writer`, `namespace-per-writer`, `allowlist:<cid>,…` (unknown values refuse to start) |
+| `DENKMIT_POLICY_FILE` | — | JSON `{ "accessPolicy"?, "validationPolicy"? }` with custom policies for a created database |
 | `DENKMIT_PUBLIC_WRITE` | `false` | Deprecated alias for `DENKMIT_ACCESS=public` |
-| `DENKMIT_MAX_VALUE_BYTES` | `65536` | Largest value `memory_set` accepts (UTF-8 bytes of its JSON); larger writes are refused |
-| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial |
+| `DENKMIT_MAX_VALUE_BYTES` | `65536` | Largest value `memory_set` accepts (UTF-8 bytes of its JSON) |
+| `DENKMIT_LISTEN` | daemon `/ip4/0.0.0.0/tcp/4001`, embedded random port | Comma-separated libp2p listen multiaddrs |
+| `DENKMIT_ANNOUNCE` | — | Multiaddrs to advertise instead (public IP / DNS of a server) |
+| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial at start |
+| `DENKMIT_MDNS` | on | `off` disables local-network discovery (e.g. on a server) |
 
-State (blocks, identity key, head pointer) persists in the data directory, so an
-agent's memory survives restarts even with no peers online.
+State (blocks, identity key, head pointer) persists in the data directory, so a
+node's memory survives restarts even with no peers online.
 
-## Notes
+## Development
 
-- Prototype status: local stdio for personal/team use. If this graduates to
-  distribution, the sanctioned path is an MCPB bundle (runtime included).
-- `pnpm smoke` runs an end-to-end test (real MCP client over stdio against a
-  throwaway data directory); `node dist/smoke-sync.js` runs a two-agent
-  replication test (two server processes, rendezvous discovery, bidirectional
-  sync with provenance) — kept out of CI because it exercises timing-sensitive
-  peer discovery.
+The repo is a pnpm workspace — installing at the root covers `mcp/`:
+
+```bash
+pnpm install
+cd mcp && pnpm build
+pnpm smoke          # embedded server end to end (real MCP client over stdio)
+pnpm smoke:daemon   # daemon + thin clients, restart, and two daemons over DENKMIT_PEERS
+node dist/smoke-sync.js   # two embedded servers via rendezvous/mdns (timing-sensitive, not in CI)
+pnpm demo           # the narrated two-agent demo
+```

@@ -12,6 +12,7 @@ import type {
     DenkmitDatabaseInterface,
     DenkmitHeliaInterface,
     IdentityInterface,
+    PolicyData,
 } from "@denkmitdb/denkmitdb";
 import { withBitswap } from "@helia/bitswap";
 import { withLibp2pLight } from "@helia/libp2p";
@@ -55,9 +56,46 @@ export type MemoryNodeConfig = {
     maxValueBytes: number;
     /** Multiaddrs to dial for sync (mdns also discovers local peers automatically). */
     peers: string[];
+    /** libp2p listen multiaddrs. Embedded default: a random TCP port; daemon: 4001. */
+    listen: string[];
+    /** Externally reachable multiaddrs to announce instead of the listen ones (NAT, public IP). */
+    announce: string[];
+    /**
+     * JSON file with custom policies for a created database:
+     * `{ "accessPolicy"?: PolicyData, "validationPolicy"?: PolicyData }` (docs/policies.md).
+     * An accessPolicy here replaces DENKMIT_ACCESS.
+     */
+    policyFile?: string;
+    /** Local-network peer discovery via mDNS (`DENKMIT_MDNS=off` disables it, e.g. on a server). */
+    mdns: boolean;
 };
 
-export function configFromEnv(env: NodeJS.ProcessEnv): MemoryNodeConfig {
+/** TCP port a daemon listens on by default — the conventional libp2p/IPFS swarm port. */
+export const DEFAULT_DAEMON_PORT = 4001;
+
+const list = (raw: string | undefined): string[] =>
+    (raw ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+/** Where a daemon serves MCP sessions and where thin clients look for it. */
+export function socketPath(env: NodeJS.ProcessEnv): string {
+    return env.DENKMIT_SOCKET || join(env.DENKMIT_DATADIR ?? join(homedir(), ".denkmit-mcp"), "denkmitd.sock");
+}
+
+/**
+ * Reads the node configuration from the environment.
+ *
+ * @param env - The process environment.
+ * @param defaults - Deployment defaults: the daemon listens on a fixed port.
+ * @returns The configuration.
+ */
+export function configFromEnv(
+    env: NodeJS.ProcessEnv,
+    defaults: { listen?: string[] } = {},
+): MemoryNodeConfig {
+    const listen = list(env.DENKMIT_LISTEN);
     return {
         dataDir: env.DENKMIT_DATADIR ?? join(homedir(), ".denkmit-mcp"),
         identityName: env.DENKMIT_IDENTITY ?? "agent",
@@ -66,10 +104,11 @@ export function configFromEnv(env: NodeJS.ProcessEnv): MemoryNodeConfig {
         databaseName: env.DENKMIT_DB_NAME ?? "agent-memory",
         access: accessFromEnv(env),
         maxValueBytes: maxValueBytesFromEnv(env),
-        peers: (env.DENKMIT_PEERS ?? "")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
+        peers: list(env.DENKMIT_PEERS),
+        listen: listen.length > 0 ? listen : (defaults.listen ?? ["/ip4/0.0.0.0/tcp/0"]),
+        announce: list(env.DENKMIT_ANNOUNCE),
+        policyFile: env.DENKMIT_POLICY_FILE || undefined,
+        mdns: env.DENKMIT_MDNS !== "off",
     };
 }
 
@@ -95,7 +134,7 @@ export function maxValueBytesFromEnv(env: NodeJS.ProcessEnv): number {
 
 /**
  * Reads the access preset for a database this server creates. `DENKMIT_ACCESS` is
- * `creator-only` (default), `public`, `prefix-per-writer`, or
+ * `creator-only` (default), `public`, `prefix-per-writer`, `namespace-per-writer`, or
  * `allowlist:<identity-cid>,<identity-cid>…`; `DENKMIT_PUBLIC_WRITE=true` is a
  * deprecated alias for `public`. Anything else refuses to start rather than falling
  * back to a different policy — the preset is signed into the manifest for good.
@@ -110,7 +149,9 @@ export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
     if (legacyPublic && raw !== "public") {
         throw new Error(`DENKMIT_PUBLIC_WRITE=true conflicts with DENKMIT_ACCESS=${raw}`);
     }
-    if (raw === "creator-only" || raw === "public" || raw === "prefix-per-writer") return raw;
+    if (raw === "creator-only" || raw === "public" || raw === "prefix-per-writer" || raw === "namespace-per-writer") {
+        return raw;
+    }
     if (raw.startsWith("allowlist:")) {
         const allowlist = raw
             .slice("allowlist:".length)
@@ -120,8 +161,25 @@ export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
         return { allowlist };
     }
     throw new Error(
-        `Unknown DENKMIT_ACCESS=${raw} (expected creator-only, public, prefix-per-writer, or allowlist:<cid>,…)`,
+        `Unknown DENKMIT_ACCESS=${raw} (expected creator-only, public, prefix-per-writer, ` +
+            "namespace-per-writer, or allowlist:<cid>,…)",
     );
+}
+
+/**
+ * Reads custom policies for a database this node creates. The library checks
+ * each policy's shape before signing it into the manifest.
+ *
+ * @param path - JSON file with optional `accessPolicy` / `validationPolicy`.
+ * @returns The policies found in the file.
+ */
+async function readPolicyFile(path: string): Promise<{ accessPolicy?: PolicyData; validationPolicy?: PolicyData }> {
+    const parsed = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+    const unknownKeys = Object.keys(parsed).filter((k) => k !== "accessPolicy" && k !== "validationPolicy");
+    if (unknownKeys.length > 0) {
+        throw new Error(`DENKMIT_POLICY_FILE: unexpected keys ${unknownKeys.join(", ")}`);
+    }
+    return parsed as { accessPolicy?: PolicyData; validationPolicy?: PolicyData };
 }
 
 /**
@@ -146,11 +204,14 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
                 datastore: new FsDatastore(join(dir, "data")),
             }),
             {
-                addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
+                addresses: {
+                    listen: config.listen,
+                    ...(config.announce.length > 0 ? { announce: config.announce } : {}),
+                },
                 transports: [tcp()],
                 connectionEncrypters: [noise()],
                 streamMuxers: [yamux()],
-                peerDiscovery: [mdns()],
+                peerDiscovery: config.mdns ? [mdns()] : [],
                 services: {
                     identify: identify(),
                     pubsub: floodsub({ emitSelf: true }),
@@ -225,10 +286,12 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
     if (address) {
         db = await openDenkmitDatabase<MemoryValue>(CID.parse(address), { helia, identity });
     } else {
+        const custom = config.policyFile ? await readPolicyFile(config.policyFile) : {};
         db = await createDenkmitDatabase<MemoryValue>(config.databaseName, {
             helia,
             identity,
-            access: config.access,
+            ...(custom.accessPolicy ? { accessPolicy: custom.accessPolicy } : { access: config.access }),
+            ...(custom.validationPolicy ? { validationPolicy: custom.validationPolicy } : {}),
         });
         await writeFile(addressFile, db.address.toString());
         created = true;

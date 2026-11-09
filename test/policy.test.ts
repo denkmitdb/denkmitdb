@@ -76,4 +76,17 @@ describe("PolicyController", () => {
         expect(await policy.execute({ entryKey: 7 })).toBe(false);
         expect(await policy.execute({})).toBe(false);
     });
+
+    it("a rule that throws denies instead of throwing", async () => {
+        const policy = await createPolicy(
+            {
+                version: 1,
+                name: "broken",
+                description: "uses an operation no replica registers",
+                logic: { noSuchOperation: [1] } as unknown as RulesLogic,
+            },
+            heliaController,
+        );
+        await expect(policy.execute({})).resolves.toBe(false);
+    });
 });

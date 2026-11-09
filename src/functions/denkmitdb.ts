@@ -34,7 +34,7 @@ import {
     SyncControllerInterface,
 } from "../types/index.js";
 
-import { createPolicy, fetchPolicy } from "./policy.js";
+import { assertPolicyData, createPolicy, fetchPolicy } from "./policy.js";
 import { createHead, fetchHead } from "./head.js";
 import { createManifest, fetchManifest } from "./manifest.js";
 import { createSyncController } from "./sync.js";
@@ -51,6 +51,13 @@ const MAX_ENTRIES_LOG2 = 40;
 /** The largest layer count a head may claim for a tree of the given order. */
 export function maxHeadLayers(order: number): number {
     return Math.ceil(MAX_ENTRIES_LOG2 / order) + 1;
+}
+
+/** What a signed entry does to its key — a deterministic policy input. */
+type EntryOperation = "put" | "delete";
+
+function operationOf(entry: { deleted?: boolean }): EntryOperation {
+    return entry.deleted === true ? "delete" : "put";
 }
 
 /**
@@ -121,20 +128,33 @@ export async function createDenkmitDatabase<T>(
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
 
-    const consensus: PolicyData = {
+    // Validation policy: accept every authorized entry unless the caller supplies
+    // its own rule (custom policies are checked before they are signed in for good).
+    const consensus: PolicyData = options.validationPolicy ?? {
         version: 1,
         name: "denkmit-timestamp",
         description: "Consensus for denkmit database timestamp",
         logic: true,
     };
-
+    assertPolicyData(consensus, "validationPolicy");
     const validationPolicy = await createPolicy(consensus, heliaController);
 
     // Access (authorization) policy — separate from consensus (validation). Default
     // is creator-only; presets compile to json-logic over deterministic inputs only
-    // (signed entry creator and key, manifest creator), so every replica reaches the
-    // same decision (KNOWN_ISSUES.md D1, specs/ordering.md, docs/policies.md).
-    const accessPolicy = await createPolicy(accessPolicyRule(resolveAccess(options)), heliaController);
+    // (signed entry creator, key and operation, manifest creator), so every replica
+    // reaches the same decision (KNOWN_ISSUES.md D1, specs/ordering.md,
+    // docs/policies.md). A custom accessPolicy replaces the preset entirely.
+    let accessRule: PolicyData;
+    if (options.accessPolicy !== undefined) {
+        if (options.access !== undefined || options.publicWrite !== undefined) {
+            throw new Error("accessPolicy replaces the access preset: pass either accessPolicy or access/publicWrite");
+        }
+        assertPolicyData(options.accessPolicy, "accessPolicy");
+        accessRule = options.accessPolicy;
+    } else {
+        accessRule = accessPolicyRule(resolveAccess(options));
+    }
+    const accessPolicy = await createPolicy(accessRule, heliaController);
 
     const order = options.order ?? 3;
     if (!Number.isInteger(order) || order < 1 || order > 8) {
@@ -247,7 +267,7 @@ function resolveAccess(options: { access?: AccessPreset; publicWrite?: boolean }
         });
         return { allowlist: [...new Set(normalized)] };
     }
-    if (!["creator-only", "public", "prefix-per-writer"].includes(preset)) {
+    if (!["creator-only", "public", "prefix-per-writer", "namespace-per-writer"].includes(preset)) {
         throw new Error(`Unknown access preset: ${String(preset)}`);
     }
     return preset;
@@ -276,6 +296,16 @@ function accessPolicyRule(access: AccessPreset): PolicyData {
                     { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
                     { startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }] },
                 ],
+            } as unknown as RulesLogic,
+        };
+    }
+    if (access === "namespace-per-writer") {
+        return {
+            version: 1,
+            name: "denkmit-access-namespace-per-writer",
+            description: "Every identity, the creator included, writes only under agents/<its-cid>/",
+            logic: {
+                startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }],
             } as unknown as RulesLogic,
         };
     }
@@ -344,11 +374,12 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * Uses only deterministic inputs — the entry's signed creator and key vs. the
      * database creator — so every replica reaches the same decision.
      */
-    private async isAuthorized(entryCreator: CID, entryKey: string): Promise<boolean> {
+    private async isAuthorized(entryCreator: CID, entryKey: string, entryOperation: EntryOperation): Promise<boolean> {
         return this.accessPolicy.execute({
             entryCreator: entryCreator.toString(),
             databaseCreator: this.manifest.creator.toString(),
             entryKey,
+            entryOperation,
         });
     }
 
@@ -358,12 +389,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * wall clock, no local identity — so every replica reaches the same verdict
      * for the same entry (specs/ordering.md §4, KNOWN_ISSUES.md #25).
      */
-    private async isValid(entry: { timestamp: number; creator: CID; key: string }): Promise<boolean> {
+    private async isValid(entry: { timestamp: number; creator: CID; key: string; deleted?: boolean }): Promise<boolean> {
         return this.validationPolicy.execute({
             databaseCreator: this.manifest.creator.toString(),
             entryTimestamp: entry.timestamp,
             entryCreator: entry.creator.toString(),
             entryKey: entry.key,
+            entryOperation: operationOf(entry),
         });
     }
 
@@ -401,7 +433,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // Authorization first: createEntry signs, stores, and pins a block, so an
         // unauthorized writer must be rejected before anything is persisted —
         // otherwise every denied write still grows the local store.
-        if (!(await this.isAuthorized(this.identity.cid, key))) {
+        if (!(await this.isAuthorized(this.identity.cid, key, "put"))) {
             throw new Error(`Access denied: this identity may not write key "${key}" in this database`);
         }
 
@@ -430,7 +462,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      */
     async delete(key: string): Promise<void> {
         // Authorization before the tombstone is signed/stored/pinned (see set()).
-        if (!(await this.isAuthorized(this.identity.cid, key))) {
+        if (!(await this.isAuthorized(this.identity.cid, key, "delete"))) {
             throw new Error(`Access denied: this identity may not delete key "${key}" in this database`);
         }
 
@@ -799,7 +831,7 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // Authorization on the merge/load path — the signed creator must be allowed
         // to write, or a peer could inject entries the local writer couldn't
         // (KNOWN_ISSUES.md D1). Deterministic, so replicas agree on what they ingest.
-        if (!(await this.isAuthorized(creator, key))) {
+        if (!(await this.isAuthorized(creator, key, operationOf(entry)))) {
             this.log("Rejected leaf %s: writer %s not authorized", cid.toString(), creator.toString());
             return;
         }

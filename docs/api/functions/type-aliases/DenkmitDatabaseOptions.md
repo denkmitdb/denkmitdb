@@ -38,6 +38,17 @@ write. See [AccessPreset](AccessPreset.md).
 
 ***
 
+### accessPolicy?
+
+> `optional` **accessPolicy?**: [`PolicyData`](PolicyData.md)
+
+A custom access policy for a new database, instead of a preset (create only).
+json-logic over the deterministic inputs listed in docs/policies.md, including
+`entryOperation` ("put" | "delete"). Mutually exclusive with `access` and
+`publicWrite`.
+
+***
+
 ### keyValueStorage?
 
 > `optional` **keyValueStorage?**: `Keyv`\<`T`\>
@@ -68,3 +79,13 @@ combining it with a different `access` preset is an error.
 ### syncController?
 
 > `optional` **syncController?**: [`SyncControllerInterface`](../interfaces/SyncControllerInterface.md)
+
+***
+
+### validationPolicy?
+
+> `optional` **validationPolicy?**: [`PolicyData`](PolicyData.md)
+
+A custom validation policy for a new database (create only). Default accepts
+every authorized entry. Same deterministic inputs as the access policy, plus
+`entryTimestamp`.
