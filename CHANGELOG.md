@@ -55,6 +55,16 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
   entry binding, policies and presets, encrypted values, daemon/seeds/agents,
   and the dropped HTTP head rendezvous.
 
+### Fixed
+
+- **Peers in `DENKMIT_PEERS` stay connected.** They were dialed once at start: a
+  connection lost later (a laptop that slept, a changed network, a restarted
+  seed) was never restored, and a peer that was down at start was never reached,
+  so a replica could silently fall behind. The daemon now redials every
+  `DENKMIT_REDIAL_SECONDS` (default 30) and within seconds of a drop, logging
+  only changes. `smoke:daemon` restarts the seed and checks that the peer
+  reconnects by itself.
+
 ### Agent identities (delegation, phase 1)
 
 - **`WriteOptions.identity`** on `db.set` / `db.delete`: sign a write with another

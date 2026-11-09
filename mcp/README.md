@@ -230,7 +230,8 @@ the daemon's environment, and the thin client only uses `DENKMIT_DAEMON`,
 | `DENKMIT_MAX_VALUE_BYTES` | `65536` | Largest value `memory_set` accepts (UTF-8 bytes of its JSON) |
 | `DENKMIT_LISTEN` | daemon `/ip4/0.0.0.0/tcp/4001`, embedded random port | Comma-separated libp2p listen multiaddrs |
 | `DENKMIT_ANNOUNCE` | — | Multiaddrs to advertise instead (public IP / DNS of a server) |
-| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial at start |
+| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to keep connected: dialed at start and again whenever the connection is lost (sleep, network change, a restarted seed) |
+| `DENKMIT_REDIAL_SECONDS` | `30` | How often a `DENKMIT_PEERS` entry that is not connected is dialed again (a drop is retried within seconds) |
 | `DENKMIT_MDNS` | on | `off` disables local-network discovery (e.g. on a server) |
 
 State (blocks, identity key, head pointer) persists in the data directory, so a

@@ -57,6 +57,8 @@ export type MemoryNodeConfig = {
     maxValueBytes: number;
     /** Multiaddrs to dial for sync (mdns also discovers local peers automatically). */
     peers: string[];
+    /** How often to redial configured peers that are not connected, in ms. */
+    redialMs: number;
     /** libp2p listen multiaddrs. Embedded default: a random TCP port; daemon: 4001. */
     listen: string[];
     /** Externally reachable multiaddrs to announce instead of the listen ones (NAT, public IP). */
@@ -141,6 +143,7 @@ export function configFromEnv(
         access: accessFromEnv(env),
         maxValueBytes: maxValueBytesFromEnv(env),
         peers: list(env.DENKMIT_PEERS),
+        redialMs: redialMsFromEnv(env),
         listen: listen.length > 0 ? listen : (defaults.listen ?? ["/ip4/0.0.0.0/tcp/0"]),
         announce: list(env.DENKMIT_ANNOUNCE),
         policyFile: env.DENKMIT_POLICY_FILE || undefined,
@@ -151,6 +154,20 @@ export function configFromEnv(
 
 /** Default value size cap: comfortably above a fact, far below block-size limits. */
 export const DEFAULT_MAX_VALUE_BYTES = 64 * 1024;
+
+/**
+ * Reads `DENKMIT_REDIAL_SECONDS` (default 30): how often configured peers that are
+ * not connected are dialed again. A malformed value refuses to start.
+ */
+function redialMsFromEnv(env: NodeJS.ProcessEnv): number {
+    const raw = env.DENKMIT_REDIAL_SECONDS?.trim();
+    if (!raw) return 30_000;
+    const seconds = Number(raw);
+    if (!Number.isFinite(seconds) || seconds < 1) {
+        throw new Error(`DENKMIT_REDIAL_SECONDS must be a number of seconds >= 1 (got ${raw})`);
+    }
+    return Math.round(seconds * 1000);
+}
 
 /**
  * Reads `DENKMIT_MAX_VALUE_BYTES` (default 64 KiB). A malformed value refuses to
@@ -275,13 +292,52 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
 
     const { multiaddr } = await import("@multiformats/multiaddr");
 
-    for (const peer of config.peers) {
-        try {
-            await libp2p.dial(multiaddr(peer));
-        } catch (error) {
-            console.error(`[denkmit-mcp] failed to dial ${peer}:`, (error as Error).message);
+    // Configured peers stay connected: a connection lost later (a laptop that slept,
+    // a changed network, a restarted seed) is dialed again, and so is a peer that was
+    // down when this node started. Only changes are logged, not every retry.
+    const peerIds = new Map<string, string>(); // configured multiaddr -> remote peer id
+    const connected = new Set<string>(); // configured multiaddrs currently connected
+    const isConnected = (addr: string): boolean => {
+        const id = peerIds.get(addr);
+        return id !== undefined && libp2p.getConnections().some((c) => c.remotePeer.toString() === id);
+    };
+    const keepPeers = async (): Promise<void> => {
+        for (const peer of config.peers) {
+            if (isConnected(peer)) continue;
+            if (connected.delete(peer)) console.error(`[denkmit-mcp] lost ${peer}; redialing every ${config.redialMs / 1000} s`);
+            try {
+                const connection = await libp2p.dial(multiaddr(peer));
+                peerIds.set(peer, connection.remotePeer.toString());
+                connected.add(peer);
+                console.error(`[denkmit-mcp] connected to ${peer}`);
+            } catch (error) {
+                if (!peerIds.has(peer) && !connected.has(peer)) {
+                    // First failure only; later failures stay quiet until the state changes.
+                    peerIds.set(peer, "");
+                    console.error(`[denkmit-mcp] failed to dial ${peer}: ${(error as Error).message}; retrying every ${config.redialMs / 1000} s`);
+                }
+            }
         }
-    }
+    };
+    let redialing = false;
+    const redial = async (): Promise<void> => {
+        if (redialing) return;
+        redialing = true;
+        try {
+            await keepPeers();
+        } finally {
+            redialing = false;
+        }
+    };
+    await redial();
+    const redialTimer = setInterval(() => void redial(), config.redialMs);
+    redialTimer.unref();
+    // React to a drop right away instead of waiting for the next tick.
+    const onDisconnect = (event: CustomEvent<{ toString(): string }>): void => {
+        const id = event.detail.toString();
+        if ([...peerIds.values()].includes(id)) setTimeout(() => void redial(), 2_000).unref();
+    };
+    libp2p.addEventListener("peer:disconnect", onDisconnect as unknown as EventListener);
 
     // Same-machine rendezvous: advertise our listen addresses under the shared data
     // root and dial every sibling identity's advertised addresses. This makes agents
@@ -353,6 +409,8 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         created,
         stop: async () => {
             clearInterval(rendezvousTimer);
+            clearInterval(redialTimer);
+            libp2p.removeEventListener("peer:disconnect", onDisconnect as unknown as EventListener);
             await db.close();
             await helia.stop(); // stops the embedded libp2p via the mixin
         },
