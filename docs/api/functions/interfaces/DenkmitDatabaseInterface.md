@@ -6,8 +6,6 @@
 
 # Interface: DenkmitDatabaseInterface\<T\>
 
-Represents the interface for the Denkmit database.
-
 ## Extends
 
 - [`DenkmitDatabaseType`](../type-aliases/DenkmitDatabaseType.md)\<`T`\>
@@ -17,8 +15,6 @@ Represents the interface for the Denkmit database.
 ### T
 
 `T`
-
-The type of values stored in the database.
 
 ## Properties
 
@@ -177,7 +173,7 @@ A promise that resolves with the newly created head.
 
 ### delete()
 
-> **delete**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **delete**(`key`, `options?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 Deletes a key by writing a signed tombstone. The tombstone participates in
 the same last-write-wins order as puts: while it wins, the key is hidden from
@@ -191,6 +187,12 @@ Merkle tree and replicates like any entry.
 `string`
 
 The key to delete.
+
+##### options?
+
+[`WriteOptions`](../type-aliases/WriteOptions.md)
+
+Optional signer override.
 
 #### Returns
 
@@ -382,7 +384,7 @@ A promise that resolves once the head has been handed to the sync controller.
 
 ### set()
 
-> **set**(`key`, `value`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **set**(`key`, `value`, `options?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 Sets a value in the database with the specified key.
 
@@ -399,6 +401,12 @@ The key to set the value for.
 `T`
 
 The value to set.
+
+##### options?
+
+[`WriteOptions`](../type-aliases/WriteOptions.md)
+
+Optional signer override.
 
 #### Returns
 

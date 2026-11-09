@@ -27,13 +27,15 @@ import { createHeliaLight } from "helia";
 import { CID } from "multiformats/cid";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export type MemoryValue = unknown;
 
 export type MemoryNode = {
     helia: DenkmitHeliaInterface;
     identity: IdentityInterface;
+    /** Agent identities held by this node (daemon, DENKMIT_AGENTS), by agent name. */
+    agents: Map<string, IdentityInterface>;
     db: DenkmitDatabaseInterface<MemoryValue>;
     created: boolean;
     stop: () => Promise<void>;
@@ -68,6 +70,11 @@ export type MemoryNodeConfig = {
     policyFile?: string;
     /** Local-network peer discovery via mDNS (`DENKMIT_MDNS=off` disables it, e.g. on a server). */
     mdns: boolean;
+    /**
+     * Agents this node holds a separate identity for (`DENKMIT_AGENTS=claude-code,codex`).
+     * Each gets its own key, namespace and — in the daemon — its own socket.
+     */
+    agents: string[];
 };
 
 /** TCP port a daemon listens on by default — the conventional libp2p/IPFS swarm port. */
@@ -78,6 +85,36 @@ const list = (raw: string | undefined): string[] =>
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
+
+const AGENT_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/**
+ * Checks an agent name: lowercase letters, digits and dashes, at most 32
+ * characters — it becomes part of an identity name and a socket file name.
+ */
+export function assertAgentName(name: string): string {
+    if (!AGENT_NAME.test(name)) {
+        throw new Error(`Invalid agent name "${name}" (use a-z, 0-9 and "-", at most 32 characters)`);
+    }
+    return name;
+}
+
+/** Reads `DENKMIT_AGENTS` (comma-separated agent names); duplicates are an error. */
+export function agentsFromEnv(env: NodeJS.ProcessEnv): string[] {
+    const names = list(env.DENKMIT_AGENTS).map(assertAgentName);
+    if (new Set(names).size !== names.length) throw new Error("DENKMIT_AGENTS lists an agent twice");
+    return names;
+}
+
+/** Keychain name of an agent identity: `<node identity>-<agent>`. */
+export function agentIdentityName(nodeIdentity: string, agent: string): string {
+    return `${nodeIdentity}-${agent}`;
+}
+
+/** The socket a daemon serves one agent on, next to its main socket. */
+export function agentSocketPath(env: NodeJS.ProcessEnv, agent: string): string {
+    return join(dirname(socketPath(env)), `denkmitd-${assertAgentName(agent)}.sock`);
+}
 
 /** Where a daemon serves MCP sessions and where thin clients look for it. */
 export function socketPath(env: NodeJS.ProcessEnv): string {
@@ -109,6 +146,7 @@ export function configFromEnv(
         announce: list(env.DENKMIT_ANNOUNCE),
         policyFile: env.DENKMIT_POLICY_FILE || undefined,
         mdns: env.DENKMIT_MDNS !== "off",
+        agents: agentsFromEnv(env),
     };
 }
 
@@ -223,9 +261,15 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
     const helia = node as unknown as DenkmitHeliaInterface;
     const libp2p = helia.libp2p;
 
-    const identity = (await hasIdentity(config.identityName, helia))
-        ? await openIdentity(config.identityName, config.passphrase, helia)
-        : await createIdentity(config.identityName, config.passphrase, helia);
+    const openOrCreate = async (name: string) =>
+        (await hasIdentity(name, helia))
+            ? await openIdentity(name, config.passphrase, helia)
+            : await createIdentity(name, config.passphrase, helia);
+    const identity = await openOrCreate(config.identityName);
+    const agents = new Map<string, IdentityInterface>();
+    for (const agent of config.agents) {
+        agents.set(agent, await openOrCreate(agentIdentityName(config.identityName, agent)));
+    }
 
     const { multiaddr } = await import("@multiformats/multiaddr");
 
@@ -300,6 +344,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
     return {
         helia,
         identity,
+        agents,
         db,
         created,
         stop: async () => {

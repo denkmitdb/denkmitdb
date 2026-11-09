@@ -288,7 +288,7 @@ throughput collapses (measured ~7 ops/s at 1k entries, scripts/bench.mjs).
 
 ### delete()
 
-> **delete**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **delete**(`key`, `options?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 Deletes a key by writing a signed tombstone (specs/ordering.md): the tombstone
 participates in the same composite last-write-wins order as puts, hides the
@@ -303,6 +303,12 @@ garbage collection is performed.
 `string`
 
 The key to delete.
+
+##### options?
+
+[`WriteOptions`](../type-aliases/WriteOptions.md) = `{}`
+
+Optional signer override (see [WriteOptions](../type-aliases/WriteOptions.md)).
 
 #### Returns
 
@@ -584,7 +590,7 @@ A promise that resolves once the head has been handed to the sync controller.
 
 ### set()
 
-> **set**(`key`, `value`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+> **set**(`key`, `value`, `options?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
 Sets the value of a key in the database.
 
@@ -601,6 +607,12 @@ The key to set.
 `T`
 
 The value to set for the key.
+
+##### options?
+
+[`WriteOptions`](../type-aliases/WriteOptions.md) = `{}`
+
+Optional signer override (see [WriteOptions](../type-aliases/WriteOptions.md)).
 
 #### Returns
 

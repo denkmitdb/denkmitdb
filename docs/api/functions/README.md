@@ -88,6 +88,7 @@
 - [SortedEntryLeaf](type-aliases/SortedEntryLeaf.md)
 - [SortedItemType](type-aliases/SortedItemType.md)
 - [TombstoneEntryData](type-aliases/TombstoneEntryData.md)
+- [WriteOptions](type-aliases/WriteOptions.md)
 
 ## Variables
 

@@ -8,6 +8,18 @@ database — see "Security & correctness" below). Databases created by 3.0.0 sta
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
 
+### Agent identities (delegation, phase 1)
+
+- **`WriteOptions.identity`** on `db.set` / `db.delete`: sign a write with another
+  identity (it needs its private key; access and validation policies are
+  evaluated for it) without opening the database twice.
+- **Daemon:** `DENKMIT_AGENTS=claude-code,codex,…` holds one identity per agent
+  (`<device>-<agent>`) and serves each on `denkmitd-<agent>.sock`; the thin client
+  selects one with `DENKMIT_AGENT` (implies `DENKMIT_DAEMON=require`). Each agent
+  has its own key, namespace, provenance and decryption; `memory_status` reports
+  `identity`, `agent` and `device`. The main socket is unchanged.
+- Socket choice selects, it does not authenticate (specs/delegation.md §11).
+
 ### Private values
 
 - **`encryptValueFor(recipients, value)` / `decryptValue(identity, value)`** —

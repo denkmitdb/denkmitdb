@@ -32,6 +32,7 @@ import {
     PollardNode,
     PollardType,
     SyncControllerInterface,
+    WriteOptions,
 } from "../types/index.js";
 
 import { assertPolicyData, createPolicy, fetchPolicy } from "./policy.js";
@@ -343,6 +344,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      */
     readonly keyValueStorage: Keyv<T>;
     private sortedItemsStore: SortedItemsStore;
+    /** Signing controllers for identities other than the database's own (WriteOptions). */
+    private readonly signers = new Map<string, HeliaControllerInterface>();
     private readonly syncController: SyncControllerInterface;
     private head?: HeadInterface;
     // Start key of the queued-but-not-yet-running tree rebuild, if any — the
@@ -427,17 +430,19 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      *
      * @param key - The key to set.
      * @param value - The value to set for the key.
+     * @param options - Optional signer override (see {@link WriteOptions}).
      * @returns A promise that resolves when the operation is complete.
      */
-    async set(key: string, value: T): Promise<void> {
+    async set(key: string, value: T, options: WriteOptions = {}): Promise<void> {
+        const signer = this.signerFor(options.identity);
         // Authorization first: createEntry signs, stores, and pins a block, so an
         // unauthorized writer must be rejected before anything is persisted —
         // otherwise every denied write still grows the local store.
-        if (!(await this.isAuthorized(this.identity.cid, key, "put"))) {
+        if (!(await this.isAuthorized(signer.identity.cid, key, "put"))) {
             throw new Error(`Access denied: this identity may not write key "${key}" in this database`);
         }
 
-        const entry = await createEntry<T>(key, value, this.heliaController, this.manifest.cid);
+        const entry = await createEntry<T>(key, value, signer, this.manifest.cid);
         if (!(await this.isValid(entry))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
@@ -458,15 +463,17 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
      * garbage collection is performed.
      *
      * @param key - The key to delete.
+     * @param options - Optional signer override (see {@link WriteOptions}).
      * @returns A promise that resolves when the tombstone is indexed.
      */
-    async delete(key: string): Promise<void> {
+    async delete(key: string, options: WriteOptions = {}): Promise<void> {
+        const signer = this.signerFor(options.identity);
         // Authorization before the tombstone is signed/stored/pinned (see set()).
-        if (!(await this.isAuthorized(this.identity.cid, key, "delete"))) {
+        if (!(await this.isAuthorized(signer.identity.cid, key, "delete"))) {
             throw new Error(`Access denied: this identity may not delete key "${key}" in this database`);
         }
 
-        const entry = await createTombstone<T>(key, this.heliaController, this.manifest.cid);
+        const entry = await createTombstone<T>(key, signer, this.manifest.cid);
         if (!(await this.isValid(entry))) throw new Error("Consensus failed");
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
@@ -475,6 +482,21 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         await this.forgetCached(result.previousCid);
         const rebuildFrom = Math.min(entry.timestamp, result.previousTimestamp ?? entry.timestamp);
         await this.createTaskUpdateLayers(rebuildFrom);
+    }
+
+    /**
+     * The controller that signs a write: the database's own unless another identity
+     * is given. One controller per identity is kept, so its identity cache is reused.
+     */
+    private signerFor(identity?: IdentityInterface): HeliaControllerInterface {
+        if (!identity || identity.cid.equals(this.identity.cid)) return this.heliaController;
+        const key = identity.cid.toString();
+        let signer = this.signers.get(key);
+        if (!signer) {
+            signer = new HeliaController(this.heliaController.helia, identity);
+            this.signers.set(key, signer);
+        }
+        return signer;
     }
 
     /** Drops a superseded record's cached value (no-op for tombstones / no record). */

@@ -123,6 +123,40 @@ the local network, and a file rendezvous for servers that share a
 > e.g. "only the creator may delete" — go in a `DENKMIT_POLICY_FILE`; see
 > [docs/policies.md](../docs/policies.md).
 
+## Separate identities per agent
+
+By default every agent on a machine signs with the daemon's (device) identity.
+With `DENKMIT_AGENTS=claude-code,codex,desktop` in the daemon's environment, the
+daemon also holds one identity per agent (keychain name `<device>-<agent>`, same
+passphrase) and serves each on its own socket, `denkmitd-<agent>.sock`. An agent
+picks its identity with `DENKMIT_AGENT`:
+
+```bash
+claude mcp add denkmit --env DENKMIT_AGENT=claude-code -- npx -y @denkmitdb/mcp
+```
+
+```toml
+[mcp_servers.denkmit]
+command = "npx"
+args = ["-y", "@denkmitdb/mcp"]
+env = { DENKMIT_AGENT = "codex" }
+```
+
+Each agent then has its own key, namespace (`agents/<agent-cid>/…` under the
+namespace presets), provenance and decryption: a value encrypted to the codex
+identity is readable only through the codex socket. `memory_status` reports the
+session's `identity`, its `agent` and the `device`. The main socket keeps serving
+the device identity, so existing configurations are unaffected. `DENKMIT_AGENT`
+implies `DENKMIT_DAEMON=require`: without a daemon serving that agent the client
+fails rather than signing as someone else.
+
+Choosing a socket selects an identity; it does not authenticate the agent —
+any process of the same OS user can connect to any socket. Agents that must not
+impersonate each other belong to different OS users (see
+[specs/delegation.md](../specs/delegation.md) §11, which also covers the next
+step: owner-signed delegation, so other parties see one owner behind the agent
+keys).
+
 ## Private values
 
 `memory_set` with `encryptFor` encrypts the value before it is signed and
@@ -157,6 +191,8 @@ the daemon's environment, and the thin client only uses `DENKMIT_DAEMON`,
 | Env var | Default | Meaning |
 |---|---|---|
 | `DENKMIT_DAEMON` | `auto` | Client: `auto` (daemon if present, else embedded), `require`, `off` |
+| `DENKMIT_AGENT` | — | Client: act as this agent of the daemon (its own socket and identity); implies `require` |
+| `DENKMIT_AGENTS` | — | Daemon: comma-separated agent names to hold separate identities for |
 | `DENKMIT_SOCKET` | `$DENKMIT_DATADIR/denkmitd.sock` | Daemon socket path |
 | `DENKMIT_DATADIR` | `~/.denkmit-mcp` | Root data directory (per-identity subdirs) |
 | `DENKMIT_IDENTITY` | `agent` | Identity name (also namespaces the data dir) |
