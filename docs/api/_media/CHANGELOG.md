@@ -8,6 +8,18 @@ database — see "Security & correctness" below). Databases created by 3.0.0 sta
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
 
+### Fixed — KNOWN_ISSUES.md #30–#32
+
+- **Value cache keyed by entry CID (#30).** A merge racing an in-flight `get()`
+  can no longer leave a stale value cached, and one Keyv can be shared by several
+  databases. **Changed:** a caller-supplied Keyv now holds entries under entry-CID
+  keys instead of database keys — a persistent cache is cold once after upgrading.
+- **Pin before index (#31).** A failed pin leaves an incoming entry unindexed and
+  retried on the next sync, instead of live but unpinned; `load()` skips such an
+  entry instead of aborting.
+- **MCP value size cap (#32).** `DENKMIT_MAX_VALUE_BYTES` (default 64 KiB);
+  `memory_get` / `memory_list` return each value's `writer` and `byThisAgent`.
+
 ### Demo, launch draft, focus
 
 - **`cd mcp && pnpm demo`** — a narrated six-act run of two real MCP server

@@ -62,7 +62,12 @@ describe("SortedItemsStore", () => {
         const store = new SortedItemsStore();
         await store.set(100, "k", await cidOf("old"), creator);
         const result = await store.set(200, "k", await cidOf("new"), creator);
-        expect(result).toEqual({ applied: true, previousTimestamp: 100 });
+        expect(result).toEqual({ applied: true, previousTimestamp: 100, previousCid: await cidOf("old") });
+        expect(store.size).toBe(1);
+        // wouldApply mirrors set()'s comparison without mutating the index.
+        expect(store.wouldApply(150, "k", await cidOf("older"))).toBe(false);
+        expect(store.wouldApply(300, "k", await cidOf("newer"))).toBe(true);
+        expect(store.wouldApply(1, "other", await cidOf("x"))).toBe(true);
         expect(store.size).toBe(1);
     });
 

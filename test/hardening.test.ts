@@ -91,7 +91,8 @@ describe("Pre-publish hardening", () => {
         controller.getSigned = async () => {
             throw new ReferenceError("Entry not found");
         };
-        await (db as unknown as { keyValueStorage: Keyv<Value> }).keyValueStorage.delete("k");
+        // The cache is keyed by entry CID (KNOWN_ISSUES.md #30).
+        await (db as unknown as { keyValueStorage: Keyv<Value> }).keyValueStorage.delete(record!.cid.toString());
 
         try {
             await expect(db.get("k")).resolves.toBeUndefined(); // absent, not a throw

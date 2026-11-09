@@ -74,9 +74,10 @@ describe("Local head persistence (D4)", () => {
         });
         await db.set("mine", { value: "kept" });
         await db.idle();
+        const cacheKey = (await db.provenance("mine"))!.cid.toString(); // keyed by entry CID (#30)
         await db.close();
 
         // The caller's store survives close(); only internally owned caches are cleared.
-        expect(await myStore.get("mine")).toEqual({ value: "kept" });
+        expect(await myStore.get(cacheKey)).toEqual({ value: "kept" });
     });
 });

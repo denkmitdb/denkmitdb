@@ -64,13 +64,28 @@ try {
     const got = firstText(await client.callTool({ name: "memory_get", arguments: { key: "task/1" } })) as {
         found: boolean;
         value: { state: string };
+        writer: string;
+        byThisAgent: boolean;
     };
     assert(got.found && got.value.state === "open", "get did not round-trip");
+    assert(got.writer === status.identity.cid && got.byThisAgent, "get should report this agent as the writer");
 
     const list = firstText(
         await client.callTool({ name: "memory_list", arguments: { prefix: "task/" } }),
-    ) as { count: number; entries: Array<{ key: string }> };
+    ) as { count: number; entries: Array<{ key: string; byThisAgent: boolean }> };
     assert(list.count === 1 && list.entries[0].key === "task/1", "prefix list wrong");
+    assert(list.entries[0].byThisAgent, "list should attribute entries to their writer");
+
+    // Value size cap (KNOWN_ISSUES.md #32): over the default 64 KiB is refused, nothing stored.
+    const oversized = await client.callTool({
+        name: "memory_set",
+        arguments: { key: "too/big", value: "x".repeat(70 * 1024) },
+    });
+    assert((oversized as { isError?: boolean }).isError, "an oversized value should be refused");
+    const notStored = firstText(await client.callTool({ name: "memory_get", arguments: { key: "too/big" } })) as {
+        found: boolean;
+    };
+    assert(!notStored.found, "a refused oversized value must not be stored");
 
     const prov = firstText(
         await client.callTool({ name: "memory_provenance", arguments: { key: "task/1" } }),

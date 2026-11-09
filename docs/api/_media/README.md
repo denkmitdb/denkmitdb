@@ -106,6 +106,7 @@ dialed explicitly via `DENKMIT_PEERS`.
 | `DENKMIT_DB_NAME` | `agent-memory` | Name when creating |
 | `DENKMIT_ACCESS` | `creator-only` | Access preset for a created database: `creator-only`, `public`, `prefix-per-writer`, or `allowlist:<cid>,<cid>…` (unknown values refuse to start) |
 | `DENKMIT_PUBLIC_WRITE` | `false` | Deprecated alias for `DENKMIT_ACCESS=public` |
+| `DENKMIT_MAX_VALUE_BYTES` | `65536` | Largest value `memory_set` accepts (UTF-8 bytes of its JSON); larger writes are refused |
 | `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial |
 
 State (blocks, identity key, head pointer) persists in the data directory, so an

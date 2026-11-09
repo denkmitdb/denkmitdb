@@ -304,6 +304,13 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
     readonly maxPollardLength: number;
     readonly layers: PollardInterface[][];
     readonly heliaController: HeliaControllerInterface;
+    /**
+     * Value cache, keyed by **entry CID** (not by database key). An entry's value
+     * never changes, so a cached value can never be stale, whatever order reads,
+     * writes and merges interleave in, and one Keyv can safely be shared between
+     * databases (KNOWN_ISSUES.md #30). Superseded values are deleted when a newer
+     * record wins.
+     */
     readonly keyValueStorage: Keyv<T>;
     private sortedItemsStore: SortedItemsStore;
     private readonly syncController: SyncControllerInterface;
@@ -405,7 +412,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         // A concurrently-known entry with a greater composite key already wins.
         if (!result.applied) return;
 
-        await this.keyValueStorage.set(key, value);
+        await this.keyValueStorage.set(entry.cid.toString(), value);
+        await this.forgetCached(result.previousCid);
         const rebuildFrom = Math.min(entry.timestamp, result.previousTimestamp ?? entry.timestamp);
         await this.createTaskUpdateLayers(rebuildFrom);
     }
@@ -432,28 +440,32 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
         if (!result.applied) return;
 
-        await this.keyValueStorage.delete(key);
+        await this.forgetCached(result.previousCid);
         const rebuildFrom = Math.min(entry.timestamp, result.previousTimestamp ?? entry.timestamp);
         await this.createTaskUpdateLayers(rebuildFrom);
     }
 
+    /** Drops a superseded record's cached value (no-op for tombstones / no record). */
+    private async forgetCached(cid: CID | undefined): Promise<void> {
+        if (cid) await this.keyValueStorage.delete(cid.toString());
+    }
+
     /**
      * Retrieves the value associated with the specified key.
-     * If the value is found in the key-value storage, it is returned.
-     * Otherwise, it retrieves the item from the sorted items store,
-     * fetches the entry using the CID, and stores the entry in the key-value storage.
-     * Finally, it returns the retrieved value.
+     * The index names the winning entry; its value comes from the cache (keyed by
+     * entry CID) or is fetched, verified and cached.
      *
      * @param key - The key to retrieve the value for.
      * @returns The value associated with the key, or undefined if not found.
      */
     async get(key: string): Promise<T | undefined> {
+        const item = this.sortedItemsStore.getRecord(key);
+        if (!item || item.deleted) return; // absent, or hidden by a winning tombstone
         // Falsy values (0, "", false, null) are valid — distinguish them from a
         // cache miss with an explicit undefined check (KNOWN_ISSUES.md #18).
-        const value = await this.keyValueStorage.get(key);
-        if (value !== undefined) return value;
-        const item = await this.sortedItemsStore.getByKey(key);
-        if (!item || item.deleted) return; // absent, or hidden by a winning tombstone
+        const cacheKey = item.cid.toString();
+        const cached = await this.keyValueStorage.get(cacheKey);
+        if (cached !== undefined) return cached;
         let entry;
         try {
             entry = await fetchEntry<T>(item.cid, this.heliaController);
@@ -466,7 +478,9 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             return;
         }
         if (!entry || entry.deleted || entry.value === undefined) return;
-        await this.keyValueStorage.set(key, entry.value);
+        // Caching under the entry CID is safe even if a newer record won while this
+        // fetch was in flight: this value is still exactly that entry's value.
+        await this.keyValueStorage.set(cacheKey, entry.value);
         return entry.value;
     }
 
@@ -795,16 +809,29 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
             return;
         }
 
+        // Losers are dropped before any work is done for them.
+        if (!this.sortedItemsStore.wouldApply(timestamp, key, cid)) return;
+
+        // Pin the foreign entry BEFORE indexing it: it was fetched unpinned, and the
+        // tree we rebuild will reference it, so it must survive GC and restarts
+        // (D4). Pinning can fail (deadline, storage); indexing first left the entry
+        // live but unpinned, and every later sync saw it as already applied and
+        // never retried (KNOWN_ISSUES.md #31). Now a failed pin leaves nothing
+        // behind, and the next announcement of the head retries the entry. (A
+        // concurrent winner can still beat it to the index below — then the pin is
+        // merely redundant, never missing.)
+        try {
+            await this.heliaController.pin(cid);
+        } catch (error) {
+            this.log("Deferred leaf %s: pin failed (%s); retried on the next sync", cid.toString(), String(error));
+            return;
+        }
+
         const result = await this.sortedItemsStore.set(timestamp, key, cid, creator, entry.deleted === true);
         if (!result.applied) return;
 
-        // Pin the accepted foreign entry: it was fetched (unpinned), and the tree we
-        // rebuild will reference it — it must survive GC and restarts (D4).
-        await this.heliaController.pin(cid);
-
-        // The winning value differs from anything cached under this key; drop the
-        // stale cache entry so the next read refetches (KNOWN_ISSUES.md #1).
-        await this.keyValueStorage.delete(key);
+        // The superseded record's value can never be read again (#30).
+        await this.forgetCached(result.previousCid);
         return Math.min(timestamp, result.previousTimestamp ?? timestamp);
     }
 
@@ -960,8 +987,8 @@ export class DenkmitDatabase<T> implements DenkmitDatabaseInterface<T> {
         if (this.ownsKeyValueStorage) {
             await this.keyValueStorage.clear();
         } else {
-            for await (const { key } of this.sortedItemsStore.iterator()) {
-                await this.keyValueStorage.delete(key);
+            for await (const { cid } of this.sortedItemsStore.iterator()) {
+                await this.keyValueStorage.delete(cid.toString());
             }
         }
         await this.sortedItemsStore.clear();

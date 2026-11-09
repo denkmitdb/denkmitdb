@@ -72,6 +72,22 @@
 
 ***
 
+### getRecord()
+
+> **getRecord**(`key`): \{ `cid`: `CID`; `creator`: `CID`; `timestamp`: `number`; `deleted?`: `boolean`; \} \| `undefined`
+
+#### Parameters
+
+##### key
+
+`string`
+
+#### Returns
+
+\{ `cid`: `CID`; `creator`: `CID`; `timestamp`: `number`; `deleted?`: `boolean`; \} \| `undefined`
+
+***
+
 ### iterator()
 
 > **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
@@ -127,3 +143,29 @@
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`SetResult`](../type-aliases/SetResult.md)\>
+
+***
+
+### wouldApply()
+
+> **wouldApply**(`sortField`, `key`, `cid`): `boolean`
+
+Whether `set` with these arguments would make this record the live one for `key`.
+
+#### Parameters
+
+##### sortField
+
+`number`
+
+##### key
+
+`string`
+
+##### cid
+
+`CID`
+
+#### Returns
+
+`boolean`

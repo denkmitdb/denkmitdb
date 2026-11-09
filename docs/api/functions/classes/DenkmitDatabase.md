@@ -52,6 +52,12 @@ The type of values stored in the database.
 
 > `readonly` **keyValueStorage**: `Keyv`\<`T`\>
 
+Value cache, keyed by **entry CID** (not by database key). An entry's value
+never changes, so a cached value can never be stale, whatever order reads,
+writes and merges interleave in, and one Keyv can safely be shared between
+databases (KNOWN_ISSUES.md #30). Superseded values are deleted when a newer
+record wins.
+
 #### Implementation of
 
 [`DenkmitDatabaseInterface`](../interfaces/DenkmitDatabaseInterface.md).[`keyValueStorage`](../interfaces/DenkmitDatabaseInterface.md#keyvaluestorage)
@@ -341,10 +347,8 @@ A promise that resolves with the fetched head.
 > **get**(`key`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 Retrieves the value associated with the specified key.
-If the value is found in the key-value storage, it is returned.
-Otherwise, it retrieves the item from the sorted items store,
-fetches the entry using the CID, and stores the entry in the key-value storage.
-Finally, it returns the retrieved value.
+The index names the winning entry; its value comes from the cache (keyed by
+entry CID) or is fetched, verified and cached.
 
 #### Parameters
 
