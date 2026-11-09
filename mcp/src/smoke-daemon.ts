@@ -220,6 +220,70 @@ async function twoMachines(): Promise<void> {
 }
 
 /**
+ * A seed reachable only over WebSockets (as behind a TLS reverse proxy on 443,
+ * for networks that block other ports): the peer dials its /ws address.
+ */
+async function overWebSockets(): Promise<void> {
+    const seedDir = mkdtempSync(join(tmpdir(), "denkmit-ws-seed-"));
+    const peerDir = mkdtempSync(join(tmpdir(), "denkmit-ws-peer-"));
+    const port = 40_000 + Math.floor(Math.random() * 20_000);
+    const base = { ...process.env, DENKMIT_MDNS: "off", DENKMIT_ACCESS: "namespace-per-writer" };
+    const seed = startDaemon({
+        ...base,
+        DENKMIT_DATADIR: seedDir,
+        DENKMIT_IDENTITY: "ws-seed",
+        DENKMIT_PASSPHRASE: "ws-seed-secret",
+        DENKMIT_LISTEN: `/ip4/127.0.0.1/tcp/${port}/ws`,
+    });
+    let peer: ChildProcess | undefined;
+    try {
+        await waitForSocket(join(seedDir, "denkmitd.sock"));
+        const onSeed = await client("ws-seed", seedDir);
+        const seedStatus = firstText(await onSeed.callTool({ name: "memory_status", arguments: {} })) as Status & {
+            listenAddresses: string[];
+        };
+        assert(
+            seedStatus.listenAddresses.some((a) => a.includes("/ws")),
+            `the seed must listen on WebSockets (got ${seedStatus.listenAddresses.join(", ")})`,
+        );
+        const fact = `${seedStatus.access.ownNamespace}over-ws`;
+        await onSeed.callTool({ name: "memory_set", arguments: { key: fact, value: { via: "websockets" } } });
+
+        peer = startDaemon({
+            ...base,
+            DENKMIT_DATADIR: peerDir,
+            DENKMIT_IDENTITY: "ws-peer",
+            DENKMIT_PASSPHRASE: "ws-peer-secret",
+            DENKMIT_LISTEN: "/ip4/127.0.0.1/tcp/0",
+            DENKMIT_DB: seedStatus.databaseAddress,
+            DENKMIT_PEERS: `/ip4/127.0.0.1/tcp/${port}/ws`,
+        });
+        await waitForSocket(join(peerDir, "denkmitd.sock"));
+        const onPeer = await client("ws-peer", peerDir);
+        const started = Date.now();
+        let found = false;
+        while (!found && Date.now() - started < 60_000) {
+            found = (firstText(await onPeer.callTool({ name: "memory_get", arguments: { key: fact } })) as { found: boolean })
+                .found;
+            if (!found) await new Promise((r) => setTimeout(r, 500));
+        }
+        assert(found, "the peer must replicate from a seed reachable only over WebSockets");
+        await onSeed.close();
+        await onPeer.close();
+        console.log("a seed reachable only over WebSockets replicates (the /wss-behind-443 path)");
+    } finally {
+        for (const child of [peer, seed]) {
+            if (child && child.exitCode === null) {
+                child.kill("SIGTERM");
+                await exitCode(child).catch(() => child.kill("SIGKILL"));
+            }
+        }
+        rmSync(seedDir, { recursive: true, force: true });
+        rmSync(peerDir, { recursive: true, force: true });
+    }
+}
+
+/**
  * DENKMIT_AGENTS: one daemon, separate identities per agent. Each agent signs,
  * reads and decrypts as itself through its own socket; the main socket stays the
  * device identity.
@@ -349,6 +413,7 @@ try {
     console.log("DENKMIT_DAEMON=require fails without a daemon");
 
     await twoMachines();
+    await overWebSockets();
     await agentIdentities();
     console.log("MCP DAEMON SMOKE TEST PASSED");
 } finally {

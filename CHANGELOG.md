@@ -55,6 +55,13 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
   entry binding, policies and presets, encrypted values, daemon/seeds/agents,
   and the dropped HTTP head rendezvous.
 
+### Added
+
+- **WebSockets transport** in the daemon: a node can listen on a `/ws` address
+  (e.g. behind a TLS reverse proxy on 443) and dial `/ws` and `/tls/ws` (`wss`)
+  peers — the way through networks that allow only HTTPS. `smoke:daemon` runs a
+  seed reachable only over WebSockets.
+
 ### Fixed
 
 - **Peers in `DENKMIT_PEERS` stay connected.** They were dialed once at start: a
