@@ -24,17 +24,39 @@ Done since 3.0.0 (all in 4.0.0 / MCP 0.3.0, ready to publish):
   presets `prefix-per-writer`, `namespace-per-writer`, allowlists.
 - `denkmitd` daemon + thin MCP client, seeds, per-agent identities.
 - Encrypted values (multi-recipient, context-bound).
-- Two-agent demo and launch post draft.
+- Public API: explicit exports, consensus rules `{ access, validity }`, typed
+  errors with stable codes, a required encryption context, and a versioned,
+  closed policy language (DenkMit Logic 1); wire formats frozen by `test/wire`.
+- Docs: quick start for agent users; two-agent demo and launch post draft.
 
 Next, in order:
 
 1. **npm publish** of 4.0.0 / MCP 0.3.0.
 2. **Delegation** phase 2–3: owner-signed certificates so other parties see the
-   owner behind device and agent keys (`specs/delegation.md`, draft).
+   owner behind device and agent keys (`specs/delegation.md`, draft). Candidate
+   for the certificates' restrictions: the UCAN 1.0 policy language (predicates
+   over IPLD with jq-style selectors) once 1.0 is final — see below.
 3. **Discovery and reachability, peer-to-peer only:** peer discovery by database
    address over a DHT and NAT traversal through libp2p relays. (The HTTP
    head-rendezvous idea in "Post-v2" below is withdrawn as a central component.)
 4. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
+5. **Policy languages** (policy `version` = language version; decided 2026-11-09):
+   - Before the first port: `specs/policy-language.md` for DenkMit Logic 1 and
+     language-neutral test vectors, built from the community JSON Logic suite
+     ([json-logic/compat-tables](https://github.com/json-logic/compat-tables))
+     filtered to our 17 operators and pinned to json-logic-js 2.0.5 semantics,
+     which existing databases rely on; then decide on an own small evaluator.
+     Implementations differ exactly on loose `==`, truthiness and mixed-type
+     comparisons, which the current presets avoid.
+   - `version: 2` candidate: **CEL** (Common Expression Language) — readable
+     (`entryKey.startsWith("agents/" + entryCreator + "/")`), deterministic,
+     a language-independent conformance suite, official Go/Java/C++ and Rust
+     implementations; the JS side is community-only, so gate it on conformance.
+     Or the community JSON Logic spec's core, if it is published first.
+   - Rejected as consensus languages: json-rules-engine (JS-function facts and
+     operators, cannot express namespace-per-writer, no cross-language spec),
+     Rego/OPA (too heavy to embed in every replica), Cedar and Biscuit (own
+     entity/token models).
 
 The phase history below is kept as the record of how the project got here.
 
