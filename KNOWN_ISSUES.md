@@ -1,6 +1,6 @@
 # Known Issues
 
-Status as of the Phase 2 correctness work (July 2026). Each item is tagged:
+Status as of November 2026 (4.0.0: the review fixes #24–#32 included). Each item is tagged:
 
 - **✅ Fixed** — resolved and covered by a test (formerly an `it.fails` pin where noted).
 - **◻️ Open** — still present; scheduled in [ROADMAP.md](ROADMAP.md).
@@ -364,17 +364,20 @@ Consequences (mitigated but not eliminated by #21 and D4):
 - ~~Late joiners miss the one announcement~~ — fixed by #21: heads are re-announced
   periodically.
 - Remaining gap: a *fresh* reader (no local pointer) whose data-holding peers are
-  all offline still gets nothing — that needs the remote durable pointer
-  (IPNS/delegated routing), which is the post-v2 D8 project.
+  all offline still gets nothing. Mitigated in practice by **seeds** — always-on
+  daemons with no special authority (`mcp/README.md`) — and to be closed by
+  discovery by database address over a DHT plus libp2p relays (ROADMAP.md). A
+  durable pointer must stay peer-to-peer: the HTTP head-rendezvous idea was dropped
+  as a central component; signed head pointers in the DHT (IPNS-style) remain an
+  option.
 
 Pubsub here is only a *notification* (a ~36-byte head CID); all data transfer is
 bitswap. The fix is to make head discovery a **configurable strategy** rather than
 hardcoded pubsub: offer pubsub (real-time, needs a live libp2p transport) and a
 durable, resolvable head pointer (IPNS or equivalent, works for late joiners and
-over HTTP-only), usable alone or together and selected by config. See ROADMAP.md
-("Pluggable head discovery"). This also loosens the libp2p-pubsub coupling that
-makes helia 7 / HTTP-only nodes awkward, and overlaps with D5 (topic = manifest
-CID) and D4 (local persistence).
+without a live announcer), usable alone or together and selected by config. Note
+that a fresh reader also needs reachable **blocks**, not just a head — which is why
+seeds and DHT provider records matter more than any pointer.
 
 ## Housekeeping
 

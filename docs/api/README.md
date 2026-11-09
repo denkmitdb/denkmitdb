@@ -12,16 +12,230 @@
 
 [![CI](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml)
 
-DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over libp2p pubsub and diffing Merkle trees to fetch only what they are missing.
+**Shared, signed memory for AI agents — peer to peer, no central server.**
 
-> ⚠️ **Status: experimental, approaching v2.** Databases are **creator-only by
-> default** (only the creating identity may write; the `access` option selects
-> `public`, `prefix-per-writer` or an identity allowlist — see
-> [docs/policies.md](_media/policies.md)), every merged entry is signature-verified before
-> indexing, records can be deleted via signed tombstones, and a database reopens
-> its own last state without a live peer. Remaining pre-release work (API freeze,
-> hardening) is tracked in [ROADMAP.md](_media/ROADMAP.md); open items in
-> [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md).
+DenkMitDB lets Claude Code, Codex, Claude Desktop and other MCP clients exchange
+notes, findings and decisions — across your own machines or with someone else's
+agents. Each machine runs a small background process, `denkmitd`, that keeps a
+local copy and syncs with its peers. Every write is signed, so anyone can check
+which identity published it, and the database's rules keep each participant's
+records under that participant's control. Signatures establish authorship, not
+truth.
+
+**Start here:**
+[🚀 Connect your agents](_media/quickstart.md) (10 minutes, no internals) ·
+[📦 Use the TypeScript library](#-use-it-as-a-library) ·
+[🔍 How it works](_media/ARCHITECTURE.md)
+
+> ⚠️ **Experimental.** The formats are versioned and checked on every replica,
+> but the protocol may still change. Open items: [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md).
+
+## 🚀 Quick start: shared memory for agents
+
+```
+ Claude Code ─stdio─┐
+ Codex ──────stdio──┼─► denkmit-mcp ─local socket─► denkmitd ◄──peer to peer──► other machines
+ Claude Desktop ────┘                               (one per machine)
+```
+
+```bash
+npm install -g @denkmitdb/mcp
+printf 'Passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
+export DENKMIT_PASSPHRASE
+DENKMIT_ACCESS=namespace-per-writer denkmitd          # keeps running: leave this terminal open
+```
+
+In a second terminal:
+
+```bash
+claude mcp add denkmit --env DENKMIT_DAEMON=require -- denkmit-mcp
+```
+
+Then ask your agent: *"Check your shared memory status, save a note in your own
+area, and read it back."* A second agent — on this machine or another one — reads
+it with *"List everything in shared memory and who wrote it."*
+
+The [quick start guide](_media/quickstart.md) walks through it step by step: what
+you should see, Codex and Claude Desktop, adding a second machine or a friend's
+agents, what others can see, and troubleshooting. Reference for the daemon and
+its settings: [mcp/README.md](_media/README.md).
+
+> Plain notes are readable by everyone who has the memory — the rules limit who
+> *writes*. Encrypt what must stay private.
+
+## 💡 Features
+
+-   **Signed, database-bound writes**: every entry is a JWS by a self-certifying identity (its CID), and names the database it belongs to — it cannot be replayed into another one.
+-   **Verified before indexed**: replicas check signatures, payload shape, database binding and the write policy for every entry they ingest; forged tree metadata and hostile tree shapes are rejected.
+-   **Consensus rules in the manifest**: deterministic [json-logic](https://jsonlogic.com/) rules signed into the database — presets `creator-only` (default), `public`, `prefix-per-writer`, `namespace-per-writer`, identity allowlists, or your own rules over the signer, key and operation (put / delete). See [docs/policies.md](_media/policies.md).
+-   **Efficient replication**: peers announce one head CID and Merkle-diff their trees, fetching only what differs.
+-   **Deterministic conflicts**: last-write-wins on `(timestamp, entry CID)`; signed tombstones for deletes.
+-   **Private values**: a value encrypted to one or more identities replicates like any record, but only the recipients can read it; envelopes are bound to their database, key and writer.
+-   **Restart durability**: the last head is persisted and re-validated on open, so a node recovers its own state without a live peer.
+-   **Agent tooling**: an MCP server, a per-machine daemon, and separate identities per agent.
+
+See [ARCHITECTURE.md](_media/ARCHITECTURE.md) for how the pieces fit together.
+
+## 🤔 Why
+
+Agents run by different owners increasingly need to share facts — findings,
+decisions, task state — and nothing in a typical memory stack answers *"who
+claimed this, and can I check it without trusting whoever runs the database?"*
+
+DenkMitDB's answer is structural. Every record is signed and bound to its
+database; every replica checks the signature, the binding and the database's
+signed write policy **before** indexing anything; and provenance is a query
+(`provenance(key)`). With `namespace-per-writer` every party — the creator
+included — owns exactly its own namespace, so nobody can overwrite or delete
+anyone else's facts. None of it needs a server.
+
+It is deliberately narrow: for one owner's agents, SQLite or Postgres is simpler;
+for collaborative documents, use Yjs or Automerge. A signature proves which key
+wrote a fact — not that the fact is true, and not which person or company holds
+the key. See [VISION.md](_media/VISION.md).
+
+## 📦 Use it as a library
+
+```bash
+npm install @denkmitdb/denkmitdb helia @helia/libp2p @helia/bitswap @ipld/dag-cbor \
+    @libp2p/tcp @libp2p/identify @libp2p/floodsub @chainsafe/libp2p-noise @chainsafe/libp2p-yamux
+```
+
+```typescript
+import { noise } from "@chainsafe/libp2p-noise";
+import { yamux } from "@chainsafe/libp2p-yamux";
+import { withBitswap } from "@helia/bitswap";
+import { withLibp2pLight } from "@helia/libp2p";
+import * as dagCbor from "@ipld/dag-cbor";
+import { floodsub } from "@libp2p/floodsub";
+import { identify } from "@libp2p/identify";
+import { tcp } from "@libp2p/tcp";
+import { createHeliaLight } from "helia";
+import { createDatabase, createIdentity, type HeliaNode } from "@denkmitdb/denkmitdb";
+
+// A light Helia with the libp2p and bitswap mixins (in-memory stores here; pass
+// FsBlockstore/FsDatastore for persistence).
+const node = withBitswap(
+    withLibp2pLight(createHeliaLight({ codecs: [dagCbor] }), {
+        addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
+        transports: [tcp()],
+        connectionEncrypters: [noise()],
+        streamMuxers: [yamux()],
+        services: { identify: identify(), pubsub: floodsub({ emitSelf: true }) },
+    }),
+);
+await node.start();
+const helia = node as unknown as HeliaNode;
+
+const identity = await createIdentity("alice", "a passphrase", helia);
+const db = await createDatabase<{ value: string }>("team-facts", {
+    helia,
+    identity,
+    consensus: { access: "namespace-per-writer" },
+});
+console.log("database address:", db.address.toString()); // share it; others use openDatabase
+
+const mine = `agents/${identity.cid.toString()}/`;
+await db.set(`${mine}decision`, { value: "ship 4.0.0" });
+console.log(await db.get(`${mine}decision`), await db.provenance(`${mine}decision`));
+
+for await (const [key, value] of db.entries()) console.log(key, value);
+
+await db.close(); // persists the head
+await node.stop();
+```
+
+More:
+
+- **Open an existing database:** `openDatabase(address, { helia, identity })`;
+  connect to a peer that has it and the head arrives over pubsub.
+- **Custom consensus rules:** `createDatabase(name, { consensus: { access: { policy }, validity } })` —
+  see [docs/policies.md](_media/policies.md).
+- **Private values:** `encryptValueFor([identity, bob], value, { database, key, writer })`
+  and `decryptValue(identity, value, expectedContext)` — see `src/encryption.ts`.
+- **Sign as another identity** (e.g. one per agent): `db.set(key, value, { identity: agentIdentity })`.
+- A runnable version of the snippet is [examples/example.ts](_media/example.ts).
+
+### API at a glance
+
+The package exports only this; everything else is internal.
+
+| | |
+|---|---|
+| `createDatabase(name, options)` | New database. `options`: `helia`, `identity`; optional `consensus: { access, validity }` — `access` is a preset (`"creator-only"` default, `"public"`, `"prefix-per-writer"`, `"namespace-per-writer"`), `{ allowlist }` or `{ policy }` (custom json-logic), `validity` a json-logic policy; optional `subtreeLeaves` (default 8), `valueCache`. |
+| `openDatabase(address, options)` | Open by address (CID or string); the consensus rules always come from the signed manifest. |
+| `Database<T>` | `get`, `set`, `delete`, `provenance` (→ `entryCid`, `writer`, `timestamp`, `deleted`), `keys`, `entries`, `waitUntilIdle`, `announceHead`, `close`; `address`, `identity`, `manifest`, `consensus`, `recordCount`. Writes take `{ identity }` to sign as another local identity. |
+| `createIdentity` / `openIdentity` / `hasIdentity` | Local signing identities (`SigningIdentity`), private key encrypted with a passphrase. |
+| `fetchIdentity(cid, helia)` | Someone else's public `Identity`: verify, encrypt to. |
+| `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedValueRecipients` | Values sealed to recipients, bound to a required context `{ database, key, writer }`. |
+| `DenkmitError` / `isDenkmitError(e, code)` | Every intended failure has a stable `code` (`ACCESS_DENIED`, `VALIDITY_REJECTED`, `INVALID_ARGUMENT`, `NOT_FOUND`, `ALREADY_EXISTS`, `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED`, `UNSUPPORTED_VERSION`, `KEY_UNAVAILABLE`, `INVALID_PASSPHRASE`, `INTERNAL`); match on the code, not the message. |
+
+## 📈 Performance
+
+`node scripts/bench.mjs 10000` (in-memory stores, single writer, ~40-byte values —
+orders of magnitude, not SLAs):
+
+| Operation | dev machine | 4 vCPU arm64 VM |
+|---|---:|---:|
+| `set()` — sign + index + Merkle rebuild (coalesced) | 4.1 ms | 6.7 ms |
+| `get()` warm (cache) | 0.007 ms | 0.03 ms |
+| `get()` cold (blockstore fetch + JWS verify) | 1.1 ms | 3.2 ms |
+| `keys()` full walk (10k keys) | 0.001 ms | 0.002 ms |
+| Reopen from persisted head (per record) | 0.55 ms | 0.69 ms |
+| Full replication to a fresh peer (per entry) | 14.3 ms | 10.5 ms |
+
+Bulk replication is the known wall (fetch-latency-bound; batch sync and a
+persisted materialized index are on the roadmap).
+
+## 📚 Documentation
+
+**Using it with agents**
+
+| Document | Contents |
+|---|---|
+| [docs/quickstart.md](_media/quickstart.md) | Ten minutes from install to agents sharing notes |
+| [mcp/README.md](_media/README.md) | The MCP server and daemon: tools, settings, seeds, per-agent identities, private values, running as a service |
+| [docs/policies.md](_media/policies.md) | Consensus rules: who may write what (presets), which entries are valid, custom rules |
+
+**Building on it**
+
+| Document | Contents |
+|---|---|
+| [API at a glance](#api-at-a-glance) and [docs/api/](_media/README-1.md) | The public API; generated reference (`pnpm docs`) |
+| [ARCHITECTURE.md](_media/ARCHITECTURE.md) | Data model, the Merkle tree, write/read paths, sync, trust model, deployment |
+| [specs/ordering.md](_media/ordering.md) | Accepted spec: sort key, last-write-wins, format versioning, entry binding |
+| [specs/succession.md](_media/succession.md) | Draft: bounded growth via local GC and signed hand-over to a successor database |
+| [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) | Every verified defect with its fix and test, and the open design concerns |
+
+**The project**
+
+| Document | Contents |
+|---|---|
+| [VISION.md](_media/VISION.md) · [ROADMAP.md](_media/ROADMAP.md) | Focus and direction; what is done and what comes next |
+| [CHANGELOG.md](_media/CHANGELOG.md) | Release history |
+
+## 🛠️ Development
+
+```bash
+corepack enable        # provides the pinned pnpm version (pnpm 12)
+pnpm install
+pnpm lint              # eslint over src, test, examples and configs (zero warnings)
+pnpm typecheck         # TypeScript 7 over sources, tests and configs
+pnpm build
+pnpm test              # vitest: unit + integration (real libp2p nodes over TCP)
+pnpm test:package      # packs the tarball and smoke-imports the packed code
+cd mcp && pnpm build && pnpm smoke && pnpm smoke:daemon
+```
+
+Requires **Node 22+**. CI runs all of the above on Node 22 and 24 for every push
+and pull request. TypeScript 7 builds the code; typescript-eslint and typedoc use
+the TypeScript 6 API side by side (see `package.json`).
+
+## 👨‍💻 Contributing
+
+Contributions are welcome — please open an issue first for anything substantial.
+Every fix in [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) comes with a regression test that
+fails on the code before the fix; please keep that discipline.
 
 ## 🎁 Support: Donate
 
@@ -32,180 +246,6 @@ DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://git
 [![Donate Bitcoin](https://img.shields.io/badge/BTC-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-E38B29.svg?style=flat-square&logo=bitcoin)]()
 
 <!-- all-shields/sponsors-badges:END -->
-
-## 💡 Features
-
--   **Distributed storage**: all state lives in IPFS as signed, content-addressed dag-cbor blocks.
--   **Efficient replication**: peers exchange one head CID and Merkle-diff their trees, so sync cost scales with the difference, not the database size.
--   **Signed writes**: every entry is a JWS tied to a self-certifying identity (its CID).
--   **Access control**: a deterministic [json-logic](https://jsonlogic.com/) policy in the manifest — creator-only by default, world-writable by explicit opt-in — enforced on local writes and merged entries alike.
--   **Delete**: signed tombstones in the same last-write-wins order as puts; a newer write resurrects the key.
--   **Restart durability**: the last head is persisted and re-validated on open, so a node recovers its own state without a live peer.
-
-See [ARCHITECTURE.md](_media/ARCHITECTURE.md) for how the pieces fit together.
-
-## 📈 Performance
-
-`node scripts/bench.mjs 10000` on one developer machine (Node 24, in-memory
-stores, single writer, ~40-byte values — orders of magnitude, not SLAs):
-
-| Operation | per-op | ops/s |
-|---|---:|---:|
-| `set()` — sign + index + Merkle rebuild (coalesced) | 4.1 ms | ~245 |
-| `get()` warm (cache) | 0.007 ms | ~144,000 |
-| `get()` cold (blockstore fetch + JWS verify) | 1.1 ms | ~890 |
-| `keys()` full walk (10k keys) | 0.001 ms | ~730,000 |
-| Reopen from persisted head (10k records, restore + reindex) | 0.55 ms | ~1,800 |
-| Full replication to a fresh peer (verify + index + rebuild) | 14.3 ms | ~70 |
-
-On a small cloud VM (4 vCPU arm64 Neoverse-N1, November 2026, after the
-integrity fixes): `set()` 6.7 ms, cold `get()` 3.2 ms, reopen 0.69 ms/record,
-full replication 10.5 ms/entry.
-
-Bulk replication is the known wall (fetch-latency-bound and superlinear at
-depth; see ROADMAP.md — batch sync and the persisted materialized index are the
-follow-ups).
-
-## 🤔 Why
-
-Agents run by different owners increasingly need to share facts — findings,
-decisions, task state — and nothing in a typical memory stack answers *"who
-claimed this, and can I check it without trusting whoever runs the database?"*
-
-DenkMitDB's answer is structural. Every record is signed by a self-certifying
-identity and bound to its database; every replica checks the signature, the
-binding and the database's signed write policy **before** indexing anything; and
-provenance is a query (`provenance(key)`). With the `prefix-per-writer` preset
-each party owns its own namespace, so nobody can overwrite or delete anyone
-else's facts. None of it needs a server.
-
-It is deliberately narrow: for one owner's agents, SQLite or Postgres is simpler;
-for collaborative documents, use Yjs or Automerge. *CRDTs solve concurrent
-editing among trusted peers; DenkMitDB solves attributable state among peers
-that don't trust each other.* A signature proves which key wrote a fact — not
-that the fact is true. See [VISION.md](_media/VISION.md) and
-[docs/policies.md](_media/policies.md); the two-agent demo is `cd mcp && pnpm demo`.
-
-## 💾 Installation
-
-To set up DenkMitDB, follow these steps:
-
-1. **Install module**:
-
-    ```bash
-    npm install --save @denkmitdb/denkmitdb
-    ```
-
-2. **Install dependencies**:
-    ```bash
-    npm install
-    ```
-
-## 🚀 Usage
-
-After installation, you can start using DenkMitDB by following these steps:
-
-1. **Import modules**:
-
-    ```typescript
-    import { floodsub } from "@libp2p/floodsub";
-    import { noise } from "@chainsafe/libp2p-noise";
-    import { yamux } from "@chainsafe/libp2p-yamux";
-    import { identify } from "@libp2p/identify";
-    import { tcp } from "@libp2p/tcp";
-    import { withBitswap } from "@helia/bitswap";
-    import { withLibp2pLight } from "@helia/libp2p";
-    import * as dagCbor from "@ipld/dag-cbor";
-    import { createHeliaLight } from "helia";
-    import { createDenkmitDatabase, createIdentity } from "@denkmitdb/denkmitdb";
-    ```
-
-2. **Initialize Helia (with the libp2p and bitswap mixins)**:
-
-    ```typescript
-    const helia = withBitswap(
-        withLibp2pLight(createHeliaLight({ codecs: [dagCbor] }), {
-            addresses: { listen: ["/ip4/0.0.0.0/tcp/0"] },
-            transports: [tcp()],
-            connectionEncrypters: [noise()],
-            streamMuxers: [yamux()],
-            services: {
-                identify: identify(),
-                pubsub: floodsub({ emitSelf: true }),
-            },
-        }),
-    );
-    await helia.start();
-    ```
-
-3. **Create new Database Identity and new Database**:
-
-    ```typescript
-    const identity = await createIdentity("user", "password", helia);
-
-    const db = await createDenkmitDatabase("test", { helia, identity });
-    console.log("Database address: ", db.id);
-    ```
-
-4. **Add new data to Database**:
-
-    ```typescript
-    await db.set("key1", { value: "value1" });
-    await db.set("key2", { value: "value2" });
-
-    for await (const e of db.iterator()) {
-        console.log(e);
-    }
-    ```
-
-5. **Retrieve data from Database**:
-    ```typescript
-    const value1 = await db.get("key1");
-    console.log("Value 1: ", value1);
-    ```
-6. **Close Database**
-    ```typescript
-    await db.close();
-    await helia.stop(); // also stops the embedded libp2p
-    ```
-
-## 📚 Documentation
-
-| Document | Contents |
-|---|---|
-| [ARCHITECTURE.md](_media/ARCHITECTURE.md) | Data model, the pollard Merkle tree, write/read paths, sync protocol, trust model |
-| [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) | Verified bugs (several pinned by failing tests) and open design concerns |
-| [ROADMAP.md](_media/ROADMAP.md) | Where the project is going: spec → correctness → upgrades → features → v2.0.0 |
-| [VISION.md](_media/VISION.md) | Post-v2 strategy: verifiable shared memory for AI agents — the MCP server as the product |
-| [specs/ordering.md](_media/ordering.md) | Accepted v2 spec: composite sort key, last-write-wins, format versioning |
-| [specs/succession.md](_media/succession.md) | Draft: bounded growth via local GC and signed hand-over to a successor database |
-| [CHANGELOG.md](_media/CHANGELOG.md) | Release history |
-| [CODEX_REVIEW.md](_media/CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
-| [PHASE_PRIORITIES.md](_media/PHASE_PRIORITIES.md) | Independent prioritization review of the remaining Phase 4 work (July 2026) |
-| [mcp/](_media/README.md) | MCP server: DenkMitDB as shared, signed agent memory for Claude Code/Codex/any MCP client |
-| [docs/policies.md](_media/policies.md) | Policy cookbook: access presets, policy inputs, determinism rules |
-| [docs/api/](_media/README-1.md) | Generated API reference (typedoc; `pnpm docs` regenerates only this folder) |
-
-## 🛠️ Development
-
-```bash
-corepack enable        # provides the pinned pnpm version
-pnpm install
-pnpm test              # vitest: unit + integration (real libp2p nodes over TCP)
-pnpm lint              # eslint over src, test, examples and configs
-pnpm typecheck         # tsc over tests/configs (tsconfig.test.json)
-pnpm build
-pnpm test:package      # packs the tarball and smoke-imports the packed code
-```
-
-Notes:
-
--   Tests marked `it.fails` document known bugs (see [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md)); when you fix one, flip its test to a normal `it`.
--   Requires **Node 22+** (helia 5 uses `Promise.withResolvers`). CI runs lint, typecheck, build, tests, and the package smoke test on Node 22 and 24 for every push and pull request.
-
-## 👨‍💻 Contributing
-
-We welcome contributions! Please fork the repository and submit pull requests. For major changes, please open an issue to discuss what you would like to change. Good starting points are the items in [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) with test pins.
 
 ## 💫 License
 

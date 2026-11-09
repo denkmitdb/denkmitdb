@@ -30,7 +30,7 @@
   - `export async function encryptValueFor(recipient: IdentityInterface, value: unknown): Promise<jose.FlattenedJWE>`
   - `export async function decryptValue<T>(identity: IdentityInterface, jwe: jose.FlattenedJWE): Promise<T | undefined>` — `undefined` when this identity is not the recipient or the JWE is invalid.
 
-- [ ] **Step 1: Write the failing test** (`test/encrypted-values.test.ts`)
+- [x] **Step 1: Write the failing test** (`test/encrypted-values.test.ts`)
 
 ```typescript
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -111,12 +111,12 @@ describe("Encrypted values", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `npx vitest run test/encrypted-values.test.ts`
 Expected: FAIL — `encryptValueFor` / `decryptValue` not exported. (If `HeliaStorage` or `fetchIdentity` are not currently exported from `src/functions/index.ts`, note it — Step 3 fixes exports.)
 
-- [ ] **Step 3: Implement** — append to `src/functions/identity.ts`:
+- [x] **Step 3: Implement** — append to `src/functions/identity.ts`:
 
 ```typescript
 /**
@@ -159,12 +159,12 @@ export async function decryptValue<T>(identity: IdentityInterface, jwe: jose.Fla
 
 Check `src/functions/index.ts`: it re-exports modules wholesale (`export * from "./identity.js"` style) — if identity exports are enumerated instead, add `encryptValueFor`, `decryptValue`. Ensure `fetchIdentity` and `HeliaStorage` are reachable from the package index (they are today via the utils/identity re-exports; verify with the test import).
 
-- [ ] **Step 4: Run tests to verify pass, then full gates**
+- [x] **Step 4: Run tests to verify pass, then full gates**
 
 Run: `npx vitest run test/encrypted-values.test.ts && npx vitest run && npm run typecheck`
 Expected: all pass. Note: `Identity.decrypt` throws "Key ID does not match identity ID" for a non-recipient — the helper's catch converts that to `undefined` (test 2 covers it).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/functions/identity.ts src/functions/index.ts test/encrypted-values.test.ts
@@ -178,7 +178,7 @@ git commit -m "identity: encryptValueFor/decryptValue — private facts in share
 
 **Interfaces:** none (docs only).
 
-- [ ] **Step 1: README** — Features bullet: `**Private values**: encrypt a value to a recipient identity (`encryptValueFor`/`decryptValue`) — peers replicate signed ciphertext they cannot read.` Usage subsection after the retrieve step:
+- [x] **Step 1: README** — Features bullet: `**Private values**: encrypt a value to a recipient identity (`encryptValueFor`/`decryptValue`) — peers replicate signed ciphertext they cannot read.` Usage subsection after the retrieve step:
 
 ````markdown
 6. **Private values** (optional) — encrypt to a recipient; peers replicate what they cannot read:
@@ -196,14 +196,14 @@ git commit -m "identity: encryptValueFor/decryptValue — private facts in share
 
 (Renumber the existing "Close Database" step accordingly.)
 
-- [ ] **Step 2: CHANGELOG + VISION** — `[Unreleased]`: "Private values: `encryptValueFor`/`decryptValue` — ECDH-ES JWE per value, replicates as normal signed records; recipients resolve by identity CID." In `VISION.md`, change the sequence line `8. Encrypted values.` to `8. ~~Encrypted values~~ — shipped (encryptValueFor/decryptValue).`
+- [x] **Step 2: CHANGELOG + VISION** — `[Unreleased]`: "Private values: `encryptValueFor`/`decryptValue` — ECDH-ES JWE per value, replicates as normal signed records; recipients resolve by identity CID." In `VISION.md`, change the sequence line `8. Encrypted values.` to `8. ~~Encrypted values~~ — shipped (encryptValueFor/decryptValue).`
 
-- [ ] **Step 3: Gates**
+- [x] **Step 3: Gates**
 
 Run: `pnpm lint && pnpm typecheck && pnpm build && pnpm test:package`
 Expected: green (package smoke re-verifies the new exports import cleanly from the packed tarball).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md CHANGELOG.md VISION.md

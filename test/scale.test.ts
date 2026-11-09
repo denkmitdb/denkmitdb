@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDenkmitDatabase, openDenkmitDatabase, syncTopic } from "../src/functions";
-import { DenkmitDatabaseInterface } from "../src/types";
+import { createDatabase, openDatabase, syncTopic } from "../src/internal";
+import { DenkmitDatabase } from "../src/internal";
 import { connectNodes, createTestNode, TestNode, waitFor } from "./helpers";
 
 type Value = { n: number };
@@ -26,7 +26,7 @@ describe("Multi-layer trees", () => {
     it("builds a three-layer tree at the default order without stalling", { timeout: 120_000 }, async () => {
         // Default order 3 => 8 entries per pollard, so 65 entries is the first count
         // that needs a third layer.
-        const db = await createDenkmitDatabase<Value>("scale-default-order", {
+        const db = await createDatabase<Value>("scale-default-order", {
             helia: node.helia,
             identity: node.identity,
         });
@@ -35,9 +35,9 @@ describe("Multi-layer trees", () => {
         for (let i = 0; i < count; i++) {
             await db.set(`key-${i}`, { n: i });
         }
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(count);
+        expect(db.recordCount).toBe(count);
         expect(db.layers.length).toBeGreaterThanOrEqual(3);
 
         // Every layer above the leaves holds one pollard per 2**order below it.
@@ -72,18 +72,18 @@ describe("Multi-layer trees", () => {
     it("builds a four-layer tree at order 2", { timeout: 120_000 }, async () => {
         // Order 2 => 4 entries per pollard, so the tree deepens fastest here: 17
         // entries already need three layers, 65 need four.
-        const db = await createDenkmitDatabase<Value>("scale-order-2", {
+        const db = await createDatabase<Value>("scale-order-2", {
             helia: node.helia,
             identity: node.identity,
-            order: 2,
+            subtreeLeaves: 4,
         });
 
         for (let i = 0; i < 80; i++) {
             await db.set(`key-${i}`, { n: i });
         }
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(80);
+        expect(db.recordCount).toBe(80);
         const layers = db.layers;
         expect(layers.length).toBe(4);
         expect(layers[layers.length - 1].length).toBe(1);
@@ -112,16 +112,16 @@ describe("Multi-layer trees", () => {
 describe("Two-node synchronization of a multi-layer tree", () => {
     let nodeA: TestNode;
     let nodeB: TestNode;
-    let dbA: DenkmitDatabaseInterface<Value>;
-    let dbB: DenkmitDatabaseInterface<Value>;
+    let dbA: DenkmitDatabase<Value>;
+    let dbB: DenkmitDatabase<Value>;
 
     beforeAll(async () => {
         nodeA = await createTestNode("scale-a");
         nodeB = await createTestNode("scale-b");
         await connectNodes(nodeA, nodeB);
 
-        dbA = await createDenkmitDatabase<Value>("scale-sync", { helia: nodeA.helia, identity: nodeA.identity });
-        dbB = await openDenkmitDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
+        dbA = await createDatabase<Value>("scale-sync", { helia: nodeA.helia, identity: nodeA.identity });
+        dbB = await openDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
     }, 60_000);
 
     afterAll(async () => {
@@ -144,16 +144,16 @@ describe("Two-node synchronization of a multi-layer tree", () => {
         for (let i = 0; i < count; i++) {
             await dbA.set(`key-${i}`, { n: i });
         }
-        await dbA.idle();
+        await dbA.waitUntilIdle();
         expect(dbA.layers.length).toBeGreaterThanOrEqual(3);
 
         await dbA.sendHead();
 
-        await waitFor(() => dbB.size === count, {
+        await waitFor(() => dbB.recordCount === count, {
             timeout: 120_000,
             message: `node B to merge all ${count} entries`,
         });
-        await dbB.idle();
+        await dbB.waitUntilIdle();
 
         const headA = await dbA.createHead();
         const headB = await dbB.createHead();

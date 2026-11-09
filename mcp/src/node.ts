@@ -1,18 +1,18 @@
 import { noise } from "@chainsafe/libp2p-noise";
 import { yamux } from "@chainsafe/libp2p-yamux";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
     hasIdentity,
-    openDenkmitDatabase,
+    openDatabase,
     openIdentity,
 } from "@denkmitdb/denkmitdb";
 import type {
-    AccessPreset,
-    DenkmitDatabaseInterface,
-    DenkmitHeliaInterface,
-    IdentityInterface,
-    PolicyData,
+    AccessRule,
+    Database,
+    HeliaNode,
+    SigningIdentity,
+    PolicyDefinition,
 } from "@denkmitdb/denkmitdb";
 import { withBitswap } from "@helia/bitswap";
 import { withLibp2pLight } from "@helia/libp2p";
@@ -21,20 +21,22 @@ import { floodsub } from "@libp2p/floodsub";
 import { identify } from "@libp2p/identify";
 import { mdns } from "@libp2p/mdns";
 import { tcp } from "@libp2p/tcp";
+import { webSockets } from "@libp2p/websockets";
 import { FsBlockstore } from "blockstore-fs";
 import { FsDatastore } from "datastore-fs";
 import { createHeliaLight } from "helia";
-import { CID } from "multiformats/cid";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export type MemoryValue = unknown;
 
 export type MemoryNode = {
-    helia: DenkmitHeliaInterface;
-    identity: IdentityInterface;
-    db: DenkmitDatabaseInterface<MemoryValue>;
+    helia: HeliaNode;
+    identity: SigningIdentity;
+    /** Agent identities held by this node (daemon, DENKMIT_AGENTS), by agent name. */
+    agents: Map<string, SigningIdentity>;
+    db: Database<MemoryValue>;
     created: boolean;
     stop: () => Promise<void>;
 };
@@ -51,23 +53,30 @@ export type MemoryNodeConfig = {
     /** Database name when creating. */
     databaseName: string;
     /** Access preset for a created database (ignored when opening by address). */
-    access: AccessPreset;
+    access: AccessRule;
     /** Largest value memory_set accepts, in UTF-8 bytes of its JSON encoding. */
     maxValueBytes: number;
     /** Multiaddrs to dial for sync (mdns also discovers local peers automatically). */
     peers: string[];
+    /** How often to redial configured peers that are not connected, in ms. */
+    redialMs: number;
     /** libp2p listen multiaddrs. Embedded default: a random TCP port; daemon: 4001. */
     listen: string[];
     /** Externally reachable multiaddrs to announce instead of the listen ones (NAT, public IP). */
     announce: string[];
     /**
      * JSON file with custom policies for a created database:
-     * `{ "accessPolicy"?: PolicyData, "validationPolicy"?: PolicyData }` (docs/policies.md).
-     * An accessPolicy here replaces DENKMIT_ACCESS.
+     * `{ "access"?: PolicyDefinition, "validity"?: PolicyDefinition }` — the consensus rules
+     * (docs/policies.md). An `access` policy here replaces DENKMIT_ACCESS.
      */
     policyFile?: string;
     /** Local-network peer discovery via mDNS (`DENKMIT_MDNS=off` disables it, e.g. on a server). */
     mdns: boolean;
+    /**
+     * Agents this node holds a separate identity for (`DENKMIT_AGENTS=claude-code,codex`).
+     * Each gets its own key, namespace and — in the daemon — its own socket.
+     */
+    agents: string[];
 };
 
 /** TCP port a daemon listens on by default — the conventional libp2p/IPFS swarm port. */
@@ -78,6 +87,36 @@ const list = (raw: string | undefined): string[] =>
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
+
+const AGENT_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/**
+ * Checks an agent name: lowercase letters, digits and dashes, at most 32
+ * characters — it becomes part of an identity name and a socket file name.
+ */
+export function assertAgentName(name: string): string {
+    if (!AGENT_NAME.test(name)) {
+        throw new Error(`Invalid agent name "${name}" (use a-z, 0-9 and "-", at most 32 characters)`);
+    }
+    return name;
+}
+
+/** Reads `DENKMIT_AGENTS` (comma-separated agent names); duplicates are an error. */
+export function agentsFromEnv(env: NodeJS.ProcessEnv): string[] {
+    const names = list(env.DENKMIT_AGENTS).map(assertAgentName);
+    if (new Set(names).size !== names.length) throw new Error("DENKMIT_AGENTS lists an agent twice");
+    return names;
+}
+
+/** Keychain name of an agent identity: `<node identity>-<agent>`. */
+export function agentIdentityName(nodeIdentity: string, agent: string): string {
+    return `${nodeIdentity}-${agent}`;
+}
+
+/** The socket a daemon serves one agent on, next to its main socket. */
+export function agentSocketPath(env: NodeJS.ProcessEnv, agent: string): string {
+    return join(dirname(socketPath(env)), `denkmitd-${assertAgentName(agent)}.sock`);
+}
 
 /** Where a daemon serves MCP sessions and where thin clients look for it. */
 export function socketPath(env: NodeJS.ProcessEnv): string {
@@ -105,15 +144,31 @@ export function configFromEnv(
         access: accessFromEnv(env),
         maxValueBytes: maxValueBytesFromEnv(env),
         peers: list(env.DENKMIT_PEERS),
+        redialMs: redialMsFromEnv(env),
         listen: listen.length > 0 ? listen : (defaults.listen ?? ["/ip4/0.0.0.0/tcp/0"]),
         announce: list(env.DENKMIT_ANNOUNCE),
         policyFile: env.DENKMIT_POLICY_FILE || undefined,
         mdns: env.DENKMIT_MDNS !== "off",
+        agents: agentsFromEnv(env),
     };
 }
 
 /** Default value size cap: comfortably above a fact, far below block-size limits. */
 export const DEFAULT_MAX_VALUE_BYTES = 64 * 1024;
+
+/**
+ * Reads `DENKMIT_REDIAL_SECONDS` (default 30): how often configured peers that are
+ * not connected are dialed again. A malformed value refuses to start.
+ */
+function redialMsFromEnv(env: NodeJS.ProcessEnv): number {
+    const raw = env.DENKMIT_REDIAL_SECONDS?.trim();
+    if (!raw) return 30_000;
+    const seconds = Number(raw);
+    if (!Number.isFinite(seconds) || seconds < 1) {
+        throw new Error(`DENKMIT_REDIAL_SECONDS must be a number of seconds >= 1 (got ${raw})`);
+    }
+    return Math.round(seconds * 1000);
+}
 
 /**
  * Reads `DENKMIT_MAX_VALUE_BYTES` (default 64 KiB). A malformed value refuses to
@@ -135,20 +190,20 @@ export function maxValueBytesFromEnv(env: NodeJS.ProcessEnv): number {
 /**
  * Reads the access preset for a database this server creates. `DENKMIT_ACCESS` is
  * `creator-only` (default), `public`, `prefix-per-writer`, `namespace-per-writer`, or
- * `allowlist:<identity-cid>,<identity-cid>…`; `DENKMIT_PUBLIC_WRITE=true` is a
- * deprecated alias for `public`. Anything else refuses to start rather than falling
- * back to a different policy — the preset is signed into the manifest for good.
+ * `allowlist:<identity-cid>,<identity-cid>…`. Anything else refuses to start rather
+ * than falling back to a different policy — the preset is signed into the manifest
+ * for good. For the same reason the removed `DENKMIT_PUBLIC_WRITE` is refused, not
+ * ignored.
  *
  * @param env - The process environment.
  * @returns The access preset.
  */
-export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
-    const raw = env.DENKMIT_ACCESS?.trim();
-    const legacyPublic = env.DENKMIT_PUBLIC_WRITE === "true";
-    if (!raw) return legacyPublic ? "public" : "creator-only";
-    if (legacyPublic && raw !== "public") {
-        throw new Error(`DENKMIT_PUBLIC_WRITE=true conflicts with DENKMIT_ACCESS=${raw}`);
+export function accessFromEnv(env: NodeJS.ProcessEnv): AccessRule {
+    if (env.DENKMIT_PUBLIC_WRITE !== undefined) {
+        throw new Error("DENKMIT_PUBLIC_WRITE was removed: use DENKMIT_ACCESS=public");
     }
+    const raw = env.DENKMIT_ACCESS?.trim();
+    if (!raw) return "creator-only";
     if (raw === "creator-only" || raw === "public" || raw === "prefix-per-writer" || raw === "namespace-per-writer") {
         return raw;
     }
@@ -170,16 +225,19 @@ export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
  * Reads custom policies for a database this node creates. The library checks
  * each policy's shape before signing it into the manifest.
  *
- * @param path - JSON file with optional `accessPolicy` / `validationPolicy`.
+ * @param path - JSON file with optional `access` / `validity` policies.
  * @returns The policies found in the file.
  */
-async function readPolicyFile(path: string): Promise<{ accessPolicy?: PolicyData; validationPolicy?: PolicyData }> {
+async function readPolicyFile(path: string): Promise<{ access?: PolicyDefinition; validity?: PolicyDefinition }> {
     const parsed = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
-    const unknownKeys = Object.keys(parsed).filter((k) => k !== "accessPolicy" && k !== "validationPolicy");
+    if ("accessPolicy" in parsed || "validationPolicy" in parsed) {
+        throw new Error("DENKMIT_POLICY_FILE: the keys are now `access` and `validity` (was accessPolicy / validationPolicy)");
+    }
+    const unknownKeys = Object.keys(parsed).filter((k) => k !== "access" && k !== "validity");
     if (unknownKeys.length > 0) {
         throw new Error(`DENKMIT_POLICY_FILE: unexpected keys ${unknownKeys.join(", ")}`);
     }
-    return parsed as { accessPolicy?: PolicyData; validationPolicy?: PolicyData };
+    return parsed as { access?: PolicyDefinition; validity?: PolicyDefinition };
 }
 
 /**
@@ -208,7 +266,10 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
                     listen: config.listen,
                     ...(config.announce.length > 0 ? { announce: config.announce } : {}),
                 },
-                transports: [tcp()],
+                // TCP everywhere; WebSockets so a node can listen on a /ws address (e.g.
+                // behind a TLS reverse proxy on 443) and dial /ws and /wss peers — the
+                // way through networks that allow only HTTPS.
+                transports: [tcp(), webSockets()],
                 connectionEncrypters: [noise()],
                 streamMuxers: [yamux()],
                 peerDiscovery: config.mdns ? [mdns()] : [],
@@ -220,22 +281,67 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         ),
     );
     await node.start();
-    const helia = node as unknown as DenkmitHeliaInterface;
+    const helia: HeliaNode = node;
     const libp2p = helia.libp2p;
 
-    const identity = (await hasIdentity(config.identityName, helia))
-        ? await openIdentity(config.identityName, config.passphrase, helia)
-        : await createIdentity(config.identityName, config.passphrase, helia);
+    const openOrCreate = async (name: string) =>
+        (await hasIdentity(name, helia))
+            ? await openIdentity(name, config.passphrase, helia)
+            : await createIdentity(name, config.passphrase, helia);
+    const identity = await openOrCreate(config.identityName);
+    const agents = new Map<string, SigningIdentity>();
+    for (const agent of config.agents) {
+        agents.set(agent, await openOrCreate(agentIdentityName(config.identityName, agent)));
+    }
 
     const { multiaddr } = await import("@multiformats/multiaddr");
 
-    for (const peer of config.peers) {
-        try {
-            await libp2p.dial(multiaddr(peer));
-        } catch (error) {
-            console.error(`[denkmit-mcp] failed to dial ${peer}:`, (error as Error).message);
+    // Configured peers stay connected: a connection lost later (a laptop that slept,
+    // a changed network, a restarted seed) is dialed again, and so is a peer that was
+    // down when this node started. Only changes are logged, not every retry.
+    const peerIds = new Map<string, string>(); // configured multiaddr -> remote peer id
+    const connected = new Set<string>(); // configured multiaddrs currently connected
+    const isConnected = (addr: string): boolean => {
+        const id = peerIds.get(addr);
+        return id !== undefined && libp2p.getConnections().some((c) => c.remotePeer.toString() === id);
+    };
+    const keepPeers = async (): Promise<void> => {
+        for (const peer of config.peers) {
+            if (isConnected(peer)) continue;
+            if (connected.delete(peer)) console.error(`[denkmit-mcp] lost ${peer}; redialing every ${config.redialMs / 1000} s`);
+            try {
+                const connection = await libp2p.dial(multiaddr(peer));
+                peerIds.set(peer, connection.remotePeer.toString());
+                connected.add(peer);
+                console.error(`[denkmit-mcp] connected to ${peer}`);
+            } catch (error) {
+                if (!peerIds.has(peer) && !connected.has(peer)) {
+                    // First failure only; later failures stay quiet until the state changes.
+                    peerIds.set(peer, "");
+                    console.error(`[denkmit-mcp] failed to dial ${peer}: ${(error as Error).message}; retrying every ${config.redialMs / 1000} s`);
+                }
+            }
         }
-    }
+    };
+    let redialing = false;
+    const redial = async (): Promise<void> => {
+        if (redialing) return;
+        redialing = true;
+        try {
+            await keepPeers();
+        } finally {
+            redialing = false;
+        }
+    };
+    await redial();
+    const redialTimer = setInterval(() => void redial(), config.redialMs);
+    redialTimer.unref();
+    // React to a drop right away instead of waiting for the next tick.
+    const onDisconnect = (event: CustomEvent<{ toString(): string }>): void => {
+        const id = event.detail.toString();
+        if ([...peerIds.values()].includes(id)) setTimeout(() => void redial(), 2_000).unref();
+    };
+    libp2p.addEventListener("peer:disconnect", onDisconnect as unknown as EventListener);
 
     // Same-machine rendezvous: advertise our listen addresses under the shared data
     // root and dial every sibling identity's advertised addresses. This makes agents
@@ -282,16 +388,18 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         );
     }
 
-    let db: DenkmitDatabaseInterface<MemoryValue>;
+    let db: Database<MemoryValue>;
     if (address) {
-        db = await openDenkmitDatabase<MemoryValue>(CID.parse(address), { helia, identity });
+        db = await openDatabase<MemoryValue>(address, { helia, identity });
     } else {
         const custom = config.policyFile ? await readPolicyFile(config.policyFile) : {};
-        db = await createDenkmitDatabase<MemoryValue>(config.databaseName, {
+        db = await createDatabase<MemoryValue>(config.databaseName, {
             helia,
             identity,
-            ...(custom.accessPolicy ? { accessPolicy: custom.accessPolicy } : { access: config.access }),
-            ...(custom.validationPolicy ? { validationPolicy: custom.validationPolicy } : {}),
+            consensus: {
+                access: custom.access ? { policy: custom.access } : config.access,
+                ...(custom.validity ? { validity: custom.validity } : {}),
+            },
         });
         await writeFile(addressFile, db.address.toString());
         created = true;
@@ -300,10 +408,13 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
     return {
         helia,
         identity,
+        agents,
         db,
         created,
         stop: async () => {
             clearInterval(rendezvousTimer);
+            clearInterval(redialTimer);
+            libp2p.removeEventListener("peer:disconnect", onDisconnect as unknown as EventListener);
             await db.close();
             await helia.stop(); // stops the embedded libp2p via the mixin
         },

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDenkmitDatabase, createIdentity, HeliaController } from "../src/functions";
-import { IdentityInterface } from "../src/types";
+import { createDatabase, createIdentity, HeliaController } from "../src/internal";
+import { SigningIdentity } from "../src/internal";
 import { buildHead, createTestNode, ForgedLeaf, putSignedEntry, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -12,7 +12,7 @@ type Value = { value: string };
  */
 describe("Identity cache (D6)", () => {
     let node: TestNode; // identity A (creator)
-    let other: IdentityInterface; // identity B (foreign writer)
+    let other: SigningIdentity; // identity B (foreign writer)
 
     beforeAll(async () => {
         node = await createTestNode("id-cache-owner");
@@ -25,10 +25,10 @@ describe("Identity cache (D6)", () => {
 
     it("verifies a repeated foreign writer's identity only once", async () => {
         // Public database so B's entries are authorized; A merges them.
-        const db = await createDenkmitDatabase<Value>("id-cache", {
+        const db = await createDatabase<Value>("id-cache", {
             helia: node.helia,
             identity: node.identity,
-            publicWrite: true,
+            consensus: { access: "public" },
         });
         const bController = new HeliaController(node.helia, other);
 
@@ -45,9 +45,9 @@ describe("Identity cache (D6)", () => {
         const before = dbController.identityFetchCount;
 
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(count);
+        expect(db.recordCount).toBe(count);
         // B's identity is fetched+verified exactly once for the whole head + all
         // entries, not once per entry.
         expect(dbController.identityFetchCount - before).toBe(1);

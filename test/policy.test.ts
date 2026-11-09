@@ -1,10 +1,10 @@
-import type { RulesLogic } from "json-logic-js";
+import type { PolicyRule } from "../src/internal";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPolicy, fetchPolicy, HeliaController } from "../src/functions";
-import { PolicyData } from "../src/types";
+import { createPolicy, fetchPolicy, HeliaController, evaluatePolicy } from "../src/internal";
+import { PolicyDefinition } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
-describe("PolicyController", () => {
+describe("policies", () => {
     let node: TestNode;
     let heliaController: HeliaController;
 
@@ -18,7 +18,7 @@ describe("PolicyController", () => {
     });
 
     it("evaluates a real json-logic rule against entry metadata", async () => {
-        const consensus: PolicyData = {
+        const consensus: PolicyDefinition = {
             version: 1,
             name: "entry-not-from-future",
             description: "Entry timestamps must not be ahead of the local clock",
@@ -26,12 +26,12 @@ describe("PolicyController", () => {
         };
         const controller = await createPolicy(consensus, heliaController);
 
-        expect(await controller.execute({ entryTimestamp: 100, currentTimestamp: 200 })).toBe(true);
-        expect(await controller.execute({ entryTimestamp: 300, currentTimestamp: 200 })).toBe(false);
+        expect(evaluatePolicy(controller, { entryTimestamp: 100, currentTimestamp: 200 })).toBe(true);
+        expect(evaluatePolicy(controller, { entryTimestamp: 300, currentTimestamp: 200 })).toBe(false);
     });
 
     it("round-trips through the store: fetchPolicy returns the same rule", async () => {
-        const consensus: PolicyData = {
+        const consensus: PolicyDefinition = {
             version: 1,
             name: "creator-only",
             description: "Only the database creator may write",
@@ -42,22 +42,22 @@ describe("PolicyController", () => {
 
         expect(fetched.name).toBe("creator-only");
         expect(fetched.logic).toEqual(consensus.logic);
-        expect(await fetched.execute({ entryCreator: "a", databaseCreator: "a" })).toBe(true);
-        expect(await fetched.execute({ entryCreator: "b", databaseCreator: "a" })).toBe(false);
+        expect(evaluatePolicy(fetched, { entryCreator: "a", databaseCreator: "a" })).toBe(true);
+        expect(evaluatePolicy(fetched, { entryCreator: "b", databaseCreator: "a" })).toBe(false);
     });
 
     it("documents the default database rule: `logic: true` accepts every write", async () => {
-        // This is what createDenkmitDatabase installs today (see ARCHITECTURE.md and
+        // This is what createDatabase installs today (see ARCHITECTURE.md and
         // KNOWN_ISSUES.md D1): the default "consensus" is a constant-true predicate,
         // i.e. the database is world-writable until a real rule is supplied.
-        const consensus: PolicyData = {
+        const consensus: PolicyDefinition = {
             version: 1,
             name: "denkmit-timestamp",
             description: "Consensus for denkmit database timestamp",
             logic: true,
         };
         const controller = await createPolicy(consensus, heliaController);
-        expect(await controller.execute({ anything: "goes" })).toBe(true);
+        expect(evaluatePolicy(controller, { anything: "goes" })).toBe(true);
     });
 
     it("supports the deterministic startsWith operation", async () => {
@@ -66,15 +66,15 @@ describe("PolicyController", () => {
                 version: 1,
                 name: "prefix-test",
                 description: "startsWith works",
-                logic: { startsWith: [{ var: "entryKey" }, "agents/"] } as unknown as RulesLogic,
+                logic: { startsWith: [{ var: "entryKey" }, "agents/"] } as unknown as PolicyRule,
             },
             heliaController,
         );
-        expect(await policy.execute({ entryKey: "agents/abc/x" })).toBe(true);
-        expect(await policy.execute({ entryKey: "notes/abc" })).toBe(false);
+        expect(evaluatePolicy(policy, { entryKey: "agents/abc/x" })).toBe(true);
+        expect(evaluatePolicy(policy, { entryKey: "notes/abc" })).toBe(false);
         // Non-strings never match (no coercion of numbers or missing vars).
-        expect(await policy.execute({ entryKey: 7 })).toBe(false);
-        expect(await policy.execute({})).toBe(false);
+        expect(evaluatePolicy(policy, { entryKey: 7 })).toBe(false);
+        expect(evaluatePolicy(policy, {})).toBe(false);
     });
 
     it("a rule that throws denies instead of throwing", async () => {
@@ -83,10 +83,31 @@ describe("PolicyController", () => {
                 version: 1,
                 name: "broken",
                 description: "uses an operation no replica registers",
-                logic: { noSuchOperation: [1] } as unknown as RulesLogic,
+                logic: { noSuchOperation: [1] } as unknown as PolicyRule,
             },
             heliaController,
         );
-        await expect(policy.execute({})).resolves.toBe(false);
+        expect(evaluatePolicy(policy, {})).toBe(false);
+    });
+
+    it("hands out a frozen copy: editing it cannot change what the replica accepts", async () => {
+        const definition: PolicyDefinition = {
+            version: 1,
+            name: "only-a",
+            description: "only creator a",
+            logic: { "==": [{ var: "entryCreator" }, "a"] },
+        };
+        const policy = await createPolicy(definition, heliaController);
+        // The caller's own object is untouched (not frozen).
+        expect(Object.isFrozen(definition.logic)).toBe(false);
+        const rule = policy.logic as unknown as Record<string, unknown[]>;
+        expect(() => {
+            rule["=="][1] = "b";
+        }).toThrow(TypeError);
+        expect(() => {
+            (policy as { logic: unknown }).logic = true;
+        }).toThrow(TypeError);
+        expect(evaluatePolicy(policy, { entryCreator: "b" })).toBe(false);
+        expect(evaluatePolicy(policy, { entryCreator: "a" })).toBe(true);
     });
 });

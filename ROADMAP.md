@@ -7,6 +7,59 @@ correctness now comes **before** the runtime-major upgrades, because a green
 upgrade on top of a happy-path test suite would certify API compatibility, not
 behavior — and several fixes touch the same surfaces as the upgrades anyway.
 
+## Where things stand (November 2026)
+
+Focus: signed fact exchange between parties that don't trust each other
+([VISION.md](VISION.md) "Focus"); keep it simple and keep it peer-to-peer.
+
+Done since 3.0.0 (all in 4.0.0 / MCP 0.3.0, ready to publish):
+
+- Every dependency on its latest release (TypeScript 7 with the TS 6 API for
+  tooling, vitest 5, ESLint 10, zod 4, pnpm 12).
+- November review fixes, KNOWN_ISSUES.md #24–#32: entries bound to their
+  database, deterministic strictly boolean policies, bounded and aligned tree
+  comparison, linear rebuilds, durable `close()`, identity key binding, CID-keyed
+  value cache, pin-before-index, MCP value size cap.
+- Policies: `entryKey`, `entryOperation`, custom access/validation policies,
+  presets `prefix-per-writer`, `namespace-per-writer`, allowlists.
+- `denkmitd` daemon + thin MCP client, seeds, per-agent identities.
+- Encrypted values (multi-recipient, context-bound).
+- Public API: explicit exports, consensus rules `{ access, validity }`, typed
+  errors with stable codes, a required encryption context, and a versioned,
+  closed policy language (DenkMit Logic 1); wire formats frozen by `test/wire`.
+- Docs: quick start for agent users; two-agent demo and launch post draft.
+
+Next, in order:
+
+1. **npm publish** of 4.0.0 / MCP 0.3.0.
+2. **Delegation** phase 2–3: owner-signed certificates so other parties see the
+   owner behind device and agent keys (`specs/delegation.md`, draft). Candidate
+   for the certificates' restrictions: the UCAN 1.0 policy language (predicates
+   over IPLD with jq-style selectors) once 1.0 is final — see below.
+3. **Discovery and reachability, peer-to-peer only:** peer discovery by database
+   address over a DHT and NAT traversal through libp2p relays. (The HTTP
+   head-rendezvous idea in "Post-v2" below is withdrawn as a central component.)
+4. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
+5. **Policy languages** (policy `version` = language version; decided 2026-11-09):
+   - Before the first port: `specs/policy-language.md` for DenkMit Logic 1 and
+     language-neutral test vectors, built from the community JSON Logic suite
+     ([json-logic/compat-tables](https://github.com/json-logic/compat-tables))
+     filtered to our 17 operators and pinned to json-logic-js 2.0.5 semantics,
+     which existing databases rely on; then decide on an own small evaluator.
+     Implementations differ exactly on loose `==`, truthiness and mixed-type
+     comparisons, which the current presets avoid.
+   - `version: 2` candidate: **CEL** (Common Expression Language) — readable
+     (`entryKey.startsWith("agents/" + entryCreator + "/")`), deterministic,
+     a language-independent conformance suite, official Go/Java/C++ and Rust
+     implementations; the JS side is community-only, so gate it on conformance.
+     Or the community JSON Logic spec's core, if it is published first.
+   - Rejected as consensus languages: json-rules-engine (JS-function facts and
+     operators, cannot express namespace-per-writer, no cross-language spec),
+     Rego/OPA (too heavy to embed in every replica), Cedar and Biscuit (own
+     entity/token models).
+
+The phase history below is kept as the record of how the project got here.
+
 ## ✅ Phase 0 — Safety net (July 2026)
 
 - [x] Merge the dormant `consensus` branch into `main` (fast-forward).
@@ -293,8 +346,10 @@ component that only works with a central service).
   `open.zhakenov.pro:4001`.
 - ✅ **`namespace-per-writer`, `entryOperation`, custom policies** — equal parties,
   expressible delete rules.
-- **Next: a real two-machine test** (seed + laptop, Claude Code and Codex), then
-  **P2P discovery by database address** (libp2p DHT provider records: the address
+- ✅ **Real multi-machine test** (November 2026): a public seed, a second server,
+  a home machine behind NAT and a laptop behind a corporate firewall (over
+  WebSockets on 443), with Claude Code, Codex and Claude Desktop agents.
+- **Next: P2P discovery by database address** (libp2p DHT provider records: the address
   is the rendezvous key — a P2P space per database) and **NAT traversal through
   libp2p relays** (circuit relay v2 + DCUtR; any public peer can relay).
 - **Step 6 above (HTTP head rendezvous) is withdrawn:** an HTTP endpoint is a

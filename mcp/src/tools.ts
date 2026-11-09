@@ -6,18 +6,44 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { fetchPolicy } from "@denkmitdb/denkmitdb";
+import {
+    decryptValue,
+    DenkmitError,
+    encryptedValueRecipients,
+    encryptValueFor,
+    fetchIdentity,
+    isDenkmitError,
+    isEncryptedValue,
+} from "@denkmitdb/denkmitdb";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
+import type { SigningIdentity } from "@denkmitdb/denkmitdb";
+
+/** The identity an MCP session acts as. */
+export type MemorySession = {
+    identity: SigningIdentity;
+    /** Identity name in the node's keychain (e.g. "lab" or "lab-codex"). */
+    name: string;
+    /** Agent name when the session is bound to a daemon agent identity. */
+    agent?: string;
+};
 
 /**
  * Creates an MCP server exposing the memory tools for `node`.
  *
  * @param node - The running memory node (helia, identity, database).
  * @param config - The node configuration (identity name, value size cap).
+ * @param session - Which identity this MCP session signs, reads and decrypts as:
+ *   the node's own (device) identity by default, or one of the daemon's agent
+ *   identities (specs/delegation.md, phase 1).
  * @returns An MCP server, not yet connected to a transport.
  */
-export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): McpServer {
-    const { db, identity } = node;
+export function createMemoryServer(
+    node: MemoryNode,
+    config: MemoryNodeConfig,
+    session: MemorySession = { identity: node.identity, name: config.identityName },
+): McpServer {
+    const { db } = node;
+    const identity = session.identity;
     const server = new McpServer(
         { name: "denkmit-mcp", version: "0.3.0" },
         {
@@ -34,6 +60,67 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
         },
     );
 
+    /**
+     * What a reader sees of a stored value: plain values as they are; encrypted
+     * envelopes decrypted when this agent is a recipient, otherwise withheld with
+     * the list of recipients (the ciphertext itself is never returned).
+     */
+    const readable = async (
+        value: unknown,
+        key: string,
+        writer: string | undefined,
+    ): Promise<{ value: unknown; encrypted?: true; readable?: boolean; recipients?: string[]; note?: string }> => {
+        if (!isEncryptedValue(value)) return { value };
+        const recipients = encryptedValueRecipients(value);
+        // Open only in the context it was sealed for: this database, this key, this writer.
+        const plain = writer
+            ? await decryptValue<unknown>(identity, value, { database: db.address.toString(), key, writer })
+            : undefined;
+        const listed = recipients.includes(identity.cid.toString());
+        return {
+            value: plain === undefined ? null : plain,
+            encrypted: true,
+            readable: plain !== undefined,
+            recipients,
+            ...(plain === undefined && listed
+                ? { note: "listed as a recipient, but the envelope does not open here: re-posted from elsewhere or tampered" }
+                : {}),
+        };
+    };
+
+    /**
+     * Failures reach the agent as `{ error: { code, message } }` with the library's
+     * stable error code (ACCESS_DENIED, INVALID_ARGUMENT, …), so agents can react to
+     * the kind of failure instead of parsing messages.
+     */
+    const failJson = (error: unknown) => ({
+        isError: true,
+        content: [
+            {
+                type: "text" as const,
+                text: JSON.stringify(
+                    {
+                        error: {
+                            code: isDenkmitError(error) ? error.code : "INTERNAL",
+                            message: error instanceof Error ? error.message : String(error),
+                        },
+                    },
+                    null,
+                    2,
+                ),
+            },
+        ],
+    });
+    const guarded =
+        <A extends unknown[], R>(handler: (...args: A) => Promise<R>) =>
+        async (...args: A): Promise<R | ReturnType<typeof failJson>> => {
+            try {
+                return await handler(...args);
+            } catch (error) {
+                return failJson(error);
+            }
+        };
+
     const okJson = (data: unknown) => ({
         content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
     });
@@ -47,27 +134,79 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 "agent's identity and replicates to peer replicas. Overwrites any previous value for " +
                 "the key (last-write-wins). The database's access policy decides which keys this agent " +
                 "may write (see memory_status); a refused write returns an error and stores nothing. " +
-                `Values are limited to ${config.maxValueBytes} bytes of JSON.`,
+                `Values are limited to ${config.maxValueBytes} bytes of JSON (after encryption, if encrypted). ` +
+                "Pass encryptFor (identity CIDs, possibly empty) to store the value encrypted: only the " +
+                "listed identities and, by default, this agent can read it; everyone still sees the key, " +
+                "the writer and the recipients.",
             inputSchema: {
                 key: z.string().min(1).describe("Key to store under, e.g. 'notes/deploy' or 'task/42/status'"),
                 value: z.unknown().describe("JSON value to store (object, array, string, number, boolean, or null)"),
+                encryptFor: z
+                    .array(z.string().min(1))
+                    .max(64)
+                    .optional()
+                    .describe(
+                        "Encrypt the value to these identity CIDs (e.g. from memory_status or memory_provenance " +
+                            "of another agent). [] encrypts to this agent only.",
+                    ),
+                includeSelf: z
+                    .boolean()
+                    .optional()
+                    .describe("With encryptFor: also encrypt to this agent so it can read the value back (default true)"),
             },
         },
-        async ({ key, value }) => {
+        guarded(async ({ key, value, encryptFor, includeSelf }) => {
             // Size cap (KNOWN_ISSUES.md #32): every value is signed, stored, pinned and
             // replicated to every peer, so one oversized write costs the whole fleet.
             const bytes = Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
             if (bytes > config.maxValueBytes) {
-                throw new Error(
+                throw new DenkmitError(
+                    "INVALID_ARGUMENT",
                     `Value is ${bytes} bytes of JSON; the limit is ${config.maxValueBytes} (DENKMIT_MAX_VALUE_BYTES). ` +
                         "Store a summary or a reference instead.",
                 );
             }
-            await db.set(key, value ?? null);
-            await db.idle();
+            let stored: unknown = value ?? null;
+            let recipients: string[] | undefined;
+            if (encryptFor !== undefined) {
+                const others = await Promise.all(
+                    encryptFor.map(async (cid) => {
+                        try {
+                            return await fetchIdentity(cid, node.helia);
+                        } catch (error) {
+                            throw new DenkmitError("INVALID_ARGUMENT", `Cannot encrypt to ${cid}: identity not found or invalid`, {
+                                cause: error,
+                            });
+                        }
+                    }),
+                );
+                const targets = includeSelf === false ? others : [identity, ...others];
+                if (targets.length === 0) {
+                    throw new DenkmitError("INVALID_ARGUMENT", "encryptFor is empty and includeSelf is false: nobody could read it");
+                }
+                const envelope = await encryptValueFor(targets, stored, {
+                    database: db.address.toString(),
+                    key,
+                    writer: identity.cid.toString(),
+                });
+                recipients = encryptedValueRecipients(envelope);
+                stored = envelope;
+                // The cap bounds what every peer stores and replicates, so it applies to
+                // the envelope too: base64url plus one wrapped key per recipient grow it.
+                const storedBytes = Buffer.byteLength(JSON.stringify(envelope), "utf8");
+                if (storedBytes > config.maxValueBytes) {
+                    throw new DenkmitError(
+                        "INVALID_ARGUMENT",
+                        `Encrypted value is ${storedBytes} bytes; the limit is ${config.maxValueBytes} ` +
+                            "(DENKMIT_MAX_VALUE_BYTES, applies after encryption). Store less or use fewer recipients.",
+                    );
+                }
+            }
+            await db.set(key, stored, { identity });
+            await db.waitUntilIdle();
             await db.announceHead();
-            return okJson({ ok: true, key });
-        },
+            return okJson({ ok: true, key, ...(recipients ? { encrypted: true, recipients } : {}) });
+        }),
     );
 
     server.registerTool(
@@ -81,19 +220,19 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             inputSchema: { key: z.string().min(1).describe("Key to read") },
             annotations: { readOnlyHint: true },
         },
-        async ({ key }) => {
+        guarded(async ({ key }) => {
             const value = await db.get(key);
             if (value === undefined) return okJson({ key, found: false, value: null });
             const record = await db.provenance(key);
-            const writer = record?.creator.toString();
+            const writer = record?.writer.toString();
             return okJson({
                 key,
                 found: true,
-                value,
+                ...(await readable(value, key, writer)),
                 writer,
                 byThisAgent: writer === identity.cid.toString(),
             });
-        },
+        }),
     );
 
     server.registerTool(
@@ -105,12 +244,12 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 "replicates like any write; a later memory_set resurrects the key.",
             inputSchema: { key: z.string().min(1).describe("Key to delete") },
         },
-        async ({ key }) => {
-            await db.delete(key);
-            await db.idle();
+        guarded(async ({ key }) => {
+            await db.delete(key, { identity });
+            await db.waitUntilIdle();
             await db.announceHead();
             return okJson({ ok: true, key });
-        },
+        }),
     );
 
     server.registerTool(
@@ -126,7 +265,7 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             },
             annotations: { readOnlyHint: true },
         },
-        async ({ prefix, limit }) => {
+        guarded(async ({ prefix, limit }) => {
             const max = limit ?? 50;
             const entries: Array<{ key: string; value: unknown; writer?: string; byThisAgent: boolean }> = [];
             let truncated = false;
@@ -140,11 +279,16 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 }
                 const value = await db.get(key);
                 if (value === undefined) continue; // unfetchable value — skip, don't fail the listing
-                const writer = (await db.provenance(key))?.creator.toString();
-                entries.push({ key, value, writer, byThisAgent: writer === identity.cid.toString() });
+                const writer = (await db.provenance(key))?.writer.toString();
+                entries.push({
+                    key,
+                    ...(await readable(value, key, writer)),
+                    writer,
+                    byThisAgent: writer === identity.cid.toString(),
+                });
             }
             return okJson({ count: entries.length, truncated, entries });
-        },
+        }),
     );
 
     server.registerTool(
@@ -158,20 +302,20 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             inputSchema: { key: z.string().min(1).describe("Key to inspect") },
             annotations: { readOnlyHint: true },
         },
-        async ({ key }) => {
+        guarded(async ({ key }) => {
             const record = await db.provenance(key);
             if (!record) return okJson({ key, found: false });
             return okJson({
                 key,
                 found: true,
-                entryCid: record.cid.toString(),
-                writer: record.creator.toString(),
+                entryCid: record.entryCid.toString(),
+                writer: record.writer.toString(),
                 timestamp: record.timestamp,
                 writtenAt: new Date(record.timestamp).toISOString(),
                 deleted: record.deleted,
-                byThisAgent: record.creator.toString() === identity.cid.toString(),
+                byThisAgent: record.writer.toString() === identity.cid.toString(),
             });
-        },
+        }),
     );
 
     server.registerTool(
@@ -180,20 +324,22 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             title: "Memory node status",
             description:
                 "Show this memory node's status: the database address (share it as DENKMIT_DB to give " +
-                "other agents a replica), this agent's identity CID, the database's write-access policy " +
-                "(and this agent's own key namespace), record count, and connected peers.",
+                "other agents a replica), this agent's identity CID, the database's consensus rules — write " +
+                "access (and this agent's own key namespace) and entry validity, record count, and connected peers.",
             inputSchema: {},
             annotations: { readOnlyHint: true },
         },
-        async () => {
+        guarded(async () => {
             const peers = node.helia.libp2p.getPeers().map((p: { toString(): string }) => p.toString());
-            const manifest = await db.getManifest();
-            const access = await fetchPolicy(manifest.access, db.heliaController);
+            const { manifest } = db;
+            const { access, validity } = db.consensus;
             const isCreator = manifest.creator.equals(identity.cid);
             return okJson({
                 databaseAddress: db.address.toString(),
                 databaseName: manifest.name,
-                identity: { name: config.identityName, cid: identity.cid.toString() },
+                identity: { name: session.name, cid: identity.cid.toString() },
+                agent: session.agent ?? null,
+                device: { name: config.identityName, cid: node.identity.cid.toString() },
                 access: {
                     policy: access.name,
                     description: access.description,
@@ -201,12 +347,14 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                     // Where this agent may write under prefix-/namespace-per-writer.
                     ownNamespace: `agents/${identity.cid.toString()}/`,
                 },
-                records: db.size,
+                // The other consensus rule: which authorized entries every replica accepts.
+                validity: { policy: validity.name, description: validity.description },
+                records: db.recordCount,
                 connectedPeers: peers,
                 // Addresses other peers can dial (DENKMIT_PEERS) — e.g. when this node is a seed.
                 listenAddresses: node.helia.libp2p.getMultiaddrs().map(String),
             });
-        },
+        }),
     );
 
     return server;

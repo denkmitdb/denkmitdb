@@ -1,0 +1,305 @@
+import { DAGCBOR, dagCbor } from "@helia/dag-cbor";
+import type { ComponentLogger } from "@libp2p/interface";
+import * as codec from "@ipld/dag-cbor";
+import drain from "it-drain";
+import * as jose from "jose";
+import { CID } from "multiformats/cid";
+import { sha256 } from "multiformats/hashes/sha2";
+import { TimeoutController } from "timeout-abort-controller";
+import { loadIdentity } from "../identity.js";
+import type { Signed } from "../protocol/signed.js";
+import type { HeliaNode, Identity, SigningIdentity } from "../types.js";
+import { DenkmitError } from "../errors.js";
+
+const DefaultTimeout = 30000; // 30 seconds
+
+/**
+ * Represents a Storage for interacting with the Helia IPFS.
+ */
+export class HeliaStorage {
+    readonly helia: HeliaNode;
+    private heliaDagCbor: DAGCBOR;
+
+    /**
+     * Creates a new instance of the HeliaStorage class.
+     * @param helia - The Helia database interface.
+     */
+    constructor(helia: HeliaNode) {
+        this.helia = helia;
+        this.heliaDagCbor = dagCbor(helia);
+    }
+
+    /**
+     * Encodes the given data into a Uint8Array.
+     *
+     * @param data - The data to be encoded.
+     * @returns The encoded data as a Uint8Array.
+     */
+    static encode<T>(data: T): Uint8Array {
+        return codec.encode<T>(data);
+    }
+
+    /**
+     * Decodes the given Uint8Array data using the specified codec.
+     *
+     * @typeParam T - The type of the decoded data.
+     * @param data - The data to be decoded.
+     * @returns The decoded data.
+     */
+    static decode<T>(data: Uint8Array): T {
+        return codec.decode<T>(data);
+    }
+
+    static get code(): number {
+        return codec.code;
+    }
+
+    /**
+     * Gets the datastore.
+     * @returns The datastore.
+     */
+    get datastore() {
+        return this.helia.datastore;
+    }
+
+    /**
+     * Gets the blockstore.
+     * @returns The blockstore.
+     */
+    get blockstore() {
+        return this.helia.blockstore;
+    }
+
+    /**
+     * Gets the libp2p instance.
+     * @returns The libp2p instance.
+     */
+    get libp2p() {
+        return this.helia.libp2p;
+    }
+
+    /**
+     * Gets the logger instance.
+     * @returns The logger instance.
+     */
+    get logger(): ComponentLogger {
+        // Explicit annotation: helia 7's logger type lives in a transitive package
+        // (birnam), which declaration emit cannot reference portably; the
+        // @libp2p/interface ComponentLogger shape is what callers consume.
+        return this.helia.logger;
+    }
+
+    /**
+     * Adds an object to the Helia database.
+     * @param data - The object to add.
+     * @returns A Promise that resolves to the CID of the added object.
+     */
+    async add(data: unknown): Promise<CID> {
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            const cid = await this.heliaDagCbor.add(data, { signal: controller.signal });
+            // Pinning walks the DAG and blocks on any link it cannot resolve locally,
+            // so it needs the same deadline as the write — without the signal a
+            // missing or unreachable linked block waits forever.
+            if (!(await this.helia.pins.isPinned(cid))) {
+                await drain(this.helia.pins.add(cid, { signal: controller.signal }));
+            }
+            return cid;
+        } finally {
+            controller.clear();
+        }
+    }
+
+    /**
+     * Stores a dag-cbor block WITHOUT pinning it. Interior tree nodes (pollards)
+     * are stored this way on every rebuild: pinning them individually walks the
+     * whole DAG below each node (O(database) per write — measured as the write
+     * throughput collapse in scripts/bench.mjs). The tree is pinned once per
+     * head instead: the signed head goes through add(), whose recursive pin
+     * covers the root pollard and everything under it.
+     * @param data - The object to store.
+     * @returns A Promise that resolves to the CID of the stored object.
+     */
+    async put(data: unknown): Promise<CID> {
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            return await this.heliaDagCbor.add(data, { signal: controller.signal });
+        } finally {
+            controller.clear();
+        }
+    }
+
+    /**
+     * Pins a block so Helia garbage collection cannot drop it. Used for foreign
+     * blocks (entries, identities) accepted during merge — they were fetched, not
+     * added, so they are unpinned by default and a locally persisted head would not
+     * survive GC without this (KNOWN_ISSUES.md D4).
+     * @param cid - The CID of the block to pin.
+     */
+    async pin(cid: CID): Promise<void> {
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            if (!(await this.helia.pins.isPinned(cid))) {
+                await drain(this.helia.pins.add(cid, { signal: controller.signal }));
+            }
+        } finally {
+            controller.clear();
+        }
+    }
+
+    /**
+     * Retrieves an object from the Helia database.
+     * @param cid - The CID of the object to retrieve.
+     * @returns A Promise that resolves to the retrieved object, or undefined if not found.
+     */
+    async get<T>(cid: CID): Promise<T> {
+        const controller = new TimeoutController(DefaultTimeout);
+        try {
+            return await this.heliaDagCbor.get<T>(cid, { signal: controller.signal });
+        } catch (error) {
+            if (error instanceof DenkmitError) throw error;
+            const timedOut = controller.signal.aborted || ["AbortError", "TimeoutError", "NotFoundError"].includes((error as Error)?.name);
+            throw new DenkmitError(
+                timedOut ? "UNAVAILABLE" : "MALFORMED",
+                timedOut ? `Block ${cid.toString()} is not available` : `Block ${cid.toString()} cannot be decoded`,
+                { cause: error },
+            );
+        } finally {
+            controller.clear();
+        }
+    }
+
+    /**
+     * Closes the HeliaStorage instance.
+     * @returns A Promise that resolves when the controller is closed.
+     */
+    async close(): Promise<void> {
+        await this.helia.stop();
+    }
+}
+
+/**
+ * Represents a controller for interacting with the Helia storage, providing methods for adding and retrieving signed data.
+ */
+export class HeliaController extends HeliaStorage {
+    readonly identity: SigningIdentity;
+
+    // Bounded, insertion-ordered LRU of resolved identities keyed by CID string.
+    // Stores the in-flight promise so concurrent lookups of the same identity
+    // coalesce onto one fetch (KNOWN_ISSUES.md D6).
+    private static readonly IDENTITY_CACHE_MAX = 1024;
+    private readonly identityCache = new Map<string, Promise<Identity>>();
+    // Number of actual fetchIdentity() calls (cache misses) — observability for the
+    // merge hot-path and tests.
+    private identityFetches = 0;
+
+    constructor(helia: HeliaNode, identity: SigningIdentity) {
+        super(helia);
+        this.identity = identity;
+    }
+
+    /** Count of identities actually fetched+verified (cache misses). */
+    get identityFetchCount(): number {
+        return this.identityFetches;
+    }
+
+    /**
+     * Resolves the identity for a signer CID, caching successful results. The local
+     * identity short-circuits (no fetch). Failures are not cached — a transient miss
+     * must not become permanent (KNOWN_ISSUES.md D6).
+     */
+    private async resolveIdentity(cid: CID): Promise<Identity> {
+        const key = cid.toString();
+        if (this.identity.cid.toString() === key) return this.identity;
+
+        const cached = this.identityCache.get(key);
+        if (cached) {
+            // Refresh LRU recency.
+            this.identityCache.delete(key);
+            this.identityCache.set(key, cached);
+            return cached;
+        }
+
+        this.identityFetches++;
+        const promise = loadIdentity(cid, this)
+            .then(async (identity) => {
+                // Keep verified foreign identities across restarts/GC (D4).
+                await this.pin(cid);
+                return identity;
+            })
+            .catch((error) => {
+                this.identityCache.delete(key);
+                throw error;
+            });
+        this.identityCache.set(key, promise);
+
+        if (this.identityCache.size > HeliaController.IDENTITY_CACHE_MAX) {
+            const oldest = this.identityCache.keys().next().value;
+            if (oldest !== undefined) this.identityCache.delete(oldest);
+        }
+
+        return promise;
+    }
+
+    /**
+     * Signs `data` with the local identity and stores the JWS as a dag-cbor block.
+     *
+     * @param data - The payload to sign and store.
+     * @returns The stored payload with its CID and the signer's identity CID.
+     */
+    async addSigned<T>(data: T): Promise<Signed<T>> {
+        const signed = await this.identity.sign(codec.encode(data));
+        const cid = await this.add(signed);
+
+        return { data, cid, creator: this.identity.cid };
+    }
+
+    /**
+     * Fetches a JWS block, resolves and verifies the signer's identity (cached),
+     * and returns the decoded payload with its provenance.
+     *
+     * @typeParam T - The type of the decoded payload.
+     * @param cid - The CID of the signed block.
+     * @returns The payload with CID and creator.
+     * @throws DenkmitError - `UNAVAILABLE` (block or signer identity not fetched),
+     *   `INVALID_SIGNATURE` or `MALFORMED`.
+     */
+    async getSigned<T>(cid: CID): Promise<Signed<T>> {
+        const signed = await this.get<jose.FlattenedJWS>(cid);
+
+        let kid: string | undefined;
+        try {
+            kid = jose.decodeProtectedHeader(signed).kid;
+        } catch (error) {
+            throw new DenkmitError("MALFORMED", `Block ${cid.toString()} is not a signed record`, { cause: error });
+        }
+        if (!kid) throw new DenkmitError("INVALID_SIGNATURE", `Signed block ${cid.toString()} names no key`);
+        let kidCid: CID;
+        try {
+            kidCid = CID.parse(kid);
+        } catch (error) {
+            throw new DenkmitError("INVALID_SIGNATURE", `Signed block ${cid.toString()} names an invalid key`, { cause: error });
+        }
+
+        const identity = await this.resolveIdentity(kidCid);
+
+        const verified = await identity.verify(signed);
+        if (!verified) throw new DenkmitError("INVALID_SIGNATURE", `Signature of block ${cid.toString()} does not verify`);
+        let data: T;
+        try {
+            data = HeliaStorage.decode(verified) as T;
+        } catch (error) {
+            throw new DenkmitError("MALFORMED", `Payload of block ${cid.toString()} cannot be decoded`, { cause: error });
+        }
+        if (data === undefined || data === null) {
+            throw new DenkmitError("MALFORMED", `Block ${cid.toString()} has an empty payload`);
+        }
+        return { data, cid, creator: identity.cid };
+    }
+}
+
+export async function emptyCID(): Promise<CID> {
+    const bytes = HeliaStorage.encode({});
+    const hash = await sha256.digest(bytes);
+    return CID.create(1, HeliaStorage.code, hash);
+}
