@@ -31,10 +31,10 @@ A result other than literal `true` denies, and so does a rule that throws (an
 unknown operation, say) — on every replica alike. json-logic has no loops or
 recursion, so evaluation always terminates.
 
-## Presets — the `access` option of `createDenkmitDatabase`
+## Presets — the `access` option of `createDatabase`
 
 ```ts
-const db = await createDenkmitDatabase("fleet", { helia, identity, access: "prefix-per-writer" });
+const db = await createDatabase("fleet", { helia, identity, access: "prefix-per-writer" });
 ```
 
 The MCP server takes the same presets as `DENKMIT_ACCESS`.
@@ -56,7 +56,6 @@ true
 
 Any identity writes. Provenance still attributes every record to its signer, so
 readers can decide whom to trust — but anyone can overwrite any key.
-(`publicWrite: true` / `DENKMIT_PUBLIC_WRITE=true` is the deprecated spelling.)
 
 ### prefix-per-writer
 
@@ -104,11 +103,11 @@ a listed identity fail to match) and the list must not be empty. The creator is
 
 ## Custom policies
 
-Presets are just `PolicyData` values; you can pass your own instead. They are
+Presets are just `PolicyDefinition` values; you can pass your own instead. They are
 checked when the database is created and then signed into its manifest for good:
 
 ```ts
-const db = await createDenkmitDatabase("team", {
+const db = await createDatabase("team", {
     helia,
     identity,
     accessPolicy: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } },
@@ -116,7 +115,7 @@ const db = await createDenkmitDatabase("team", {
 });
 ```
 
-`accessPolicy` replaces the `access` preset (passing both is an error); the
+`accessPolicy` replaces the `access` preset (the types allow one or the other); the
 default `validationPolicy` accepts everything. The MCP server reads the same two
 objects from a JSON file named by `DENKMIT_POLICY_FILE`:
 `{ "accessPolicy": { … }, "validationPolicy": { … } }`. Examples:

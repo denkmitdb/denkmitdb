@@ -201,7 +201,6 @@ the daemon's environment, and the thin client only uses `DENKMIT_DAEMON`,
 | `DENKMIT_DB_NAME` | `agent-memory` | Name when creating |
 | `DENKMIT_ACCESS` | `creator-only` | Preset for a created database: `creator-only`, `public`, `prefix-per-writer`, `namespace-per-writer`, `allowlist:<cid>,…` (unknown values refuse to start) |
 | `DENKMIT_POLICY_FILE` | — | JSON `{ "accessPolicy"?, "validationPolicy"? }` with custom policies for a created database |
-| `DENKMIT_PUBLIC_WRITE` | `false` | Deprecated alias for `DENKMIT_ACCESS=public` |
 | `DENKMIT_MAX_VALUE_BYTES` | `65536` | Largest value `memory_set` accepts (UTF-8 bytes of its JSON) |
 | `DENKMIT_LISTEN` | daemon `/ip4/0.0.0.0/tcp/4001`, embedded random port | Comma-separated libp2p listen multiaddrs |
 | `DENKMIT_ANNOUNCE` | — | Multiaddrs to advertise instead (public IP / DNS of a server) |

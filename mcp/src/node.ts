@@ -172,20 +172,20 @@ export function maxValueBytesFromEnv(env: NodeJS.ProcessEnv): number {
 /**
  * Reads the access preset for a database this server creates. `DENKMIT_ACCESS` is
  * `creator-only` (default), `public`, `prefix-per-writer`, `namespace-per-writer`, or
- * `allowlist:<identity-cid>,<identity-cid>…`; `DENKMIT_PUBLIC_WRITE=true` is a
- * deprecated alias for `public`. Anything else refuses to start rather than falling
- * back to a different policy — the preset is signed into the manifest for good.
+ * `allowlist:<identity-cid>,<identity-cid>…`. Anything else refuses to start rather
+ * than falling back to a different policy — the preset is signed into the manifest
+ * for good. For the same reason the removed `DENKMIT_PUBLIC_WRITE` is refused, not
+ * ignored.
  *
  * @param env - The process environment.
  * @returns The access preset.
  */
 export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
-    const raw = env.DENKMIT_ACCESS?.trim();
-    const legacyPublic = env.DENKMIT_PUBLIC_WRITE === "true";
-    if (!raw) return legacyPublic ? "public" : "creator-only";
-    if (legacyPublic && raw !== "public") {
-        throw new Error(`DENKMIT_PUBLIC_WRITE=true conflicts with DENKMIT_ACCESS=${raw}`);
+    if (env.DENKMIT_PUBLIC_WRITE !== undefined) {
+        throw new Error("DENKMIT_PUBLIC_WRITE was removed: use DENKMIT_ACCESS=public");
     }
+    const raw = env.DENKMIT_ACCESS?.trim();
+    if (!raw) return "creator-only";
     if (raw === "creator-only" || raw === "public" || raw === "prefix-per-writer" || raw === "namespace-per-writer") {
         return raw;
     }

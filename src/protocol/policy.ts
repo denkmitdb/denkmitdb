@@ -8,7 +8,8 @@ export const POLICY_VERSION = 1;
  * in docs/policies.md.
  */
 export type PolicyDefinition = {
-    readonly version: typeof POLICY_VERSION;
+    /** Policy format version; always 1. */
+    readonly version: 1;
     readonly name: string;
     readonly description: string;
     readonly logic: RulesLogic;

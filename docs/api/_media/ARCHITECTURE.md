@@ -45,17 +45,17 @@ building blocks:
 
 | Object | File | Contents | Role |
 |---|---|---|---|
-| **Identity** | `src/functions/identity.ts` | name, key type, algorithm (default ES384), public key (JWK, base64) | Self-certifying signer identity. Stored as a self-signed JWS (embedded JWK); its CID is the identity's address. The private key lives only in the local datastore, encrypted with a passphrase (PBES2). |
-| **Entry** | `src/functions/entry.ts` | version, timestamp (`Date.now()` ms), key, value | One write. Immutable; an update to a key is a brand-new entry. |
-| **Pollard** | `src/functions/pollard/pollard.ts` | version, order, leaves + hash layers | A fixed-capacity Merkle subtree with `2^order` leaves (order is recorded in the manifest; currently hardcoded to 3 → 8 leaves — the `order` option exists but is ignored, KNOWN_ISSUES.md #19). Stored **unsigned**. The database's full tree is built from many pollards stacked in layers. |
-| **Leaf** | `src/functions/pollard/leaf.ts` | type + payload | Tree node payload. Types: `Empty`, `Hash`, `Pollard` (link to child pollard), `Entry`, `Identity`, `SortedEntry` (entry CID + sort key + db key + creator). |
-| **Head** | `src/functions/head.ts` | manifest CID, tree root CID, timestamp, layer count, size | A snapshot pointer: "my database state is the tree rooted at X". This is the only thing peers broadcast. |
-| **Manifest** | `src/functions/manifest.ts` | name, type, pollard order, consensus CID, access CID, creation timestamp | The database descriptor. **Its CID is the database address.** Immutable — changing any field creates a different database. |
-| **Policy** | `src/functions/policy.ts` | name, description, [json-logic](https://jsonlogic.com/) rule | A write-validation predicate evaluated locally against entry metadata (timestamps, creators) on every `set` and every merged remote entry. |
+| **Identity** | `src/identity.ts` | name, key type, algorithm (default ES384), public key (JWK, base64) | Self-certifying signer identity. Stored as a self-signed JWS (embedded JWK); its CID is the identity's address. The private key lives only in the local datastore, encrypted with a passphrase (PBES2). |
+| **Entry** | `src/entry.ts` | version, database address (v2), timestamp (`Date.now()` ms), key, value or tombstone flag | One write. Immutable; an update to a key is a brand-new entry. |
+| **Pollard** | `src/pollard/pollard.ts` | version, order, leaves + hash layers | A fixed-capacity Merkle subtree with `2^order` leaves (order is fixed in the manifest at creation: an integer in [1, 8], default 3 → 8 leaves). Stored **unsigned**. The database's full tree is built from many pollards stacked in layers. |
+| **Leaf** | `src/pollard/leaf.ts` | type + payload | Tree node payload. Types: `Empty`, `Hash`, `Pollard` (link to child pollard), `Entry`, `Identity`, `SortedEntry` (entry CID + sort key + db key + creator). |
+| **Head** | `src/head.ts` | manifest CID, tree root CID, timestamp, layer count, size | A snapshot pointer: "my database state is the tree rooted at X". This is the only thing peers broadcast. |
+| **Manifest** | `src/manifest.ts` | name, type, pollard order, validation policy CID (wire key `consensus`), access policy CID, creation timestamp | The database descriptor. **Its CID is the database address.** Immutable — changing any field creates a different database. |
+| **Policy** | `src/policy.ts` | name, description, [json-logic](https://jsonlogic.com/) rule | A write-validation predicate evaluated locally against entry metadata (timestamps, creators) on every `set` and every merged remote entry. |
 
 ### In-memory state (not persisted)
 
-- **`SortedItemsStore`** (`src/functions/utils/sortedItems.ts`) — the canonical
+- **`SortedItemsStore`** (`src/storage/sortedItems.ts`) — the canonical
   index: an ordered map keyed by the composite key `(timestamp, entry CID)` plus a
   key→record map holding the last-write-wins winner for each key. Determines
   iteration order and feeds tree building.
@@ -68,7 +68,7 @@ building blocks:
   when a newer one wins. By default in-memory; a caller-supplied (possibly persistent)
   Keyv is never `clear()`ed by the database (D4).
 
-None of this is persisted locally by the database itself. `openDenkmitDatabase()`
+None of this is persisted locally by the database itself. `openDatabase()`
 fetches only the manifest and consensus rule — the index and layers stay empty until
 a peer announces a head (then `load()` rebuilds index + layers; the value cache
 fills lazily on `get()`). See KNOWN_ISSUES.md D4.
@@ -174,7 +174,7 @@ rebuilds its own honest tree from the verified index.
 - **Authorization**: the manifest's `access` field holds a deterministic json-logic
   policy, evaluated (using only the signed entry's creator vs. the manifest creator)
   on both `set` and merge/load. The default is **creator-only** — only the database
-  creator may write; `publicWrite: true` opts into world-writable. Because the rule
+  creator may write; `access: "public"` opts into world-writable. Because the rule
   uses only deterministic inputs and is read from the signed manifest, every replica
   reaches the same decision (KNOWN_ISSUES.md D1). Allow-list / dynamic ACLs are
   future work.
@@ -188,20 +188,24 @@ rebuilds its own honest tree from the verified index.
 
 ```
 src/
-├── functions/            # implementation (published API surface)
-│   ├── denkmitdb.ts      # DenkmitDatabase: set/get/iterate, tree building, merge
-│   ├── entry.ts          # signed key-value write records
-│   ├── identity.ts       # key generation, JWS sign/verify, JWE encrypt/decrypt
-│   ├── manifest.ts       # database descriptor (the address)
-│   ├── head.ts           # replication snapshot pointer
-│   ├── policy.ts         # json-logic validation/access policy controllers
-│   ├── sync.ts           # pubsub subscription + serialized task queue
-│   ├── pollard/          # Merkle subtree + leaf codecs
-│   └── utils/
-│       ├── helia.ts      # HeliaStorage/HeliaController: dag-cbor + JWS plumbing
-│       └── sortedItems.ts# timestamp-ordered in-memory index
-└── types/                # public interfaces & constants, mirrored per module
-test/                     # vitest suites; *.integration.* spin up real libp2p nodes
+├── index.ts              # the package entry: exactly the public API, by name
+├── types.ts              # public contracts: Database, options, Identity, Manifest, Policy…
+├── internal.ts           # every module, for tests/bench (not in package exports)
+├── database.ts           # DenkmitDatabase: set/get/iterate, tree building, merge
+├── entry.ts              # signed key-value write records
+├── identity.ts           # key generation, JWS sign/verify, JWE encrypt/decrypt
+├── encryption.ts         # values sealed to recipients (General JWE)
+├── manifest.ts           # database descriptor (the address)
+├── head.ts               # replication snapshot pointer
+├── policy.ts             # json-logic evaluation of validation/access policies
+├── sync.ts               # pubsub subscription + serialized task queue
+├── protocol/             # wire formats: versioned signed payloads, shape checks, leaf tags
+├── pollard/              # Merkle subtree + leaf codecs
+└── storage/
+    ├── helia.ts          # HeliaStorage/HeliaController: dag-cbor + JWS plumbing
+    └── sortedItems.ts    # timestamp-ordered in-memory index
+test/                     # vitest suites; *.integration.* spin up real libp2p nodes;
+                          # test/wire freezes the wire format (byte/CID fixtures)
 ```
 
 ## Design notes & trade-offs

@@ -11,7 +11,6 @@ import type Keyv from "keyv";
 import type { CID } from "multiformats/cid";
 import type { IdentityAlgorithm } from "./protocol/identity.js";
 import type { PolicyDefinition } from "./protocol/policy.js";
-import type { SignedMeta } from "./protocol/signed.js";
 
 /** The libp2p a DenkMitDB node needs: identify + pubsub. */
 export type NodeLibp2p = Libp2p<{
@@ -52,10 +51,19 @@ export interface SigningIdentity extends Identity {
 }
 
 /** A signed policy, as referenced by a manifest. */
-export type Policy = PolicyDefinition & SignedMeta;
+export type Policy = PolicyDefinition & {
+    /** CID of the signed policy block. */
+    readonly cid: CID;
+    /** Identity CID of the signer (the database creator). */
+    readonly creator: CID;
+};
 
 /** A database's signed manifest. Its CID is the database address. */
-export type Manifest = SignedMeta & {
+export type Manifest = {
+    /** The database address. */
+    readonly cid: CID;
+    /** Identity CID of the database creator. */
+    readonly creator: CID;
     readonly version: number;
     readonly timestamp: number;
     readonly name: string;

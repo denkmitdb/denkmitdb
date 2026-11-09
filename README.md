@@ -114,7 +114,7 @@ After installation, you can start using DenkMitDB by following these steps:
     import { withLibp2pLight } from "@helia/libp2p";
     import * as dagCbor from "@ipld/dag-cbor";
     import { createHeliaLight } from "helia";
-    import { createDenkmitDatabase, createIdentity } from "@denkmitdb/denkmitdb";
+    import { createDatabase, createIdentity } from "@denkmitdb/denkmitdb";
     ```
 
 2. **Initialize Helia (with the libp2p and bitswap mixins)**:
@@ -140,8 +140,8 @@ After installation, you can start using DenkMitDB by following these steps:
     ```typescript
     const identity = await createIdentity("user", "password", helia);
 
-    const db = await createDenkmitDatabase("test", { helia, identity });
-    console.log("Database address: ", db.id);
+    const db = await createDatabase("test", { helia, identity });
+    console.log("Database address: ", db.address.toString()); // others openDatabase(address, …)
     ```
 
 4. **Add new data to Database**:
@@ -162,9 +162,9 @@ After installation, you can start using DenkMitDB by following these steps:
     ```
 6. **Private values** (optional) — encrypt to recipients; peers replicate what they cannot read:
     ```typescript
-    import { decryptValue, encryptValueFor, fetchIdentity, HeliaStorage } from "@denkmitdb/denkmitdb";
+    import { decryptValue, encryptValueFor, fetchIdentity } from "@denkmitdb/denkmitdb";
 
-    const bob = await fetchIdentity(bobIdentityCid, new HeliaStorage(helia)); // public key only
+    const bob = await fetchIdentity(bobIdentityCid, helia); // public key only
     const key = "agents/<me>/for-bob";
     const context = { database: db.address.toString(), key, writer: identity.cid.toString() };
     await db.set(key, await encryptValueFor([identity, bob], { apiKey: "…" }, context));
@@ -182,6 +182,19 @@ After installation, you can start using DenkMitDB by following these steps:
     await db.close();
     await helia.stop(); // also stops the embedded libp2p
     ```
+
+### API at a glance
+
+The package exports only this; everything else is internal.
+
+| | |
+|---|---|
+| `createDatabase(name, options)` | New database. `options`: `helia`, `identity`, and either `access` (a preset: `"creator-only"` default, `"public"`, `"prefix-per-writer"`, `"namespace-per-writer"`, `{ allowlist }`) or `accessPolicy` (custom json-logic); optional `validationPolicy`, `order`, `cache`. |
+| `openDatabase(address, options)` | Open by address (CID or string); policies always come from the signed manifest. |
+| `Database<T>` | `get`, `set`, `delete`, `provenance`, `keys`, `iterator`, `idle`, `announceHead`, `close`; `address`, `identity`, `manifest`, `policies`, `size`. Writes take `{ identity }` to sign as another local identity. |
+| `createIdentity` / `openIdentity` / `hasIdentity` | Local signing identities (`SigningIdentity`), private key encrypted with a passphrase. |
+| `fetchIdentity(cid, helia)` | Someone else's public `Identity`: verify, encrypt to. |
+| `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedRecipients` | Values sealed to recipients. |
 
 ## 📚 Documentation
 

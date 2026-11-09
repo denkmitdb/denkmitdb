@@ -1,12 +1,35 @@
 # Changelog
 
-## [4.0.0] — 2026-11-09
+## [4.0.0] — unreleased
 
-Published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
+To be published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
 version: the entry and manifest formats change** (entries are bound to their
 database — see "Security & correctness" below). Databases created by 3.0.0 stay
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
+
+### Public API (breaking; no compatibility aliases)
+
+The package exports exactly the public API, by name; tree, sync, storage and
+signed-record internals are no longer reachable. Wire formats are unchanged
+(test/wire freezes payload bytes and CIDs).
+
+| 3.x | 4.0.0 |
+|---|---|
+| `createDenkmitDatabase(name, options)` | `createDatabase(name, options)` → `Database<T>` |
+| `openDenkmitDatabase(cid, options)` | `openDatabase(address, options)` — address as CID or string |
+| `DenkmitDatabaseInterface<T>` | `Database<T>` (no `layers`, `merge`, `load`, `compare`, `heliaController`, …) |
+| `DenkmitDatabaseOptions<T>` | `DatabaseOptions<T>` (open) / `CreateDatabaseOptions<T>` (create: `access` XOR `accessPolicy`) |
+| `publicWrite: true` | `access: "public"` (MCP: `DENKMIT_PUBLIC_WRITE` refuses to start; use `DENKMIT_ACCESS=public`) |
+| `keyValueStorage` option | `cache` |
+| `await db.getManifest()` | `db.manifest`; `manifest.consensus` → `manifest.validation` |
+| policy controllers via `db.heliaController` | `db.policies.access` / `db.policies.validation` |
+| `IdentityInterface` | `Identity` (public: verify, encrypt) / `SigningIdentity` (+ sign, decrypt) |
+| `fetchIdentity(cid, new HeliaStorage(helia))` | `fetchIdentity(cid, helia)` |
+| `identity.decrypt()` → `false` on failure | → `undefined` |
+| `PolicyData` | `PolicyDefinition` |
+| `DenkmitHeliaInterface` | `HeliaNode` |
+| `createEntry`, `createPollard`, `HeliaController`, `SortedItemsStore`, … | internal |
 
 ### Agent identities (delegation, phase 1)
 
