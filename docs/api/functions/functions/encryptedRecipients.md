@@ -8,7 +8,7 @@
 
 > **encryptedRecipients**(`value`): `string`[]
 
-The identity CIDs a value is encrypted to (from the per-recipient `kid`).
+The identity CIDs a value claims to be encrypted to (from the per-recipient `kid`); [] if malformed.
 
 ## Parameters
 

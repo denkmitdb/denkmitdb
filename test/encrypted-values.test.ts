@@ -1,3 +1,4 @@
+import * as jose from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
     createDenkmitDatabase,
@@ -71,6 +72,42 @@ describe("Encrypted values", () => {
         expect(isEncryptedValue({ secret: "plain" })).toBe(false);
         expect(isEncryptedValue({ denkmitEncrypted: 1 })).toBe(false);
         expect(await decryptValue(bob, { denkmitEncrypted: 1 } as unknown as EncryptedValue)).toBeUndefined();
+    });
+
+    it("malformed envelopes are rejected instead of breaking reads", async () => {
+        const bad = [
+            { denkmitEncrypted: 1, jwe: { ciphertext: "", recipients: [null] } },
+            { denkmitEncrypted: 1, jwe: { ciphertext: "", recipients: [{ header: 5 }] } },
+            { denkmitEncrypted: 1, jwe: { ciphertext: "", iv: "", tag: "", recipients: [] } },
+        ];
+        for (const value of bad) {
+            expect(isEncryptedValue(value)).toBe(false);
+            expect(() => encryptedRecipients(value as unknown as EncryptedValue)).not.toThrow();
+            expect(await decryptValue(bob, value as unknown as EncryptedValue)).toBeUndefined();
+        }
+    });
+
+    it("only the advertised suite is accepted (ECDH-ES+A256KW / A256GCM)", async () => {
+        const jwk = HeliaStorage.decode<jose.JWK>(Buffer.from(bob.publicKey, "base64"));
+        const key = (await jose.importJWK({ ...jwk, alg: "ECDH-ES+A128KW" }, "ECDH-ES+A128KW")) as CryptoKey;
+        const general = await new jose.GeneralEncrypt(HeliaStorage.encode({ weak: true }))
+            .setProtectedHeader({ enc: "A128GCM" })
+            .addRecipient(key)
+            .setUnprotectedHeader({ alg: "ECDH-ES+A128KW", kid: bob.cid.toString() })
+            .encrypt();
+        expect(await decryptValue(bob, { denkmitEncrypted: 1, jwe: general })).toBeUndefined();
+    });
+
+    it("a context-bound envelope opens only in its own context (replay is detected)", async () => {
+        const context = { database: "db-1", key: "agents/alice/x", writer: node.identity.cid.toString() };
+        const enc = await encryptValueFor(bob, { secret: "bound" }, context);
+        expect(await decryptValue(bob, enc, context)).toEqual({ secret: "bound" });
+        // Re-posted by someone else, under another key, or into another database: refused.
+        expect(await decryptValue(bob, enc, { ...context, writer: carol.cid.toString() })).toBeUndefined();
+        expect(await decryptValue(bob, enc, { ...context, key: "agents/carol/x" })).toBeUndefined();
+        expect(await decryptValue(bob, enc, { ...context, database: "db-2" })).toBeUndefined();
+        // An unbound envelope cannot satisfy an expected context either.
+        expect(await decryptValue(bob, await encryptValueFor(bob, 1), context)).toBeUndefined();
     });
 
     it("an encrypted value replicates through the database like any value", async () => {

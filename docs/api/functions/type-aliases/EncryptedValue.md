@@ -15,7 +15,9 @@ read. The JWE uses the General JSON serialization — one shared ciphertext and
 one wrapped key per recipient, whose `kid` is the recipient's identity CID.
 
 What stays visible to every replica: the key, the writer (provenance), the
-write time, the recipients' identity CIDs and the ciphertext size.
+write time, the recipients' identity CIDs and the ciphertext size. The
+recipient list is the writer's claim: it shows whom the writer says it sealed
+the value to, not proof that every listed identity can decrypt it.
 
 ## Properties
 

@@ -137,11 +137,16 @@ recipient unless `includeSelf: false`; `encryptFor: []` means "only me".
 never returned. In daemon mode the recipient is the daemon's identity, so every
 agent on that machine can read what is encrypted to it.
 
-What stays visible to every replica: the key, the writer, the write time, the
-recipients' identity CIDs and the size. There is no forward secrecy or key
-rotation yet, and a recipient that loses its key loses access for good — keep the
-daemon's data directory backed up. The `DENKMIT_MAX_VALUE_BYTES` cap applies to
-the plaintext.
+Each envelope is bound to where it was published — this database, this key,
+this writer — and opens only there: a sealed value that someone copied under
+their own key reads as `readable: false` (with a note when this node is a listed
+recipient). What stays visible to every replica: the key, the writer, the write
+time, the recipients' identity CIDs and the size; the recipient list is the
+writer's claim, not proof that each listed identity can decrypt. There is no
+forward secrecy or key rotation yet, and a recipient that loses its key loses
+access for good — keep the daemon's data directory backed up. The
+`DENKMIT_MAX_VALUE_BYTES` cap applies to the stored envelope, i.e. after
+encryption (about 1.4× the plaintext plus a little per recipient).
 
 ## Configuration
 

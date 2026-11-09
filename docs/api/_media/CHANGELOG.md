@@ -20,10 +20,19 @@ so upgrade every writer before using a new database.
 - **MCP:** `memory_set` takes `encryptFor` (identity CIDs; `[]` = only me) and
   `includeSelf`; `memory_get` / `memory_list` decrypt for recipients and report
   `encrypted`, `readable` and `recipients` otherwise.
-- `Identity.decrypt` also reads `kid` from the per-recipient header (needed for
-  one recipient's slice of a multi-recipient JWE).
-- Visible to all replicas: key, writer, time, recipients, size. No forward
-  secrecy, rotation or revocation yet.
+- **Context binding:** `encryptValueFor(…, context)` binds `{database, key,
+  writer}` as JWE additional authenticated data, and `decryptValue(…, expected)`
+  refuses an envelope read anywhere else — a writer cannot re-post someone else's
+  sealed value under its own key and have it read as its own. The MCP server
+  always binds and checks the context.
+- `Identity.decrypt` reads `kid` from the per-recipient header too, and pins the
+  suite to `ECDH-ES+A256KW` / `A256GCM` (a weaker suite in an attacker-built JWE
+  is refused). Malformed envelopes are rejected by `isEncryptedValue` and never
+  break reads.
+- MCP applies `DENKMIT_MAX_VALUE_BYTES` to the encrypted envelope as well.
+- Visible to all replicas: key, writer, time, recipients (the writer's claim),
+  size. No forward secrecy, rotation or revocation yet. (Reviewed by Codex; the
+  findings above were fixed before merge.)
 
 ### MCP daemon (`denkmitd`) and policy extensions
 

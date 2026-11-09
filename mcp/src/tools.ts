@@ -50,14 +50,24 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
      */
     const readable = async (
         value: unknown,
-    ): Promise<{ value: unknown; encrypted?: true; readable?: boolean; recipients?: string[] }> => {
+        key: string,
+        writer: string | undefined,
+    ): Promise<{ value: unknown; encrypted?: true; readable?: boolean; recipients?: string[]; note?: string }> => {
         if (!isEncryptedValue(value)) return { value };
-        const plain = await decryptValue<unknown>(identity, value);
+        const recipients = encryptedRecipients(value);
+        // Open only in the context it was sealed for: this database, this key, this writer.
+        const plain = writer
+            ? await decryptValue<unknown>(identity, value, { database: db.address.toString(), key, writer })
+            : undefined;
+        const listed = recipients.includes(identity.cid.toString());
         return {
             value: plain === undefined ? null : plain,
             encrypted: true,
             readable: plain !== undefined,
-            recipients: encryptedRecipients(value),
+            recipients,
+            ...(plain === undefined && listed
+                ? { note: "listed as a recipient, but the envelope does not open here: re-posted from elsewhere or tampered" }
+                : {}),
         };
     };
 
@@ -74,7 +84,7 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 "agent's identity and replicates to peer replicas. Overwrites any previous value for " +
                 "the key (last-write-wins). The database's access policy decides which keys this agent " +
                 "may write (see memory_status); a refused write returns an error and stores nothing. " +
-                `Values are limited to ${config.maxValueBytes} bytes of JSON. ` +
+                `Values are limited to ${config.maxValueBytes} bytes of JSON (after encryption, if encrypted). ` +
                 "Pass encryptFor (identity CIDs, possibly empty) to store the value encrypted: only the " +
                 "listed identities and, by default, this agent can read it; everyone still sees the key, " +
                 "the writer and the recipients.",
@@ -121,9 +131,22 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 );
                 const targets = includeSelf === false ? others : [identity, ...others];
                 if (targets.length === 0) throw new Error("encryptFor is empty and includeSelf is false: nobody could read it");
-                const envelope = await encryptValueFor(targets, stored);
+                const envelope = await encryptValueFor(targets, stored, {
+                    database: db.address.toString(),
+                    key,
+                    writer: identity.cid.toString(),
+                });
                 recipients = encryptedRecipients(envelope);
                 stored = envelope;
+                // The cap bounds what every peer stores and replicates, so it applies to
+                // the envelope too: base64url plus one wrapped key per recipient grow it.
+                const storedBytes = Buffer.byteLength(JSON.stringify(envelope), "utf8");
+                if (storedBytes > config.maxValueBytes) {
+                    throw new Error(
+                        `Encrypted value is ${storedBytes} bytes; the limit is ${config.maxValueBytes} ` +
+                            "(DENKMIT_MAX_VALUE_BYTES, applies after encryption). Store less or use fewer recipients.",
+                    );
+                }
             }
             await db.set(key, stored);
             await db.idle();
@@ -151,7 +174,7 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             return okJson({
                 key,
                 found: true,
-                ...(await readable(value)),
+                ...(await readable(value, key, writer)),
                 writer,
                 byThisAgent: writer === identity.cid.toString(),
             });
@@ -203,7 +226,12 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 const value = await db.get(key);
                 if (value === undefined) continue; // unfetchable value — skip, don't fail the listing
                 const writer = (await db.provenance(key))?.creator.toString();
-                entries.push({ key, ...(await readable(value)), writer, byThisAgent: writer === identity.cid.toString() });
+                entries.push({
+                    key,
+                    ...(await readable(value, key, writer)),
+                    writer,
+                    byThisAgent: writer === identity.cid.toString(),
+                });
             }
             return okJson({ count: entries.length, truncated, entries });
         },

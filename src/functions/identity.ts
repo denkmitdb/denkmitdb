@@ -156,7 +156,12 @@ class Identity implements IdentityInterface {
             const privateJwk = await jose.exportJWK(this.keys.privateKey);
             privateJwk.alg = "ECDH-ES+A256KW";
             const decryptionKey = (await jose.importJWK(privateJwk, "ECDH-ES+A256KW")) as CryptoKey;
-            const result = await jose.flattenedDecrypt(jwe, decryptionKey);
+            // Pin the suite this library produces: never let an attacker-chosen
+            // header select a different (e.g. weaker) algorithm.
+            const result = await jose.flattenedDecrypt(jwe, decryptionKey, {
+                keyManagementAlgorithms: ["ECDH-ES+A256KW"],
+                contentEncryptionAlgorithms: ["A256GCM"],
+            });
             return result.plaintext;
         } catch {
             return false;

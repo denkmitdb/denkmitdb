@@ -169,12 +169,17 @@ After installation, you can start using DenkMitDB by following these steps:
     import { decryptValue, encryptValueFor, fetchIdentity, HeliaStorage } from "@denkmitdb/denkmitdb";
 
     const bob = await fetchIdentity(bobIdentityCid, new HeliaStorage(helia)); // public key only
-    await db.set("agents/<me>/for-bob", await encryptValueFor([identity, bob], { apiKey: "…" }));
+    const key = "agents/<me>/for-bob";
+    const context = { database: db.address.toString(), key, writer: identity.cid.toString() };
+    await db.set(key, await encryptValueFor([identity, bob], { apiKey: "…" }, context));
 
-    // on bob's node (undefined when bob is not a recipient):
-    const secret = await decryptValue(bobIdentity, await db.get("agents/<me>/for-bob"));
+    // on bob's node — check the context against the record's actual writer:
+    const writer = (await db.provenance(key))!.creator.toString();
+    const secret = await decryptValue(bobIdentity, await db.get(key), { database: db.address.toString(), key, writer });
     ```
-    Everyone still sees the key, the writer, the time and the recipients' identity CIDs.
+    `decryptValue` returns undefined for non-recipients and for envelopes re-posted
+    under another key, writer or database. Everyone still sees the key, the writer,
+    the time and the recipients' identity CIDs.
 
 7. **Close Database**
     ```typescript

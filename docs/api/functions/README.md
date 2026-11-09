@@ -52,6 +52,7 @@
 - [DenkmitMetadata](type-aliases/DenkmitMetadata.md)
 - [EmptyLeaf](type-aliases/EmptyLeaf.md)
 - [EncryptedValue](type-aliases/EncryptedValue.md)
+- [EncryptionContext](type-aliases/EncryptionContext.md)
 - [EntryData](type-aliases/EntryData.md)
 - [EntryLeaf](type-aliases/EntryLeaf.md)
 - [EntryType](type-aliases/EntryType.md)
@@ -91,6 +92,8 @@
 ## Variables
 
 - [DENKMITDB\_PREFIX](variables/DENKMITDB_PREFIX.md)
+- [ENCRYPTION\_CONTENT\_ENC](variables/ENCRYPTION_CONTENT_ENC.md)
+- [ENCRYPTION\_KEY\_ALG](variables/ENCRYPTION_KEY_ALG.md)
 - [ENTRY\_VERSION](variables/ENTRY_VERSION.md)
 - [HEAD\_VERSION](variables/HEAD_VERSION.md)
 - [IDENTITY\_VERSION](variables/IDENTITY_VERSION.md)

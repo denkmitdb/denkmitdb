@@ -8,7 +8,7 @@
 
 > **isEncryptedValue**(`value`): `value is EncryptedValue`
 
-Whether a stored value is an encrypted envelope produced by [encryptValueFor](encryptValueFor.md).
+Whether a stored value is a well-formed encrypted envelope produced by [encryptValueFor](encryptValueFor.md).
 
 ## Parameters
 

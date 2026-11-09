@@ -6,7 +6,7 @@
 
 # Function: encryptValueFor()
 
-> **encryptValueFor**(`recipients`, `value`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EncryptedValue`](../type-aliases/EncryptedValue.md)\>
+> **encryptValueFor**(`recipients`, `value`, `context?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`EncryptedValue`](../type-aliases/EncryptedValue.md)\>
 
 Encrypts a value to one or more recipient identities: the value is
 dag-cbor-encoded and sealed once with AES-256-GCM, and the content key is
@@ -27,6 +27,12 @@ One identity or a list (duplicates are folded).
 `unknown`
 
 Any dag-cbor-serializable value.
+
+### context?
+
+[`EncryptionContext`](../type-aliases/EncryptionContext.md)
+
+Optional publication context to bind (see [EncryptionContext](../type-aliases/EncryptionContext.md)).
 
 ## Returns
 
