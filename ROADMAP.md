@@ -282,6 +282,32 @@ features. Sequence, each step shippable on its own:
    existing, tested, unused `Identity.encrypt`/`decrypt` — replicate facts peers
    cannot read.
 
+#### November 2026 update — MVP first, pure P2P
+
+Agreed direction after the landscape review: ship the simplest version that
+tests the concept with real agents, and keep every step peer-to-peer (no
+component that only works with a central service).
+
+- ✅ **Daemon (`denkmitd`) + thin MCP client** — one long-lived peer per machine;
+  any always-on peer can act as a seed with no special authority. First seed:
+  `open.zhakenov.pro:4001`.
+- ✅ **`namespace-per-writer`, `entryOperation`, custom policies** — equal parties,
+  expressible delete rules.
+- **Next: a real two-machine test** (seed + laptop, Claude Code and Codex), then
+  **P2P discovery by database address** (libp2p DHT provider records: the address
+  is the rendezvous key — a P2P space per database) and **NAT traversal through
+  libp2p relays** (circuit relay v2 + DCUtR; any public peer can relay).
+- **Step 6 above (HTTP head rendezvous) is withdrawn:** an HTTP endpoint is a
+  central component. Durable head discovery comes from seeds and, later, signed
+  head pointers in the DHT (IPNS-style).
+- **Bounded growth:** [specs/succession.md](specs/succession.md) (draft) — local
+  GC first, then a signed hand-over to a successor database that carries only
+  live, originally-signed records.
+- **Future direction — P2P git for agents.** Refs as signed facts in per-writer
+  namespaces, project rules (who may move `main`) in the manifest, issues,
+  reviews and CI attestations as attributable records. Radicle is the closest
+  prior art; the agent-native angle is the difference.
+
 Still-relevant engine work, slotted where it pays for the wedge: **persisted
 materialized index** (reopen time — with 3), **tombstone GC/compaction**
 (long-lived memory — after 3's numbers say when), **HLC + local skew admission**

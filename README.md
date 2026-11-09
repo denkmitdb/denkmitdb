@@ -174,6 +174,7 @@ After installation, you can start using DenkMitDB by following these steps:
 | [ROADMAP.md](ROADMAP.md) | Where the project is going: spec → correctness → upgrades → features → v2.0.0 |
 | [VISION.md](VISION.md) | Post-v2 strategy: verifiable shared memory for AI agents — the MCP server as the product |
 | [specs/ordering.md](specs/ordering.md) | Accepted v2 spec: composite sort key, last-write-wins, format versioning |
+| [specs/succession.md](specs/succession.md) | Draft: bounded growth via local GC and signed hand-over to a successor database |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [CODEX_REVIEW.md](CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
 | [PHASE_PRIORITIES.md](PHASE_PRIORITIES.md) | Independent prioritization review of the remaining Phase 4 work (July 2026) |
