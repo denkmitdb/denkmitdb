@@ -257,7 +257,7 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         ),
     );
     await node.start();
-    const helia = node as unknown as HeliaNode;
+    const helia: HeliaNode = node;
     const libp2p = helia.libp2p;
 
     const openOrCreate = async (name: string) =>

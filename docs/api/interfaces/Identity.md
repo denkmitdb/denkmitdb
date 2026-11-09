@@ -65,7 +65,7 @@ Encrypts to this identity alone (ECDH-ES+A256KW, A256GCM).
 
 > **verify**(`jws`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\<`ArrayBufferLike`\> \| `undefined`\>
 
-Returns the payload if `jws` was signed by this identity, else undefined.
+Returns the payload if the signature verifies, else undefined.
 
 #### Parameters
 
@@ -76,3 +76,7 @@ Returns the payload if `jws` was signed by this identity, else undefined.
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<[`Uint8Array`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)\<`ArrayBufferLike`\> \| `undefined`\>
+
+#### Throws
+
+Error - If `jws` names no key or another identity (`kid`), or its header is malformed.

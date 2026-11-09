@@ -34,9 +34,30 @@ export function evaluatePolicy(policy: PolicyDefinition, input: PolicyInput): bo
     }
 }
 
+function deepFreeze<T>(value: T): T {
+    if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
+        for (const child of Object.values(value)) deepFreeze(child);
+        Object.freeze(value);
+    }
+    return value;
+}
+
+/**
+ * The runtime policy is a frozen copy: the rule that authorizes writes must not be
+ * changeable through `db.policies` (that would make this replica disagree with its
+ * peers while the signed policy CID stays the same), and freezing must not touch
+ * the caller's own definition object.
+ */
 function toPolicy(signed: Signed<PolicyDefinition>): Policy {
     const { version, name, description, logic } = signed.data;
-    return { version, name, description, logic, cid: signed.cid, creator: signed.creator };
+    return Object.freeze({
+        version,
+        name,
+        description,
+        logic: deepFreeze(structuredClone(logic)),
+        cid: signed.cid,
+        creator: signed.creator,
+    });
 }
 
 /** Signs and stores a policy. */

@@ -1,5 +1,5 @@
 import { CID } from "multiformats/cid";
-import type { HeadPayload } from "./protocol/head.js";
+import { HEAD_VERSION, type HeadPayload } from "./protocol/head.js";
 import type { Signed, SignedMeta } from "./protocol/signed.js";
 import type { HeliaController } from "./storage/helia.js";
 
@@ -7,7 +7,9 @@ import type { HeliaController } from "./storage/helia.js";
 export type Head = HeadPayload & SignedMeta;
 
 function toHead(signed: Signed<HeadPayload>): Head {
-    return { ...signed.data, cid: signed.cid, creator: signed.creator };
+    // A falsy version reads as the current one, as before 4.0.0's API refactor;
+    // tightening this would change which signed heads replicas accept.
+    return { ...signed.data, version: signed.data.version || HEAD_VERSION, cid: signed.cid, creator: signed.creator };
 }
 
 /** Signs and stores a head. */

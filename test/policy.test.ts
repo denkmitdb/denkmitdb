@@ -4,7 +4,7 @@ import { createPolicy, fetchPolicy, HeliaController, evaluatePolicy } from "../s
 import { PolicyDefinition } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
-describe("PolicyController", () => {
+describe("policies", () => {
     let node: TestNode;
     let heliaController: HeliaController;
 
@@ -88,5 +88,26 @@ describe("PolicyController", () => {
             heliaController,
         );
         expect(evaluatePolicy(policy, {})).toBe(false);
+    });
+
+    it("hands out a frozen copy: editing it cannot change what the replica accepts", async () => {
+        const definition: PolicyDefinition = {
+            version: 1,
+            name: "only-a",
+            description: "only creator a",
+            logic: { "==": [{ var: "entryCreator" }, "a"] },
+        };
+        const policy = await createPolicy(definition, heliaController);
+        // The caller's own object is untouched (not frozen).
+        expect(Object.isFrozen(definition.logic)).toBe(false);
+        const rule = policy.logic as unknown as Record<string, unknown[]>;
+        expect(() => {
+            rule["=="][1] = "b";
+        }).toThrow(TypeError);
+        expect(() => {
+            (policy as { logic: unknown }).logic = true;
+        }).toThrow(TypeError);
+        expect(evaluatePolicy(policy, { entryCreator: "b" })).toBe(false);
+        expect(evaluatePolicy(policy, { entryCreator: "a" })).toBe(true);
     });
 });

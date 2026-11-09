@@ -37,7 +37,10 @@ export interface Identity {
     readonly alg: IdentityAlgorithm;
     /** base64 of the dag-cbor encoded public JWK. */
     readonly publicKey: string;
-    /** Returns the payload if `jws` was signed by this identity, else undefined. */
+    /**
+     * Returns the payload if the signature verifies, else undefined.
+     * @throws Error - If `jws` names no key or another identity (`kid`), or its header is malformed.
+     */
     verify(jws: jose.FlattenedJWSInput): Promise<Uint8Array | undefined>;
     /** Encrypts to this identity alone (ECDH-ES+A256KW, A256GCM). */
     encrypt(data: Uint8Array): Promise<jose.FlattenedJWE>;
@@ -46,7 +49,11 @@ export interface Identity {
 /** An identity whose private key is loaded: it can sign writes and decrypt. */
 export interface SigningIdentity extends Identity {
     sign(data: Uint8Array): Promise<jose.FlattenedJWS>;
-    /** The plaintext, or undefined if the JWE was not encrypted to this identity or fails to verify. */
+    /**
+     * The plaintext, or undefined if decryption or authentication fails.
+     * @throws Error - If `jwe` names no key or another identity (`kid`), or its header is malformed.
+     *   {@link decryptValue} never throws; prefer it for stored values.
+     */
     decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | undefined>;
 }
 
