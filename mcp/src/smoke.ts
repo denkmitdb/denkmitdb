@@ -82,6 +82,8 @@ try {
         arguments: { key: "too/big", value: "x".repeat(70 * 1024) },
     });
     assert((oversized as { isError?: boolean }).isError, "an oversized value should be refused");
+    const oversizedError = (firstText(oversized) as { error: { code: string } }).error;
+    assert(oversizedError.code === "INVALID_ARGUMENT", `oversized: expected INVALID_ARGUMENT, got ${oversizedError.code}`);
     const notStored = firstText(await client.callTool({ name: "memory_get", arguments: { key: "too/big" } })) as {
         found: boolean;
     };

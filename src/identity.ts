@@ -6,6 +6,7 @@ import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 import { IDENTITY_VERSION, IdentityAlgorithm, IdentityKind, IdentityPayload } from "./protocol/identity.js";
 import { HeliaStorage } from "./storage/helia.js";
 import type { HeliaNode, Identity, SigningIdentity } from "./types.js";
+import { DenkmitError } from "./errors.js";
 
 /** Key material of an identity; the private key is present only when opened with its passphrase. */
 export type KeyPair = Partial<jose.GenerateKeyPairResult>;
@@ -54,8 +55,8 @@ class KeyIdentity implements SigningIdentity {
      */
     async verify(jws: jose.FlattenedJWSInput): Promise<Uint8Array | undefined> {
         const { kid } = jose.decodeProtectedHeader(jws);
-        if (!kid) throw new Error("Key ID not found in JWS header");
-        if (kid !== this.cid.toString()) throw new Error("Key ID does not match identity ID");
+        if (!kid) throw new DenkmitError("INVALID_SIGNATURE", "Key ID not found in JWS header");
+        if (kid !== this.cid.toString()) throw new DenkmitError("INVALID_SIGNATURE", "Key ID does not match identity ID");
 
         const pk = await this.getPublicKeyLike();
 
@@ -74,7 +75,7 @@ class KeyIdentity implements SigningIdentity {
      * @returns A promise that resolves to the JWS (JSON Web Signature) of the signed data.
      */
     async sign(data: Uint8Array): Promise<jose.FlattenedJWS> {
-        if (!this.keys.privateKey) throw new Error("Private key is not available");
+        if (!this.keys.privateKey) throw new DenkmitError("KEY_UNAVAILABLE", "Private key is not available");
 
         return await createJWS(data, this.keys, { alg: this.alg, kid: this.cid.toString(), includeJwk: false });
     }
@@ -108,10 +109,10 @@ class KeyIdentity implements SigningIdentity {
         // slice of a multi-recipient JWE (see encryptValueFor). It only selects the
         // key: authenticity comes from AES-GCM over the shared protected header.
         const kid = jose.decodeProtectedHeader(jwe).kid ?? jwe.header?.kid;
-        if (!kid) throw new Error("Key ID not found in JWE header");
-        if (kid !== this.cid.toString()) throw new Error("Key ID does not match identity ID");
+        if (!kid) throw new DenkmitError("INVALID_ARGUMENT", "Key ID not found in JWE header");
+        if (kid !== this.cid.toString()) throw new DenkmitError("INVALID_ARGUMENT", "JWE is not encrypted to this identity");
 
-        if (!this.keys.privateKey) throw new Error("Private key is not available");
+        if (!this.keys.privateKey) throw new DenkmitError("KEY_UNAVAILABLE", "Private key is not available");
 
         try {
             // Re-import the private key under the ECDH-ES algorithm so it carries
@@ -133,7 +134,7 @@ class KeyIdentity implements SigningIdentity {
 }
 
 async function exportPrivateKey(keys: KeyPair, passphrase: string, alg: string): Promise<jose.FlattenedJWE> {
-    if (!keys.privateKey) throw new Error("Private key is not available");
+    if (!keys.privateKey) throw new DenkmitError("KEY_UNAVAILABLE", "Private key is not available");
 
     const encryptionConfig = { alg: "PBES2-HS256+A128KW", enc: "A128GCM" };
 
@@ -184,7 +185,7 @@ async function createJWS(payload: Uint8Array, keys: KeyPair, options?: createJWS
     const includeJwk = options.includeJwk ?? false;
 
     const headers: jose.JWSHeaderParameters = { alg, kid };
-    if (!keys.privateKey) throw new Error("Private key is not available");
+    if (!keys.privateKey) throw new DenkmitError("KEY_UNAVAILABLE", "Private key is not available");
 
     if (keys.publicKey && includeJwk) headers.jwk = await jose.exportJWK(keys.publicKey);
 
@@ -197,10 +198,21 @@ async function createJWS(payload: Uint8Array, keys: KeyPair, options?: createJWS
  */
 export async function loadIdentity(cid: CID, heliaStorage: HeliaStorage, keys?: KeyPair): Promise<SigningIdentity> {
     const identityJWS = await heliaStorage.get<jose.FlattenedJWS>(cid);
-    if (!identityJWS) throw new Error("Identity not found");
 
-    const verified = await jose.flattenedVerify(identityJWS, jose.EmbeddedJWK);
-    const data: IdentityPayload = HeliaStorage.decode(verified.payload);
+    let verified: jose.FlattenedVerifyResult;
+    try {
+        verified = await jose.flattenedVerify(identityJWS, jose.EmbeddedJWK);
+    } catch (error) {
+        throw new DenkmitError("INVALID_SIGNATURE", `Identity block ${cid.toString()} is not validly self-signed`, {
+            cause: error,
+        });
+    }
+    let data: IdentityPayload;
+    try {
+        data = HeliaStorage.decode(verified.payload);
+    } catch (error) {
+        throw new DenkmitError("MALFORMED", `Identity block ${cid.toString()} has an undecodable payload`, { cause: error });
+    }
 
     // The block is self-signed with the JWK embedded in its header, but every later
     // verification uses the public key stated in the payload. Require them to be the
@@ -209,7 +221,7 @@ export async function loadIdentity(cid: CID, heliaStorage: HeliaStorage, keys?: 
     const header = verified.protectedHeader;
     const embedded = header?.jwk;
     if (!header || !embedded || typeof data.publicKey !== "string") {
-        throw new Error("Identity block lacks a public key");
+        throw new DenkmitError("INVALID_SIGNATURE", "Identity block lacks a public key");
     }
     const stated = HeliaStorage.decode<jose.JWK>(uint8ArrayFromString(data.publicKey, "base64"));
     const [embeddedThumbprint, statedThumbprint] = await Promise.all([
@@ -217,10 +229,10 @@ export async function loadIdentity(cid: CID, heliaStorage: HeliaStorage, keys?: 
         jose.calculateJwkThumbprint(stated),
     ]);
     if (embeddedThumbprint !== statedThumbprint) {
-        throw new Error("Identity signing key does not match its stated public key");
+        throw new DenkmitError("INVALID_SIGNATURE", "Identity signing key does not match its stated public key");
     }
     if (header.alg !== data.alg) {
-        throw new Error("Identity signing algorithm does not match its stated algorithm");
+        throw new DenkmitError("INVALID_SIGNATURE", "Identity signing algorithm does not match its stated algorithm");
     }
 
     return new KeyIdentity(cid, data, keys);
@@ -261,18 +273,23 @@ export async function hasIdentity(name: string, helia: HeliaNode): Promise<boole
  * @param passphrase - The passphrase to decrypt the identity's private key.
  * @param helia - The Helia instance used for data retrieval.
  * @returns The identity, able to sign.
- * @throws An Error if the identity is not found.
+ * @throws DenkmitError - `NOT_FOUND` or `INVALID_PASSPHRASE`.
  */
 export async function openIdentity(
     name: string,
     passphrase: string,
     helia: HeliaNode,
 ): Promise<SigningIdentity> {
-    if (!(await hasIdentity(name, helia))) throw new Error("Identity not found");
+    if (!(await hasIdentity(name, helia))) throw new DenkmitError("NOT_FOUND", `Identity "${name}" not found`);
 
     const data = await helia.datastore.get(keyName(name));
     const { cid, encryptedPrivateKey } = HeliaStorage.decode<IdentityDatastore>(data);
-    const keys = await importPrivateKey(encryptedPrivateKey, passphrase);
+    let keys: KeyPair;
+    try {
+        keys = await importPrivateKey(encryptedPrivateKey, passphrase);
+    } catch (error) {
+        throw new DenkmitError("INVALID_PASSPHRASE", `The passphrase does not open identity "${name}"`, { cause: error });
+    }
     const heliaStorage = new HeliaStorage(helia);
 
     return await loadIdentity(cid, heliaStorage, keys);
@@ -286,7 +303,7 @@ export async function openIdentity(
  * @param helia - The Helia instance used for data storage.
  * @param alg - The algorithm to use for key generation.
  * @returns The new identity, able to sign.
- * @throws An Error if the identity already exists.
+ * @throws DenkmitError - `ALREADY_EXISTS`.
  */
 export async function createIdentity(
     name: string,
@@ -296,7 +313,7 @@ export async function createIdentity(
 ): Promise<SigningIdentity> {
     alg = alg || "ES384";
 
-    if (await hasIdentity(name, helia)) throw new Error("Identity already exists");
+    if (await hasIdentity(name, helia)) throw new DenkmitError("ALREADY_EXISTS", `Identity "${name}" already exists`);
 
     const heliaStorage = new HeliaStorage(helia);
     // jose 6 generates non-extractable keys by default; we export the private key

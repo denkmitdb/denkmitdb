@@ -1,5 +1,4 @@
 import type { Logger } from "@libp2p/interface";
-import type { RulesLogic } from "json-logic-js";
 import { Key } from "interface-datastore";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
@@ -35,6 +34,7 @@ import type {
     ValueCache,
     WriteOptions,
 } from "./types.js";
+import { DenkmitError } from "./errors.js";
 
 /** Key prefix for everything a database keeps in the node's datastore. */
 export const DENKMITDB_PREFIX = "/denkmitdb/";
@@ -159,7 +159,7 @@ export async function createDatabase<T>(
     const subtreeLeaves = options.subtreeLeaves ?? 8;
     const order = Math.log2(subtreeLeaves);
     if (!Number.isInteger(order) || order < 1 || order > 8) {
-        throw new Error("subtreeLeaves must be a power of two in [2, 256]");
+        throw new DenkmitError("INVALID_ARGUMENT", "subtreeLeaves must be a power of two in [2, 256]");
     }
 
     const manifestInput: ManifestPayload = {
@@ -205,7 +205,7 @@ const REMOVED_OPTIONS: Record<string, string> = {
 
 function refuseRemovedOptions(options: object): void {
     for (const [old, now] of Object.entries(REMOVED_OPTIONS)) {
-        if (old in options) throw new Error(`Option \`${old}\` was removed: use ${now}`);
+        if (old in options) throw new DenkmitError("INVALID_ARGUMENT", `Option \`${old}\` was removed: use ${now}`);
     }
 }
 
@@ -269,7 +269,9 @@ type AccessPreset = Exclude<AccessRule, { policy: PolicyDefinition }>;
  */
 function compileAccess(rule: AccessRule | undefined): PolicyDefinition {
     if (typeof rule === "object" && rule !== null && "policy" in rule) {
-        if ("allowlist" in rule) throw new Error("consensus.access is either { allowlist } or { policy }, not both");
+        if ("allowlist" in rule) {
+            throw new DenkmitError("INVALID_ARGUMENT", "consensus.access is either { allowlist } or { policy }, not both");
+        }
         assertPolicyDefinition(rule.policy, "consensus.access.policy");
         return rule.policy;
     }
@@ -289,19 +291,19 @@ function resolveAccess(access: AccessPreset | undefined): AccessPreset {
     const preset: AccessPreset = access ?? "creator-only";
     if (typeof preset === "object") {
         if (!Array.isArray(preset.allowlist) || preset.allowlist.length === 0) {
-            throw new Error("consensus.access.allowlist must list at least one identity CID");
+            throw new DenkmitError("INVALID_ARGUMENT", "consensus.access.allowlist must list at least one identity CID");
         }
         const normalized = preset.allowlist.map((entry) => {
             try {
                 return CID.parse(entry).toString();
             } catch {
-                throw new Error(`consensus.access.allowlist entry is not an identity CID: ${entry}`);
+                throw new DenkmitError("INVALID_ARGUMENT", `consensus.access.allowlist entry is not an identity CID: ${entry}`);
             }
         });
         return { allowlist: [...new Set(normalized)] };
     }
     if (!["creator-only", "public", "prefix-per-writer", "namespace-per-writer"].includes(preset)) {
-        throw new Error(`Unknown access preset: ${String(preset)}`);
+        throw new DenkmitError("INVALID_ARGUMENT", `Unknown access preset: ${String(preset)}`);
     }
     return preset;
 }
@@ -329,7 +331,7 @@ function accessPolicyRule(access: AccessPreset): PolicyDefinition {
                     { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
                     { startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }] },
                 ],
-            } as unknown as RulesLogic,
+            },
         };
     }
     if (access === "namespace-per-writer") {
@@ -339,7 +341,7 @@ function accessPolicyRule(access: AccessPreset): PolicyDefinition {
             description: "Every identity, the creator included, writes only under agents/<its-cid>/",
             logic: {
                 startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }],
-            } as unknown as RulesLogic,
+            },
         };
     }
     if (typeof access === "object") {
@@ -347,7 +349,7 @@ function accessPolicyRule(access: AccessPreset): PolicyDefinition {
             version: 1,
             name: "denkmit-access-allowlist",
             description: "Only listed identities may write",
-            logic: { in: [{ var: "entryCreator" }, access.allowlist] } as unknown as RulesLogic,
+            logic: { in: [{ var: "entryCreator" }, access.allowlist] },
         };
     }
     return {
@@ -470,11 +472,13 @@ export class DenkmitDatabase<T> implements Database<T> {
         // unauthorized writer must be rejected before anything is persisted —
         // otherwise every denied write still grows the local store.
         if (!(await this.isAuthorized(signer.identity.cid, key, "put"))) {
-            throw new Error(`Access denied: this identity may not write key "${key}" in this database`);
+            throw new DenkmitError("ACCESS_DENIED", `Access denied: this identity may not write key "${key}" in this database`);
         }
 
         const entry = await createEntry<T>(key, value, signer, this.manifest.cid);
-        if (!(await this.isValid(entry))) throw new Error("Consensus failed");
+        if (!(await this.isValid(entry))) {
+            throw new DenkmitError("VALIDITY_REJECTED", `The validity rule rejects this entry for key "${key}"`);
+        }
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
         // A concurrently-known entry with a greater composite key already wins.
@@ -501,11 +505,13 @@ export class DenkmitDatabase<T> implements Database<T> {
         const signer = this.signerFor(options.identity);
         // Authorization before the tombstone is signed/stored/pinned (see set()).
         if (!(await this.isAuthorized(signer.identity.cid, key, "delete"))) {
-            throw new Error(`Access denied: this identity may not delete key "${key}" in this database`);
+            throw new DenkmitError("ACCESS_DENIED", `Access denied: this identity may not delete key "${key}" in this database`);
         }
 
         const entry = await createTombstone(key, signer, this.manifest.cid);
-        if (!(await this.isValid(entry))) throw new Error("Consensus failed");
+        if (!(await this.isValid(entry))) {
+            throw new DenkmitError("VALIDITY_REJECTED", `The validity rule rejects this entry for key "${key}"`);
+        }
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
         if (!result.applied) return;
@@ -659,7 +665,7 @@ export class DenkmitDatabase<T> implements Database<T> {
 
     async getCID(): Promise<CID> {
         const lastLayer = this.layers.at(-1);
-        if (!lastLayer) throw new Error("No layers");
+        if (!lastLayer) throw new DenkmitError("INTERNAL", "No layers");
         return await lastLayer[0].getCID();
     }
 
@@ -689,7 +695,7 @@ export class DenkmitDatabase<T> implements Database<T> {
 
     async createHead(): Promise<Head> {
         const head = (await this.createOnlyNewHead()) ?? this.head;
-        if (!head) throw new Error("Cannot create head: database is empty");
+        if (!head) throw new DenkmitError("INTERNAL", "Cannot create head: database is empty");
         return head;
     }
 

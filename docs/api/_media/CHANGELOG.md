@@ -36,6 +36,9 @@ signed-record internals are no longer reachable. Wire formats are unchanged
 | `PolicyData` / `PolicyInterface` | `PolicyDefinition` / `SignedPolicy` |
 | `DenkmitHeliaInterface` | `HeliaNode` |
 | `createEntry`, `createPollard`, `HeliaController`, `SortedItemsStore`, … | internal |
+| plain `Error` / `TypeError` / `ReferenceError` | `DenkmitError` with a stable `code` (`ErrorCode`): `INVALID_ARGUMENT`, `ACCESS_DENIED`, `VALIDITY_REJECTED`, `NOT_FOUND`, `ALREADY_EXISTS`, `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED`, `UNSUPPORTED_VERSION`, `KEY_UNAVAILABLE`, `INVALID_PASSPHRASE`, `INTERNAL`; `isDenkmitError(e, code)`. MCP tools return `{ error: { code, message } }` |
+| `RulesLogic` (from json-logic-js) in `PolicyDefinition.logic` | `PolicyRule`: DenkMit Logic 1, a closed JsonLogic subset (`var`, comparisons, `and`/`or`/`!`/`!!`/`if`, `in`, `cat`, `startsWith`); other operators are refused at creation (`INVALID_ARGUMENT`) and deny at evaluation. The policy `version` names the language; unknown versions are refused (`UNSUPPORTED_VERSION`) |
+| `encryptValueFor(recipients, value, context?)` / `decryptValue(identity, value, expected?)` | the context is required in both (`INVALID_ARGUMENT` without it); an envelope sealed without a context never opens |
 
 Removed options passed from plain JavaScript (`access`, `accessPolicy`,
 `validationPolicy`, `publicWrite`, `order`, `cache`, `keyValueStorage`) throw

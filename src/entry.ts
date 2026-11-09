@@ -65,13 +65,12 @@ export async function createTombstone(key: string, controller: HeliaController, 
  *
  * @param cid - The CID of the signed entry.
  * @param controller - Fetches and verifies.
- * @throws ReferenceError - If the entry is missing or fails to verify.
- * @throws TypeError - If the signed payload is not a well-formed entry.
+ * @throws DenkmitError - `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED` or
+ *   `UNSUPPORTED_VERSION`.
  */
 export async function fetchEntry<T>(cid: CID, controller: HeliaController): Promise<Entry<T>> {
     log("Fetching entry with CID: ", cid);
     const result = await controller.getSigned<EntryPayload<T>>(cid);
-    if (!result) throw new ReferenceError("Entry not found");
     assertEntryPayload(result.data);
     return toEntry(result);
 }

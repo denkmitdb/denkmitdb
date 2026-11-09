@@ -33,7 +33,6 @@ export async function createManifest(payload: ManifestPayload, controller: Helia
  */
 export async function fetchManifest(cid: CID, controller: HeliaController): Promise<Manifest> {
     const result = await controller.getSigned<ManifestPayload>(cid);
-    if (!result) throw new Error("Manifest not found");
     assertManifestPayload(result.data);
     return toManifest(result);
 }

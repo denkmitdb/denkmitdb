@@ -8,9 +8,11 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
     decryptValue,
+    DenkmitError,
     encryptedValueRecipients,
     encryptValueFor,
     fetchIdentity,
+    isDenkmitError,
     isEncryptedValue,
 } from "@denkmitdb/denkmitdb";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
@@ -86,6 +88,39 @@ export function createMemoryServer(
         };
     };
 
+    /**
+     * Failures reach the agent as `{ error: { code, message } }` with the library's
+     * stable error code (ACCESS_DENIED, INVALID_ARGUMENT, …), so agents can react to
+     * the kind of failure instead of parsing messages.
+     */
+    const failJson = (error: unknown) => ({
+        isError: true,
+        content: [
+            {
+                type: "text" as const,
+                text: JSON.stringify(
+                    {
+                        error: {
+                            code: isDenkmitError(error) ? error.code : "INTERNAL",
+                            message: error instanceof Error ? error.message : String(error),
+                        },
+                    },
+                    null,
+                    2,
+                ),
+            },
+        ],
+    });
+    const guarded =
+        <A extends unknown[], R>(handler: (...args: A) => Promise<R>) =>
+        async (...args: A): Promise<R | ReturnType<typeof failJson>> => {
+            try {
+                return await handler(...args);
+            } catch (error) {
+                return failJson(error);
+            }
+        };
+
     const okJson = (data: unknown) => ({
         content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
     });
@@ -120,12 +155,13 @@ export function createMemoryServer(
                     .describe("With encryptFor: also encrypt to this agent so it can read the value back (default true)"),
             },
         },
-        async ({ key, value, encryptFor, includeSelf }) => {
+        guarded(async ({ key, value, encryptFor, includeSelf }) => {
             // Size cap (KNOWN_ISSUES.md #32): every value is signed, stored, pinned and
             // replicated to every peer, so one oversized write costs the whole fleet.
             const bytes = Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
             if (bytes > config.maxValueBytes) {
-                throw new Error(
+                throw new DenkmitError(
+                    "INVALID_ARGUMENT",
                     `Value is ${bytes} bytes of JSON; the limit is ${config.maxValueBytes} (DENKMIT_MAX_VALUE_BYTES). ` +
                         "Store a summary or a reference instead.",
                 );
@@ -138,14 +174,16 @@ export function createMemoryServer(
                         try {
                             return await fetchIdentity(cid, node.helia);
                         } catch (error) {
-                            throw new Error(`Cannot encrypt to ${cid}: identity not found or invalid`, {
+                            throw new DenkmitError("INVALID_ARGUMENT", `Cannot encrypt to ${cid}: identity not found or invalid`, {
                                 cause: error,
                             });
                         }
                     }),
                 );
                 const targets = includeSelf === false ? others : [identity, ...others];
-                if (targets.length === 0) throw new Error("encryptFor is empty and includeSelf is false: nobody could read it");
+                if (targets.length === 0) {
+                    throw new DenkmitError("INVALID_ARGUMENT", "encryptFor is empty and includeSelf is false: nobody could read it");
+                }
                 const envelope = await encryptValueFor(targets, stored, {
                     database: db.address.toString(),
                     key,
@@ -157,7 +195,8 @@ export function createMemoryServer(
                 // the envelope too: base64url plus one wrapped key per recipient grow it.
                 const storedBytes = Buffer.byteLength(JSON.stringify(envelope), "utf8");
                 if (storedBytes > config.maxValueBytes) {
-                    throw new Error(
+                    throw new DenkmitError(
+                        "INVALID_ARGUMENT",
                         `Encrypted value is ${storedBytes} bytes; the limit is ${config.maxValueBytes} ` +
                             "(DENKMIT_MAX_VALUE_BYTES, applies after encryption). Store less or use fewer recipients.",
                     );
@@ -167,7 +206,7 @@ export function createMemoryServer(
             await db.waitUntilIdle();
             await db.announceHead();
             return okJson({ ok: true, key, ...(recipients ? { encrypted: true, recipients } : {}) });
-        },
+        }),
     );
 
     server.registerTool(
@@ -181,7 +220,7 @@ export function createMemoryServer(
             inputSchema: { key: z.string().min(1).describe("Key to read") },
             annotations: { readOnlyHint: true },
         },
-        async ({ key }) => {
+        guarded(async ({ key }) => {
             const value = await db.get(key);
             if (value === undefined) return okJson({ key, found: false, value: null });
             const record = await db.provenance(key);
@@ -193,7 +232,7 @@ export function createMemoryServer(
                 writer,
                 byThisAgent: writer === identity.cid.toString(),
             });
-        },
+        }),
     );
 
     server.registerTool(
@@ -205,12 +244,12 @@ export function createMemoryServer(
                 "replicates like any write; a later memory_set resurrects the key.",
             inputSchema: { key: z.string().min(1).describe("Key to delete") },
         },
-        async ({ key }) => {
+        guarded(async ({ key }) => {
             await db.delete(key, { identity });
             await db.waitUntilIdle();
             await db.announceHead();
             return okJson({ ok: true, key });
-        },
+        }),
     );
 
     server.registerTool(
@@ -226,7 +265,7 @@ export function createMemoryServer(
             },
             annotations: { readOnlyHint: true },
         },
-        async ({ prefix, limit }) => {
+        guarded(async ({ prefix, limit }) => {
             const max = limit ?? 50;
             const entries: Array<{ key: string; value: unknown; writer?: string; byThisAgent: boolean }> = [];
             let truncated = false;
@@ -249,7 +288,7 @@ export function createMemoryServer(
                 });
             }
             return okJson({ count: entries.length, truncated, entries });
-        },
+        }),
     );
 
     server.registerTool(
@@ -263,7 +302,7 @@ export function createMemoryServer(
             inputSchema: { key: z.string().min(1).describe("Key to inspect") },
             annotations: { readOnlyHint: true },
         },
-        async ({ key }) => {
+        guarded(async ({ key }) => {
             const record = await db.provenance(key);
             if (!record) return okJson({ key, found: false });
             return okJson({
@@ -276,7 +315,7 @@ export function createMemoryServer(
                 deleted: record.deleted,
                 byThisAgent: record.writer.toString() === identity.cid.toString(),
             });
-        },
+        }),
     );
 
     server.registerTool(
@@ -290,7 +329,7 @@ export function createMemoryServer(
             inputSchema: {},
             annotations: { readOnlyHint: true },
         },
-        async () => {
+        guarded(async () => {
             const peers = node.helia.libp2p.getPeers().map((p: { toString(): string }) => p.toString());
             const { manifest } = db;
             const { access, validity } = db.consensus;
@@ -315,7 +354,7 @@ export function createMemoryServer(
                 // Addresses other peers can dial (DENKMIT_PEERS) — e.g. when this node is a seed.
                 listenAddresses: node.helia.libp2p.getMultiaddrs().map(String),
             });
-        },
+        }),
     );
 
     return server;

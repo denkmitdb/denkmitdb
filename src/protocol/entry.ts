@@ -1,4 +1,5 @@
 import { CID } from "multiformats/cid";
+import { DenkmitError } from "../errors.js";
 
 /**
  * Current entry format. v2 entries carry the address (manifest CID) of the
@@ -53,26 +54,26 @@ export type EntryPayload<T> = PutPayload<T> | TombstonePayload;
  * checked before the entry is trusted for indexing (KNOWN_ISSUES.md #24).
  *
  * @param data - The decoded, signature-verified payload.
- * @throws TypeError - If the payload is not a well-formed v1 or v2 entry.
+ * @throws DenkmitError - `MALFORMED` or `UNSUPPORTED_VERSION` if the payload is not a well-formed v1 or v2 entry.
  */
 export function assertEntryPayload(data: unknown): asserts data is EntryPayload<unknown> {
-    if (typeof data !== "object" || data === null) throw new TypeError("Entry is not an object");
+    if (typeof data !== "object" || data === null) throw new DenkmitError("MALFORMED", "Entry is not an object");
     const entry = data as Record<string, unknown>;
     if (entry.version !== ENTRY_VERSION && entry.version !== LEGACY_ENTRY_VERSION) {
-        throw new TypeError(`Unsupported entry version ${String(entry.version)}`);
+        throw new DenkmitError("UNSUPPORTED_VERSION", `Unsupported entry version ${String(entry.version)}`);
     }
     if (entry.version === ENTRY_VERSION && CID.asCID(entry.manifest) === null) {
-        throw new TypeError("Entry is not bound to a database");
+        throw new DenkmitError("MALFORMED", "Entry is not bound to a database");
     }
     if (entry.version === LEGACY_ENTRY_VERSION && entry.manifest !== undefined) {
-        throw new TypeError("Legacy entry carries a database binding");
+        throw new DenkmitError("MALFORMED", "Legacy entry carries a database binding");
     }
     if (typeof entry.timestamp !== "number" || !Number.isSafeInteger(entry.timestamp) || entry.timestamp < 0) {
-        throw new TypeError("Entry timestamp is not a non-negative integer");
+        throw new DenkmitError("MALFORMED", "Entry timestamp is not a non-negative integer");
     }
-    if (typeof entry.key !== "string") throw new TypeError("Entry key is not a string");
+    if (typeof entry.key !== "string") throw new DenkmitError("MALFORMED", "Entry key is not a string");
     const isTombstone = "deleted" in entry;
     const isPut = "value" in entry;
-    if (isTombstone === isPut) throw new TypeError("Entry must be exactly one of put or tombstone");
-    if (isTombstone && entry.deleted !== true) throw new TypeError("Tombstone flag must be true");
+    if (isTombstone === isPut) throw new DenkmitError("MALFORMED", "Entry must be exactly one of put or tombstone");
+    if (isTombstone && entry.deleted !== true) throw new DenkmitError("MALFORMED", "Tombstone flag must be true");
 }

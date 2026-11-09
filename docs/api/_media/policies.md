@@ -18,6 +18,30 @@ converge by deterministic last-write-wins (specs/ordering.md).
 On the wire the manifest keeps its 4.0.0 keys: `access` (the access rule's CID)
 and `consensus` (the validity rule's CID).
 
+## The language: DenkMit Logic 1
+
+Rules are written in **DenkMit Logic 1**, a closed subset of JsonLogic. A rule
+is a literal (string, number, boolean, null), a list, or an operation
+`{ "<operator>": <arguments> }` with exactly one of these operators:
+
+| | |
+|---|---|
+| read an input | `var` |
+| compare | `==`, `!=`, `===`, `!==`, `<`, `<=`, `>`, `>=` |
+| logic | `and`, `or`, `!`, `!!`, `if` |
+| strings and lists | `in`, `cat`, `startsWith` |
+
+Everything else JsonLogic has (arithmetic, `substr`, `merge`, `map` / `reduce`,
+`log`, …) is refused when a database is created and denies if it ever appears in
+a signed policy — so every implementation needs exactly this list. In
+TypeScript, `PolicyRule` only type-checks rules made of these operators.
+
+**Languages are versioned.** A policy's `version` names its language:
+`1` = DenkMit Logic 1. A later language arrives as a new version; databases
+signed with an earlier one keep evaluating exactly as before. A replica that does
+not know a policy's version refuses to open the database (`UNSUPPORTED_VERSION`)
+rather than guess what the rule means.
+
 ## Inputs
 
 Rules see only deterministic inputs — data from the signed entry and the signed

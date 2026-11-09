@@ -17,7 +17,7 @@ import * as codec from "@ipld/dag-cbor";
 import { Key } from "interface-datastore";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
-import type { RulesLogic } from "json-logic-js";
+import type { PolicyRule } from "../../src/internal";
 import { toString as toHex, fromString as fromHex } from "uint8arrays";
 import {
     createDatabase,
@@ -109,7 +109,7 @@ export async function runDeterministicFlows(
                     version: 1,
                     name: "facts-only",
                     description: "fixture",
-                    logic: { startsWith: [{ var: "entryKey" }, "facts/"] } as unknown as RulesLogic,
+                    logic: { startsWith: [{ var: "entryKey" }, "facts/"] } as unknown as PolicyRule,
                 },
             },
         });

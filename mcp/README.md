@@ -26,6 +26,8 @@ reference.
 | `memory_provenance` | Who wrote the current record for a key, and when |
 | `memory_status` | Database address, identity, access policy and own namespace, peers, listen addresses |
 
+A refused or failed call returns `isError` with `{ "error": { "code": "ACCESS_DENIED", "message": "…" } }`; the codes are the library's (`ACCESS_DENIED`, `VALIDITY_REJECTED`, `INVALID_ARGUMENT`, …), so an agent can tell a refusal from a bad request.
+
 ## Two ways to run
 
 ```

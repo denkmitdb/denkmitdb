@@ -1,6 +1,7 @@
 import jsonLogic from "json-logic-js";
 import { CID } from "multiformats/cid";
-import type { PolicyDefinition } from "./protocol/policy.js";
+import { DenkmitError } from "./errors.js";
+import { logic1Problem, POLICY_VERSION, SUPPORTED_POLICY_VERSIONS, type PolicyDefinition } from "./protocol/policy.js";
 import type { Signed } from "./protocol/signed.js";
 import type { HeliaController } from "./storage/helia.js";
 import type { SignedPolicy } from "./types.js";
@@ -27,11 +28,30 @@ jsonLogic.add_operation("startsWith", (value: unknown, prefix: unknown): boolean
  * @param input - Deterministic inputs only (manifest + signed-entry data).
  */
 export function evaluatePolicy(policy: PolicyDefinition, input: PolicyInput): boolean {
+    // Dispatch on the policy language. Only DenkMit Logic 1 exists; anything else
+    // denies (fetchPolicy already refuses unknown versions, so this is a backstop).
+    if (policy.version !== POLICY_VERSION) return false;
+    // A rule outside the DenkMit Logic 1 operator list denies on every replica,
+    // whatever this evaluator happens to support beyond it.
+    if (!isLogic1(policy.logic)) return false;
     try {
-        return jsonLogic.apply(policy.logic, input) === true;
+        return jsonLogic.apply(policy.logic as never, input) === true;
     } catch {
         return false;
     }
+}
+
+const checked = new WeakMap<object, boolean>();
+
+/** Whether a rule stays within DenkMit Logic 1 (cached per rule object). */
+function isLogic1(rule: unknown): boolean {
+    if (typeof rule !== "object" || rule === null) return logic1Problem(rule) === undefined;
+    let ok = checked.get(rule);
+    if (ok === undefined) {
+        ok = logic1Problem(rule) === undefined;
+        checked.set(rule, ok);
+    }
+    return ok;
 }
 
 function deepFreeze<T>(value: T): T {
@@ -68,6 +88,11 @@ export async function createPolicy(definition: PolicyDefinition, controller: Hel
 /** Fetches and verifies a policy. */
 export async function fetchPolicy(cid: CID, controller: HeliaController): Promise<SignedPolicy> {
     const result = await controller.getSigned<PolicyDefinition>(cid);
-    if (!result) throw new Error("Policy not found");
-    return toPolicy(result);
+    if (!SUPPORTED_POLICY_VERSIONS.includes(result.data.version)) {
+        throw new DenkmitError(
+            "UNSUPPORTED_VERSION",
+            `Policy ${cid.toString()} is written in language version ${String(result.data.version)}, which this implementation does not support`,
+        );
+    }
+        return toPolicy(result);
 }

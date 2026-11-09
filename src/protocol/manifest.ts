@@ -1,4 +1,5 @@
 import { CID } from "multiformats/cid";
+import { DenkmitError } from "../errors.js";
 
 /**
  * Current manifest format. A v2 database accepts only v2 entries bound to its own
@@ -35,22 +36,22 @@ export type ManifestPayload = {
  * signature proves who wrote a manifest, not that it is usable (KNOWN_ISSUES.md #24).
  *
  * @param data - The decoded, signature-verified manifest payload.
- * @throws TypeError - If the manifest is not a well-formed v1 or v2 manifest.
+ * @throws DenkmitError - `MALFORMED` or `UNSUPPORTED_VERSION` if the manifest is not a well-formed v1 or v2 manifest.
  */
 export function assertManifestPayload(data: unknown): asserts data is ManifestPayload {
-    if (typeof data !== "object" || data === null) throw new TypeError("Manifest is not an object");
+    if (typeof data !== "object" || data === null) throw new DenkmitError("MALFORMED", "Manifest is not an object");
     const manifest = data as Record<string, unknown>;
     if (manifest.version !== MANIFEST_VERSION && manifest.version !== LEGACY_MANIFEST_VERSION) {
-        throw new TypeError(`Unsupported manifest version ${String(manifest.version)}`);
+        throw new DenkmitError("UNSUPPORTED_VERSION", `Unsupported manifest version ${String(manifest.version)}`);
     }
     const order = manifest.order;
     if (typeof order !== "number" || !Number.isInteger(order) || order < 1 || order > 8) {
-        throw new TypeError("Manifest order must be an integer in [1, 8]");
+        throw new DenkmitError("MALFORMED", "Manifest order must be an integer in [1, 8]");
     }
     if (CID.asCID(manifest.consensus) === null || CID.asCID(manifest.access) === null) {
-        throw new TypeError("Manifest policies must be CIDs");
+        throw new DenkmitError("MALFORMED", "Manifest policies must be CIDs");
     }
     if (typeof manifest.name !== "string" || typeof manifest.type !== "string") {
-        throw new TypeError("Manifest name and type must be strings");
+        throw new DenkmitError("MALFORMED", "Manifest name and type must be strings");
     }
 }

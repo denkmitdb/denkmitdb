@@ -163,7 +163,8 @@ The package exports only this; everything else is internal.
 | `Database<T>` | `get`, `set`, `delete`, `provenance` (→ `entryCid`, `writer`, `timestamp`, `deleted`), `keys`, `entries`, `waitUntilIdle`, `announceHead`, `close`; `address`, `identity`, `manifest`, `consensus`, `recordCount`. Writes take `{ identity }` to sign as another local identity. |
 | `createIdentity` / `openIdentity` / `hasIdentity` | Local signing identities (`SigningIdentity`), private key encrypted with a passphrase. |
 | `fetchIdentity(cid, helia)` | Someone else's public `Identity`: verify, encrypt to. |
-| `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedValueRecipients` | Values sealed to recipients. |
+| `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedValueRecipients` | Values sealed to recipients, bound to a required context `{ database, key, writer }`. |
+| `DenkmitError` / `isDenkmitError(e, code)` | Every intended failure has a stable `code` (`ACCESS_DENIED`, `VALIDITY_REJECTED`, `INVALID_ARGUMENT`, `NOT_FOUND`, `ALREADY_EXISTS`, `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED`, `UNSUPPORTED_VERSION`, `KEY_UNAVAILABLE`, `INVALID_PASSPHRASE`, `INTERNAL`); match on the code, not the message. |
 
 ## 📈 Performance
 

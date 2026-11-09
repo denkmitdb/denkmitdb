@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createIdentity, fetchIdentity, hasIdentity, openIdentity, HeliaStorage } from "../src/internal";
 import type { SigningIdentity } from "../src/internal";
+import { isDenkmitError } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 describe("Identity", () => {
@@ -22,8 +23,8 @@ describe("Identity", () => {
     });
 
     it("refuses to create a duplicate identity", async () => {
-        await expect(createIdentity("identity-tests", "other", node.helia)).rejects.toThrow(
-            "Identity already exists",
+        await expect(createIdentity("identity-tests", "other", node.helia)).rejects.toSatisfy((e) =>
+            isDenkmitError(e, "ALREADY_EXISTS"),
         );
     });
 
@@ -37,11 +38,13 @@ describe("Identity", () => {
     });
 
     it("rejects the wrong passphrase", async () => {
-        await expect(openIdentity("identity-tests", "wrong", node.helia)).rejects.toThrow();
+        await expect(openIdentity("identity-tests", "wrong", node.helia)).rejects.toSatisfy((e) =>
+            isDenkmitError(e, "INVALID_PASSPHRASE"),
+        );
     });
 
     it("throws when opening an unknown identity", async () => {
-        await expect(openIdentity("nobody", "pass", node.helia)).rejects.toThrow("Identity not found");
+        await expect(openIdentity("nobody", "pass", node.helia)).rejects.toSatisfy((e) => isDenkmitError(e, "NOT_FOUND"));
     });
 
     it("signs and verifies data", async () => {
@@ -74,6 +77,6 @@ describe("Identity", () => {
         // Public identity can verify signatures but cannot sign (no private key).
         const jws = await node.identity.sign(new Uint8Array([7]));
         expect(await fetched.verify(jws)).toEqual(new Uint8Array([7]));
-        await expect((fetched as SigningIdentity).sign(new Uint8Array([8]))).rejects.toThrow("Private key is not available");
+        await expect((fetched as SigningIdentity).sign(new Uint8Array([8]))).rejects.toSatisfy((e) => isDenkmitError(e, "KEY_UNAVAILABLE"));
     });
 });

@@ -5,6 +5,7 @@ import { sha256 } from "multiformats/hashes/sha2";
 import { Leaf, LeafKind, POLLARD_VERSION } from "../protocol/tree.js";
 import type { PollardInput, PollardOptions, PollardType } from "./types.js";
 import { createLeaf, isLeavesEqual } from "./leaf.js";
+import { DenkmitError } from "../errors.js";
 
 /**
  * Represents a Pollard data structure.
@@ -27,7 +28,7 @@ export class Pollard implements PollardType {
      */
     constructor(pollard: PollardInput, options: PollardOptions = {}) {
         if (pollard.order <= 0 || pollard.order > 8) {
-            throw new Error("Order must be greater than 0 or less than or equal 8");
+            throw new DenkmitError("INVALID_ARGUMENT", "Order must be an integer in [1, 8]");
         }
         this.order = pollard.order;
         this.maxLength = 2 ** pollard.order;
@@ -88,7 +89,7 @@ export class Pollard implements PollardType {
                 leaf = createLeaf(type, data as CID, creator as CID, sort as number[], key as string);
                 break;
             default:
-                throw new Error("Invalid leaf type");
+                throw new DenkmitError("MALFORMED", "Invalid leaf type");
         }
 
         const res = this.addLeaf(leaf);
@@ -210,7 +211,7 @@ export class Pollard implements PollardType {
 
     get cid(): CID {
         if (this._needUpdate || !this._cid) {
-            throw new Error("Pollard is not updated. Please, use getCID() method to get CID.");
+            throw new DenkmitError("INTERNAL", "Pollard is not updated: use getCID()");
         }
         return this._cid;
     }
@@ -292,7 +293,7 @@ export class Pollard implements PollardType {
      */
     toJSON(): Omit<PollardType, "cid"> {
         if (this._needUpdate) {
-            throw new Error("Pollard is not updated");
+            throw new DenkmitError("INTERNAL", "Pollard is not updated");
         }
         return {
             version: this.version,
@@ -362,7 +363,7 @@ export class Pollard implements PollardType {
         other = other || (await createEmptyPollard(this.order));
 
         if (this.order !== other.order) {
-            throw new Error("Orders are different");
+            throw new DenkmitError("MALFORMED", "Pollards of different orders cannot be compared");
         }
 
         const difference = await this.comparePollardNodesOrdered(other, this.order, 0);

@@ -1,5 +1,6 @@
 import { CID } from "multiformats/cid";
 import { Leaf, LeafKind } from "../protocol/tree.js";
+import { DenkmitError } from "../errors.js";
 
 export function createLeaf(): Leaf;
 export function createLeaf(type: LeafKind.Empty): Leaf;
@@ -36,7 +37,7 @@ export function createLeaf(
                 creator: creator as CID,
             };
         default:
-            throw new Error("Invalid leaf type");
+            throw new DenkmitError("MALFORMED", "Invalid leaf type");
     }
 }
 

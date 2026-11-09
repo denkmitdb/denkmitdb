@@ -127,7 +127,8 @@ try {
         key: "decisions/release",
         value: { version: "4.0.0", approved: false },
     });
-    console.log(`  bob's write is refused: ${refusal.slice(refusal.indexOf("Access denied"))}`);
+    const { error } = JSON.parse(refusal) as { error: { code: string; message: string } };
+    console.log(`  bob's write is refused: ${error.code} — ${error.message}`);
     const stillThere = await call<{ value: { approved: boolean } }>(alice, "memory_get", { key: "decisions/release" });
     console.log(`  alice's decision is untouched: approved = ${stillThere.value.approved}`);
     console.log("  (every replica runs the same signed rule on every entry it ingests, so a modified");
