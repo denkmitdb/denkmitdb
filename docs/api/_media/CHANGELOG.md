@@ -8,6 +8,23 @@ database — see "Security & correctness" below). Databases created by 3.0.0 sta
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
 
+### Private values
+
+- **`encryptValueFor(recipients, value)` / `decryptValue(identity, value)`** —
+  a value sealed to one or more recipient identities (General JSON JWE: one
+  AES-256-GCM body, one ECDH-ES+A256KW wrapped key per recipient, `kid` = the
+  recipient's identity CID). It is an ordinary signed, replicated value; only
+  recipients can read it. `isEncryptedValue` / `encryptedRecipients` inspect an
+  envelope; `decryptValue` never throws (undefined for non-recipients or tampered
+  data). Recipients may be fetched identities (public key only).
+- **MCP:** `memory_set` takes `encryptFor` (identity CIDs; `[]` = only me) and
+  `includeSelf`; `memory_get` / `memory_list` decrypt for recipients and report
+  `encrypted`, `readable` and `recipients` otherwise.
+- `Identity.decrypt` also reads `kid` from the per-recipient header (needed for
+  one recipient's slice of a multi-recipient JWE).
+- Visible to all replicas: key, writer, time, recipients, size. No forward
+  secrecy, rotation or revocation yet.
+
 ### MCP daemon (`denkmitd`) and policy extensions
 
 - **`denkmitd`, a long-lived P2P node per machine.** It holds the identity, the

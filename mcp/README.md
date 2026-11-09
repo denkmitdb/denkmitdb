@@ -11,8 +11,8 @@ back to who wrote it and when.
 
 | Tool | Purpose |
 |---|---|
-| `memory_set` | Store a JSON value under a key (signed, replicated, size-capped) |
-| `memory_get` | Read the current value for a key, with its `writer` and `byThisAgent` |
+| `memory_set` | Store a JSON value under a key (signed, replicated, size-capped); `encryptFor: [<identity CID>, …]` stores it encrypted |
+| `memory_get` | Read the current value for a key, with its `writer` and `byThisAgent`; encrypted values are decrypted when this node is a recipient |
 | `memory_delete` | Delete a key (signed tombstone; a later set resurrects) |
 | `memory_list` | List entries in write order, optional key prefix + limit (reports `truncated`) |
 | `memory_provenance` | Who wrote the current record for a key, and when |
@@ -122,6 +122,26 @@ the local network, and a file rendezvous for servers that share a
 > creator writes anywhere), `allowlist:<cid>,<cid>`. Custom json-logic rules —
 > e.g. "only the creator may delete" — go in a `DENKMIT_POLICY_FILE`; see
 > [docs/policies.md](../docs/policies.md).
+
+## Private values
+
+`memory_set` with `encryptFor` encrypts the value before it is signed and
+replicated: one AES-256-GCM body, plus a key wrapped with ECDH-ES for each
+recipient identity (the identity CIDs come from another node's `memory_status`
+or from `memory_provenance` of one of its facts). This node is added as a
+recipient unless `includeSelf: false`; `encryptFor: []` means "only me".
+
+`memory_get` / `memory_list` return such values decrypted with
+`encrypted: true, readable: true` when this node is a recipient, and otherwise
+`readable: false, value: null` with the list of `recipients` — the ciphertext is
+never returned. In daemon mode the recipient is the daemon's identity, so every
+agent on that machine can read what is encrypted to it.
+
+What stays visible to every replica: the key, the writer, the write time, the
+recipients' identity CIDs and the size. There is no forward secrecy or key
+rotation yet, and a recipient that loses its key loses access for good — keep the
+daemon's data directory backed up. The `DENKMIT_MAX_VALUE_BYTES` cap applies to
+the plaintext.
 
 ## Configuration
 

@@ -87,6 +87,21 @@ try {
     };
     assert(!notStored.found, "a refused oversized value must not be stored");
 
+    // Encrypted values: encryptFor [] seals the value to this agent only; it reads back decrypted.
+    const sealed = firstText(
+        await client.callTool({
+            name: "memory_set",
+            arguments: { key: "notes/private", value: { pin: "1234" }, encryptFor: [] },
+        }),
+    ) as { encrypted: boolean; recipients: string[] };
+    assert(sealed.encrypted && sealed.recipients.length === 1, "encryptFor [] should seal to this agent only");
+    const opened = firstText(await client.callTool({ name: "memory_get", arguments: { key: "notes/private" } })) as {
+        encrypted: boolean;
+        readable: boolean;
+        value: { pin: string };
+    };
+    assert(opened.encrypted && opened.readable && opened.value.pin === "1234", "a self-encrypted value must read back");
+
     const prov = firstText(
         await client.callTool({ name: "memory_provenance", arguments: { key: "task/1" } }),
     ) as { found: boolean; writer: string; byThisAgent: boolean; deleted: boolean };
