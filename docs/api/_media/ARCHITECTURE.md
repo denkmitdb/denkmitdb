@@ -14,7 +14,7 @@ diffing Merkle trees to find what they are missing.
 flowchart TB
     subgraph Node["Local node"]
         API["DenkmitDatabase<br/>set / get / iterator"]
-        KV["Keyv cache<br/>(key → value)"]
+        KV["Keyv cache<br/>(entry CID → value)"]
         SIS["SortedItemsStore<br/>(timestamp-ordered index)"]
         Layers["Pollard layers<br/>(Merkle tree)"]
         Sync["SyncController<br/>(task queue + pubsub)"]
@@ -62,9 +62,11 @@ building blocks:
 - **Pollard layers** (`DenkmitDatabase.layers`) — layer 0 holds pollards whose leaves
   are `SortedEntry` records; each higher layer holds pollards whose leaves link to the
   pollards below; the top layer has a single pollard, whose CID is the **root**.
-- **Keyv cache** — key→value cache so `get` doesn't refetch entry blocks. By default
-  in-memory, but callers may supply their own (possibly persistent) Keyv — note that
-  `close()` currently `clear()`s it even when caller-owned (KNOWN_ISSUES.md D4).
+- **Keyv cache** — **entry CID → value** cache so `get` doesn't refetch entry blocks.
+  Content-addressed, so a cached value can never be stale and one Keyv can be shared
+  by several databases (KNOWN_ISSUES.md #30); a superseded record's value is deleted
+  when a newer one wins. By default in-memory; a caller-supplied (possibly persistent)
+  Keyv is never `clear()`ed by the database (D4).
 
 None of this is persisted locally by the database itself. `openDenkmitDatabase()`
 fetches only the manifest and consensus rule — the index and layers stay empty until
@@ -108,15 +110,16 @@ equality so the diff can't hide a difference.
 
 1. Check the access policy for the local identity; create and sign an `Entry` block bound to this database's address (`manifest`, entry v2); add + pin it in the blockstore.
 2. Run the validation rule against `{databaseCreator, entryTimestamp, entryCreator}` — deterministic inputs only, the same ones every replica sees on merge; reject the write unless it returns literal `true`.
-3. Insert `(timestamp → key, entryCID, creator)` into `SortedItemsStore` and the value into the Keyv cache.
+3. Insert `(timestamp → key, entryCID, creator)` into `SortedItemsStore` and the value into the Keyv cache under the entry CID.
 4. Enqueue a `updateLayers(timestamp)` task on the single-concurrency sync queue (tree building is asynchronous — readers see the entry immediately, the tree catches up).
 
 ## Read path (`db.get`)
 
-1. Return the Keyv-cached value if present.
-2. Otherwise look the key up in `SortedItemsStore`, fetch the entry block by CID
+1. Look the key up in `SortedItemsStore` to find the winning entry CID (absent or a
+   tombstone → no value).
+2. Return the value cached under that CID if present; otherwise fetch the entry block
    (bitswap fetches from peers transparently if it isn't local), verify its signature,
-   cache and return the value.
+   cache it under the CID and return it.
 
 ## Sync protocol
 

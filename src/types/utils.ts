@@ -50,13 +50,18 @@ export type SortedItemType = {
 export type SetResult = {
     readonly applied: boolean;
     readonly previousTimestamp?: number;
+    /** CID of the record this one superseded, when it won over a previous record. */
+    readonly previousCid?: CID;
 };
 
 export interface SortedItemsStoreInterface {
     readonly size: number;
 
     set(sortField: number, key: string, cid: CID, creator: CID, deleted?: boolean): Promise<SetResult>;
+    /** Whether `set` with these arguments would make this record the live one for `key`. */
+    wouldApply(sortField: number, key: string, cid: CID): boolean;
     getByKey(key: string): Promise<SortedItemType | undefined>;
+    getRecord(key: string): { cid: CID; creator: CID; timestamp: number; deleted?: boolean } | undefined;
     getByIndex(index: number): Promise<SortedItemType>;
     iterator(): AsyncGenerator<SortedItemType>;
     iteratorFromIndex(startIndex: number): AsyncGenerator<SortedItemType>;

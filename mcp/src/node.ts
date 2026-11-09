@@ -51,6 +51,8 @@ export type MemoryNodeConfig = {
     databaseName: string;
     /** Access preset for a created database (ignored when opening by address). */
     access: AccessPreset;
+    /** Largest value memory_set accepts, in UTF-8 bytes of its JSON encoding. */
+    maxValueBytes: number;
     /** Multiaddrs to dial for sync (mdns also discovers local peers automatically). */
     peers: string[];
 };
@@ -63,11 +65,32 @@ export function configFromEnv(env: NodeJS.ProcessEnv): MemoryNodeConfig {
         databaseAddress: env.DENKMIT_DB || undefined,
         databaseName: env.DENKMIT_DB_NAME ?? "agent-memory",
         access: accessFromEnv(env),
+        maxValueBytes: maxValueBytesFromEnv(env),
         peers: (env.DENKMIT_PEERS ?? "")
             .split(",")
             .map((s) => s.trim())
             .filter(Boolean),
     };
+}
+
+/** Default value size cap: comfortably above a fact, far below block-size limits. */
+export const DEFAULT_MAX_VALUE_BYTES = 64 * 1024;
+
+/**
+ * Reads `DENKMIT_MAX_VALUE_BYTES` (default 64 KiB). A malformed value refuses to
+ * start rather than silently falling back (KNOWN_ISSUES.md #32).
+ *
+ * @param env - The process environment.
+ * @returns The size cap in bytes.
+ */
+export function maxValueBytesFromEnv(env: NodeJS.ProcessEnv): number {
+    const raw = env.DENKMIT_MAX_VALUE_BYTES?.trim();
+    if (!raw) return DEFAULT_MAX_VALUE_BYTES;
+    const bytes = Number(raw);
+    if (!Number.isSafeInteger(bytes) || bytes < 1) {
+        throw new Error(`DENKMIT_MAX_VALUE_BYTES must be a positive integer (got ${raw})`);
+    }
+    return bytes;
 }
 
 /**

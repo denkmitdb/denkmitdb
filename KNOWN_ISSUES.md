@@ -225,22 +225,38 @@ identity block was not self-certifying for the key it advertises. **Fixed:** the
 embedded and stated keys must have the same RFC 7638 thumbprint and the header
 algorithm must equal the stated one.
 
-### 30. ◻️ [Medium] `get()` can cache a value that lost a concurrent merge
-Reported by Codex, not yet reproduced: `get()` fetches the indexed entry, and a
-winning merge or delete that lands while the fetch is in flight invalidates the
-cache *before* `get()` writes the old value into it. Fix direction: cache by entry
-CID, or re-check the index winner before caching.
+### 30. ✅ [Medium] `get()` could cache a value that lost a concurrent merge
+`get()` fetched the indexed entry, and a winning merge or delete that landed while the
+fetch was in flight invalidated the cache *before* `get()` wrote the old value into
+it — that stale value was then served until the key changed again. A caller-supplied
+Keyv shared by two databases also mixed their values (both cached by database key).
+**Fixed:** the cache is keyed by **entry CID**. An entry's value never changes, so no
+interleaving of reads, writes and merges can make a cached value stale, and a shared
+Keyv cannot mix databases. A superseded record's value is deleted when a newer record
+wins. `get()` now reads the winner from the key map without computing a tree position.
+Callers who supplied a persistent Keyv see one cold read per key after upgrading.
 
-### 31. ◻️ [Medium] A pin failure after indexing leaves a half-applied entry
-Reported by Codex, not yet reproduced: `processLeafMerging` updates the index, then
-pins; if pinning throws, cache invalidation and the rebuild are skipped, and a retry
-sees the entry as already applied. Fix direction: pin before indexing, or roll the
-index back on failure.
+### 31. ✅ [Medium] A pin failure after indexing left a half-applied entry
+`processLeafMerging` indexed an incoming entry and then pinned it; when the pin threw,
+cache invalidation and the tree rebuild were skipped, and every later sync saw the
+entry as already applied — it stayed live but unpinned (lost on GC/restart), and a
+pin failure during `load()` aborted the whole load after local state was cleared.
+**Fixed:** an incoming entry that would win is pinned **before** it is indexed; a
+failed pin leaves nothing behind and is logged, and the next announcement of the head
+retries it. `load()` skips such an entry instead of aborting.
 
-### 32. ◻️ [Low] MCP `memory_set` has no value size limit
-Any MCP client can store arbitrarily large values; signed hostile text is also still
-prompt-injection content for the agents reading it. Fix direction: a configurable
-size cap in the MCP server.
+### 32. ✅ [Low] MCP `memory_set` had no value size limit
+Any MCP client could store arbitrarily large values, and every value is signed,
+pinned and replicated to every peer. **Fixed:** `DENKMIT_MAX_VALUE_BYTES` (default
+64 KiB of UTF-8 JSON; malformed values refuse to start) caps `memory_set`, and an
+oversized write is refused before anything is stored. `memory_get` and `memory_list`
+now return each value's `writer` and `byThisAgent`, and the tool descriptions tell
+agents to treat other identities' values as untrusted input, not instructions.
+**Still open:** the cap is the MCP server's, not the library's — a peer running its
+own client can still replicate larger entries into a database (bounded only by
+block-size limits), and policies cannot see value size yet (VISION.md, policy
+inputs). Signed text from another agent remains potential prompt-injection content;
+attribution makes it visible, not safe.
 
 ## Packaging & tooling
 

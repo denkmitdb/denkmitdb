@@ -57,12 +57,37 @@ export class SortedItemsStore implements SortedItemsStoreInterface {
             this.sortedMap.eraseElementByKey(current);
             this.keyMap.set(key, { timestamp: sortField, cid, creator, ...(deleted ? { deleted } : {}) });
             this.sortedMap.setElement(incoming, { cid, key, creator, ...(deleted ? { deleted } : {}) });
-            return { applied: true, previousTimestamp: existing.timestamp };
+            return { applied: true, previousTimestamp: existing.timestamp, previousCid: existing.cid };
         }
 
         this.keyMap.set(key, { timestamp: sortField, cid, creator, ...(deleted ? { deleted } : {}) });
         this.sortedMap.setElement(incoming, { cid, key, creator, ...(deleted ? { deleted } : {}) });
         return { applied: true };
+    }
+
+    /**
+     * Whether `set(sortField, key, cid, …)` would make this record the live record
+     * for `key` — the same last-write-wins comparison, without mutating anything.
+     * Lets ingestion do fallible work (pinning) before it touches the index
+     * (KNOWN_ISSUES.md #31).
+     */
+    wouldApply(sortField: number, key: string, cid: CID): boolean {
+        const existing = this.keyMap.get(key);
+        if (!existing) return true;
+        return (
+            compareKeys(
+                { timestamp: sortField, cid: cid.bytes },
+                { timestamp: existing.timestamp, cid: existing.cid.bytes },
+            ) > 0
+        );
+    }
+
+    /**
+     * The live record for `key` straight from the key map — no positional index
+     * computed, so it is cheap enough for every `get()`.
+     */
+    getRecord(key: string): { cid: CID; creator: CID; timestamp: number; deleted?: boolean } | undefined {
+        return this.keyMap.get(key);
     }
 
     async getByKey(key: string): Promise<SortedItemType | undefined> {

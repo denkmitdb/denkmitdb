@@ -21,6 +21,14 @@ can be rebuilt from the earlier of the two positions.
 
 ***
 
+### previousCid?
+
+> `readonly` `optional` **previousCid?**: `CID`
+
+CID of the record this one superseded, when it won over a previous record.
+
+***
+
 ### previousTimestamp?
 
 > `readonly` `optional` **previousTimestamp?**: `number`

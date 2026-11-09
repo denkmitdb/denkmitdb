@@ -1,4 +1,5 @@
 import * as jose from "jose";
+import Keyv from "keyv";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 import { toString as uint8ArrayToString } from "uint8arrays/to-string";
@@ -12,6 +13,7 @@ import {
     fetchIdentity,
     HeliaController,
     HeliaStorage,
+    headStoreKey,
     openDenkmitDatabase,
     SortedItemsStore,
     SyncController,
@@ -390,7 +392,10 @@ describe("Integrity hardening (review 2026-11)", () => {
                 new Promise((_, reject) => setTimeout(() => reject(new Error("close() hung")), 5_000)),
             ]);
 
-            const reopened = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: node.identity });
+            const reopened = await openDenkmitDatabase<Value>(db.address, {
+                helia: node.helia,
+                identity: node.identity,
+            });
             await reopened.idle();
             expect(await reopened.get("queued")).toEqual({ value: "still durable" });
             await reopened.close();
@@ -430,6 +435,139 @@ describe("Integrity hardening (review 2026-11)", () => {
             await expect(fetchIdentity(cid, controller)).rejects.toThrow(/public key/i);
             // A genuine identity still resolves.
             expect((await fetchIdentity(node.identity.cid, controller)).cid.equals(node.identity.cid)).toBe(true);
+        });
+    });
+
+    // #30 — get() fetched the indexed entry, and a winning merge that landed while
+    // the fetch was in flight invalidated the cache *before* get() wrote the old
+    // value into it, so the stale value was served from then on.
+    describe("#30 the value cache cannot go stale", () => {
+        it("serves the new winner after a merge races an in-flight get()", async () => {
+            const db = await createDenkmitDatabase<Value>("cache-race", { helia: node.helia, identity: node.identity });
+            await db.set("seed", { value: "s" });
+            const base = Date.now();
+            // v1 arrives by merge, so it is indexed but not cached: get() must fetch it.
+            const v1 = await putSignedEntry(controller, "k", { value: "v1" }, base + 1, db.address);
+            await db.syncNewHead((await buildHead(controller, db.address, [leafOf(v1)])).cid.bytes);
+            await db.idle();
+
+            // Hold get()'s fetch of v1 open until a newer winner has been merged.
+            const signed = db.heliaController as unknown as { getSigned: (cid: CID) => Promise<unknown> };
+            const realGetSigned = signed.getSigned.bind(db.heliaController);
+            let releaseFetch!: () => void;
+            const fetchHeld = new Promise<void>((resolve) => (releaseFetch = resolve));
+            let fetchStarted!: () => void;
+            const started = new Promise<void>((resolve) => (fetchStarted = resolve));
+            signed.getSigned = async (cid: CID) => {
+                if (cid.equals(v1.cid)) {
+                    fetchStarted();
+                    await fetchHeld;
+                }
+                return realGetSigned(cid);
+            };
+            try {
+                const racingGet = db.get("k");
+                await started;
+                const v2 = await putSignedEntry(controller, "k", { value: "v2" }, base + 2, db.address);
+                await db.syncNewHead((await buildHead(controller, db.address, [leafOf(v2)])).cid.bytes);
+                await db.idle();
+                releaseFetch();
+                await racingGet; // whatever it returns, it must not poison the cache
+            } finally {
+                signed.getSigned = realGetSigned;
+            }
+
+            expect(await db.get("k")).toEqual({ value: "v2" });
+            await db.close();
+        });
+
+        it("a Keyv shared by two databases cannot mix their values", async () => {
+            const shared = new Keyv<Value>();
+            const x = await createDenkmitDatabase<Value>("cache-x", {
+                helia: node.helia,
+                identity: node.identity,
+                keyValueStorage: shared,
+            });
+            const y = await createDenkmitDatabase<Value>("cache-y", {
+                helia: node.helia,
+                identity: node.identity,
+                keyValueStorage: shared,
+            });
+            await x.set("same-key", { value: "x" });
+            await y.set("same-key", { value: "y" });
+            expect(await x.get("same-key")).toEqual({ value: "x" });
+            expect(await y.get("same-key")).toEqual({ value: "y" });
+            await x.close();
+            await y.close();
+        });
+    });
+
+    // #31 — processLeafMerging indexed an incoming entry, then pinned it; when the
+    // pin threw, a later sync saw the entry as already applied and never pinned it.
+    describe("#31 a failed pin leaves nothing half-applied", () => {
+        it("retries an entry whose pin failed, and pins it on the next sync", async () => {
+            const db = await createDenkmitDatabase<Value>("pin-fail", { helia: node.helia, identity: node.identity });
+            await db.set("seed", { value: "s" });
+            await db.idle();
+            const entry = await putSignedEntry(controller, "merged", { value: "m" }, Date.now(), db.address);
+            const head = await buildHead(controller, db.address, [leafOf(entry)]);
+
+            const pins = db.heliaController as unknown as { pin: (cid: CID) => Promise<void> };
+            const realPin = pins.pin.bind(db.heliaController);
+            pins.pin = async (cid: CID) => {
+                if (cid.equals(entry.cid)) throw new Error("simulated pin failure");
+                return realPin(cid);
+            };
+            try {
+                await db.syncNewHead(head.cid.bytes);
+                await db.idle();
+                expect(await db.provenance("merged")).toBeUndefined(); // not half-applied
+            } finally {
+                pins.pin = realPin;
+            }
+
+            await db.syncNewHead(head.cid.bytes); // the next announcement of the same head
+            await db.idle();
+            expect(await db.get("merged")).toEqual({ value: "m" });
+            expect(await node.helia.pins.isPinned(entry.cid)).toBe(true);
+            await db.close();
+        });
+
+        it("a pin failure during load() skips the entry instead of aborting the load", async () => {
+            const writer = await createDenkmitDatabase<Value>("pin-fail-load", {
+                helia: node.helia,
+                identity: node.identity,
+            });
+            await writer.set("a", { value: "1" });
+            await writer.set("b", { value: "2" });
+            await writer.idle();
+            const head = await writer.createHead();
+            const bad = (await writer.provenance("a"))!.cid;
+            // Same Helia node: drop the writer's persisted head pointer so opening the
+            // reader does not restore (load) it before the pin failure is injected.
+            await node.helia.datastore.delete(headStoreKey(writer.address));
+
+            const reader = await openDenkmitDatabase<Value>(writer.address, {
+                helia: node.helia,
+                identity: node.identity,
+                syncController: await createSyncController("pin-fail-load-reader", controller),
+            });
+            const pins = reader.heliaController as unknown as { pin: (cid: CID) => Promise<void> };
+            const realPin = pins.pin.bind(reader.heliaController);
+            pins.pin = async (cid: CID) => {
+                if (cid.equals(bad)) throw new Error("simulated pin failure");
+                return realPin(cid);
+            };
+            try {
+                await reader.syncNewHead(head.cid.bytes);
+                await reader.idle();
+            } finally {
+                pins.pin = realPin;
+            }
+            expect(await reader.get("b")).toEqual({ value: "2" });
+            expect(await reader.provenance("a")).toBeUndefined();
+            await reader.close();
+            await writer.close();
         });
     });
 });

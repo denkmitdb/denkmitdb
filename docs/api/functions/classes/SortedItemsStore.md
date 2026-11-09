@@ -116,6 +116,29 @@ tree rebuild must start. Returns `size` when nothing is at or after it.
 
 ***
 
+### getRecord()
+
+> **getRecord**(`key`): \{ `cid`: `CID`; `creator`: `CID`; `timestamp`: `number`; `deleted?`: `boolean`; \} \| `undefined`
+
+The live record for `key` straight from the key map — no positional index
+computed, so it is cheap enough for every `get()`.
+
+#### Parameters
+
+##### key
+
+`string`
+
+#### Returns
+
+\{ `cid`: `CID`; `creator`: `CID`; `timestamp`: `number`; `deleted?`: `boolean`; \} \| `undefined`
+
+#### Implementation of
+
+[`SortedItemsStoreInterface`](../interfaces/SortedItemsStoreInterface.md).[`getRecord`](../interfaces/SortedItemsStoreInterface.md#getrecord)
+
+***
+
 ### iterator()
 
 > **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<[`SortedItemType`](../type-aliases/SortedItemType.md)\>
@@ -201,3 +224,36 @@ greatest `(timestamp, cid)`.
 #### Implementation of
 
 [`SortedItemsStoreInterface`](../interfaces/SortedItemsStoreInterface.md).[`set`](../interfaces/SortedItemsStoreInterface.md#set)
+
+***
+
+### wouldApply()
+
+> **wouldApply**(`sortField`, `key`, `cid`): `boolean`
+
+Whether `set(sortField, key, cid, …)` would make this record the live record
+for `key` — the same last-write-wins comparison, without mutating anything.
+Lets ingestion do fallible work (pinning) before it touches the index
+(KNOWN_ISSUES.md #31).
+
+#### Parameters
+
+##### sortField
+
+`number`
+
+##### key
+
+`string`
+
+##### cid
+
+`CID`
+
+#### Returns
+
+`boolean`
+
+#### Implementation of
+
+[`SortedItemsStoreInterface`](../interfaces/SortedItemsStoreInterface.md).[`wouldApply`](../interfaces/SortedItemsStoreInterface.md#wouldapply)
