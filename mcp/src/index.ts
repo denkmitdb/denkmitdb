@@ -36,7 +36,7 @@ if (node.created) {
 }
 
 const server = new McpServer(
-    { name: "denkmit-mcp", version: "0.1.0" },
+    { name: "denkmit-mcp", version: "0.3.0" },
     {
         instructions:
             "Shared, signed, peer-to-peer agent memory backed by DenkMitDB (IPFS/Helia). " +
