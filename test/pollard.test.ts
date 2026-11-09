@@ -1,3 +1,4 @@
+import { isDenkmitError } from "../src/internal";
 import * as codec from "@ipld/dag-cbor";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
@@ -103,7 +104,7 @@ describe("Pollard", () => {
     it("compare() throws when orders differ", async () => {
         const a = await createEmptyPollard(2);
         const b = await createEmptyPollard(3);
-        await expect(a.compare(b)).rejects.toThrow("Orders are different");
+        await expect(a.compare(b)).rejects.toSatisfy((e) => isDenkmitError(e, "MALFORMED"));
     });
 
     // KNOWN_ISSUES.md #7: the signature accepts `other?: Pollard` and the body

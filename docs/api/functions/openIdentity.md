@@ -38,4 +38,4 @@ The identity, able to sign.
 
 ## Throws
 
-An Error if the identity is not found.
+DenkmitError - `NOT_FOUND` or `INVALID_PASSPHRASE`.

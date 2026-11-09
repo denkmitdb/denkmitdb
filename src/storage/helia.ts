@@ -9,6 +9,7 @@ import { TimeoutController } from "timeout-abort-controller";
 import { loadIdentity } from "../identity.js";
 import type { Signed } from "../protocol/signed.js";
 import type { HeliaNode, Identity, SigningIdentity } from "../types.js";
+import { DenkmitError } from "../errors.js";
 
 const DefaultTimeout = 30000; // 30 seconds
 
@@ -151,10 +152,18 @@ export class HeliaStorage {
      * @param cid - The CID of the object to retrieve.
      * @returns A Promise that resolves to the retrieved object, or undefined if not found.
      */
-    async get<T>(cid: CID): Promise<T | undefined> {
+    async get<T>(cid: CID): Promise<T> {
         const controller = new TimeoutController(DefaultTimeout);
         try {
             return await this.heliaDagCbor.get<T>(cid, { signal: controller.signal });
+        } catch (error) {
+            if (error instanceof DenkmitError) throw error;
+            const timedOut = controller.signal.aborted || ["AbortError", "TimeoutError", "NotFoundError"].includes((error as Error)?.name);
+            throw new DenkmitError(
+                timedOut ? "UNAVAILABLE" : "MALFORMED",
+                timedOut ? `Block ${cid.toString()} is not available` : `Block ${cid.toString()} cannot be decoded`,
+                { cause: error },
+            );
         } finally {
             controller.clear();
         }
@@ -251,23 +260,40 @@ export class HeliaController extends HeliaStorage {
      *
      * @typeParam T - The type of the decoded payload.
      * @param cid - The CID of the signed block.
-     * @returns The payload with CID and creator, or undefined if missing or invalid.
+     * @returns The payload with CID and creator.
+     * @throws DenkmitError - `UNAVAILABLE` (block or signer identity not fetched),
+     *   `INVALID_SIGNATURE` or `MALFORMED`.
      */
-    async getSigned<T>(cid: CID): Promise<Signed<T> | undefined> {
+    async getSigned<T>(cid: CID): Promise<Signed<T>> {
         const signed = await this.get<jose.FlattenedJWS>(cid);
-        if (!signed) return;
 
-        const protectedHeader = jose.decodeProtectedHeader(signed);
-        const kid = protectedHeader.kid;
-        if (!kid) return;
-        const kidCid = CID.parse(kid);
+        let kid: string | undefined;
+        try {
+            kid = jose.decodeProtectedHeader(signed).kid;
+        } catch (error) {
+            throw new DenkmitError("MALFORMED", `Block ${cid.toString()} is not a signed record`, { cause: error });
+        }
+        if (!kid) throw new DenkmitError("INVALID_SIGNATURE", `Signed block ${cid.toString()} names no key`);
+        let kidCid: CID;
+        try {
+            kidCid = CID.parse(kid);
+        } catch (error) {
+            throw new DenkmitError("INVALID_SIGNATURE", `Signed block ${cid.toString()} names an invalid key`, { cause: error });
+        }
 
         const identity = await this.resolveIdentity(kidCid);
 
         const verified = await identity.verify(signed);
-        const data = verified && (HeliaStorage.decode(verified) as T);
-
-        if (!data) return;
+        if (!verified) throw new DenkmitError("INVALID_SIGNATURE", `Signature of block ${cid.toString()} does not verify`);
+        let data: T;
+        try {
+            data = HeliaStorage.decode(verified) as T;
+        } catch (error) {
+            throw new DenkmitError("MALFORMED", `Payload of block ${cid.toString()} cannot be decoded`, { cause: error });
+        }
+        if (data === undefined || data === null) {
+            throw new DenkmitError("MALFORMED", `Block ${cid.toString()} has an empty payload`);
+        }
         return { data, cid, creator: identity.cid };
     }
 }

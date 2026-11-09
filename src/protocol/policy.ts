@@ -1,4 +1,5 @@
 import type { RulesLogic } from "json-logic-js";
+import { DenkmitError } from "../errors.js";
 
 export const POLICY_VERSION = 1;
 
@@ -25,9 +26,9 @@ export type PolicyDefinition = {
  */
 export function assertPolicyDefinition(policy: unknown, what: string): asserts policy is PolicyDefinition {
     const p = policy as Partial<PolicyDefinition> | null;
-    if (typeof p !== "object" || p === null) throw new Error(`${what} must be a policy object`);
-    if (p.version !== POLICY_VERSION) throw new Error(`${what} must have version ${POLICY_VERSION}`);
-    if (typeof p.name !== "string" || p.name.length === 0) throw new Error(`${what} needs a name`);
-    if (typeof p.description !== "string") throw new Error(`${what} needs a description`);
-    if (p.logic === undefined) throw new Error(`${what} needs json-logic \`logic\``);
+    if (typeof p !== "object" || p === null) throw new DenkmitError("INVALID_ARGUMENT", `${what} must be a policy object`);
+    if (p.version !== POLICY_VERSION) throw new DenkmitError("INVALID_ARGUMENT", `${what} must have version ${POLICY_VERSION}`);
+    if (typeof p.name !== "string" || p.name.length === 0) throw new DenkmitError("INVALID_ARGUMENT", `${what} needs a name`);
+    if (typeof p.description !== "string") throw new DenkmitError("INVALID_ARGUMENT", `${what} needs a description`);
+    if (p.logic === undefined) throw new DenkmitError("INVALID_ARGUMENT", `${what} needs json-logic \`logic\``);
 }

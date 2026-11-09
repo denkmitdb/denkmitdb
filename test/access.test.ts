@@ -8,7 +8,7 @@ import {
     HeliaController,
     openDatabase,
 } from "../src/internal";
-import { SigningIdentity, PolicyDefinition } from "../src/internal";
+import { isDenkmitError, SigningIdentity, PolicyDefinition } from "../src/internal";
 import { buildHead, createTestNode, putSignedEntry, putSignedTombstone, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -58,7 +58,7 @@ describe("Access control", () => {
         const db = await createDb("acc-reject-local");
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
-        await expect(dbAsB.set("k", { value: "v" })).rejects.toThrow(/access denied/i);
+        await expect(dbAsB.set("k", { value: "v" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
         expect(dbAsB.recordCount).toBe(0);
 
         await dbAsB.close();
@@ -106,7 +106,7 @@ describe("Access control", () => {
             consensus: { access: "public" },
         } as Parameters<typeof openDatabase<Value>>[1]);
 
-        await expect(dbAsB.set("k", { value: "v" })).rejects.toThrow(/access denied/i);
+        await expect(dbAsB.set("k", { value: "v" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
         await dbAsB.close();
         await db.close();
     });
@@ -139,7 +139,7 @@ describe("Access presets", () => {
         await db.set("anything/goes", { value: "creator" }); // the creator writes anywhere
         await dbAsB.set(`${mine}note`, { value: "mine" });
         await dbAsB.delete(`${mine}note`); // deletes obey the same rule
-        await expect(dbAsB.set("free/key", { value: "x" })).rejects.toThrow(/access denied/i);
+        await expect(dbAsB.set("free/key", { value: "x" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
         await expect(dbAsB.set(`agents/${node.identity.cid.toString()}/note`, { value: "x" })).rejects.toThrow(
             /access denied/i,
         );
@@ -147,7 +147,7 @@ describe("Access presets", () => {
         await expect(dbAsB.set(`agents/${other.cid.toString()}x/note`, { value: "x" })).rejects.toThrow(
             /access denied/i,
         );
-        await expect(dbAsB.delete("anything/goes")).rejects.toThrow(/access denied/i);
+        await expect(dbAsB.delete("anything/goes")).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
 
         // Merge path: B's signed entry outside its namespace is not indexed; inside it is.
         const outside = await putSignedEntry(otherController, "free/merged", { value: "x" }, Date.now(), db.address);
@@ -176,7 +176,7 @@ describe("Access presets", () => {
 
         const third = await createIdentity("presets-third", "pw", node.helia);
         const dbAsC = await openDatabase<Value>(db.address, { helia: node.helia, identity: third });
-        await expect(dbAsC.set("c-key", { value: "nope" })).rejects.toThrow(/access denied/i);
+        await expect(dbAsC.set("c-key", { value: "nope" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
 
         const thirdController = new HeliaController(node.helia, third);
         const forged = await putSignedEntry(thirdController, "c-merge", { value: "nope" }, Date.now(), db.address);
@@ -216,10 +216,10 @@ describe("Access presets", () => {
         await db.set(`${creatorNs}decision`, { value: "creator" });
         await dbAsB.set(`${otherNs}finding`, { value: "b" });
         // The creator has no override: not outside its namespace, not in B's.
-        await expect(db.set("shared/key", { value: "x" })).rejects.toThrow(/access denied/i);
-        await expect(db.set(`${otherNs}finding`, { value: "overwrite" })).rejects.toThrow(/access denied/i);
-        await expect(db.delete(`${otherNs}finding`)).rejects.toThrow(/access denied/i);
-        await expect(dbAsB.set(`${creatorNs}decision`, { value: "x" })).rejects.toThrow(/access denied/i);
+        await expect(db.set("shared/key", { value: "x" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
+        await expect(db.set(`${otherNs}finding`, { value: "overwrite" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
+        await expect(db.delete(`${otherNs}finding`)).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
+        await expect(dbAsB.set(`${creatorNs}decision`, { value: "x" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
 
         // Merge path: a creator-signed tombstone for B's key is not indexed.
         await dbAsB.waitUntilIdle();
@@ -268,8 +268,8 @@ describe("Writing as another identity (WriteOptions.identity)", () => {
         expect((await db.provenance(`${deviceNs}fact`))!.writer.equals(node.identity.cid)).toBe(true);
 
         // Authorization is evaluated for the signing identity, not the database's own.
-        await expect(db.set(`${deviceNs}x`, { value: "x" }, { identity: agent })).rejects.toThrow(/access denied/i);
-        await expect(db.set(`${agentNs}x`, { value: "x" })).rejects.toThrow(/access denied/i);
+        await expect(db.set(`${deviceNs}x`, { value: "x" }, { identity: agent })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
+        await expect(db.set(`${agentNs}x`, { value: "x" })).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
         await db.delete(`${agentNs}fact`, { identity: agent });
         expect(await db.get(`${agentNs}fact`)).toBeUndefined();
         expect((await db.provenance(`${agentNs}fact`))!.writer.equals(agent.cid)).toBe(true);
@@ -327,7 +327,7 @@ describe("Custom policies and entryOperation", () => {
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         await dbAsB.set("note", { value: "from b" });
-        await expect(dbAsB.delete("note")).rejects.toThrow(/access denied/i);
+        await expect(dbAsB.delete("note")).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED"));
         await db.set("creator-note", { value: "c" });
         await db.delete("creator-note"); // the creator may delete
 
@@ -349,7 +349,7 @@ describe("Custom policies and entryOperation", () => {
 
         const manifest = db.manifest;
         const reopened = await openDatabase<Value>(manifest.cid, { helia: node.helia, identity: other });
-        await expect(reopened.delete("note")).rejects.toThrow(/access denied/i); // the rule travels with the manifest
+        await expect(reopened.delete("note")).rejects.toSatisfy((e) => isDenkmitError(e, "ACCESS_DENIED")); // the rule travels with the manifest
         await reopened.close();
         await dbAsB.close();
         await db.close();
@@ -374,8 +374,8 @@ describe("Custom policies and entryOperation", () => {
             },
         });
         await db.set("facts/a", { value: "1" });
-        await expect(db.set("notes/a", { value: "1" })).rejects.toThrow(/consensus/i);
-        await expect(db.delete("facts/a")).rejects.toThrow(/consensus/i);
+        await expect(db.set("notes/a", { value: "1" })).rejects.toSatisfy((e) => isDenkmitError(e, "VALIDITY_REJECTED"));
+        await expect(db.delete("facts/a")).rejects.toSatisfy((e) => isDenkmitError(e, "VALIDITY_REJECTED"));
         expect(await db.get("facts/a")).toEqual({ value: "1" });
         await db.close();
     });

@@ -26,6 +26,7 @@ const workDir = mkdtempSync(join(tmpdir(), "denkmitdb-pack-"));
 
 /** The runtime surface of the package. Keep in sync with src/index.ts. */
 const PUBLIC_EXPORTS = [
+    "DenkmitError",
     "createDatabase",
     "createIdentity",
     "decryptValue",
@@ -33,6 +34,7 @@ const PUBLIC_EXPORTS = [
     "encryptedValueRecipients",
     "fetchIdentity",
     "hasIdentity",
+    "isDenkmitError",
     "isEncryptedValue",
     "openDatabase",
     "openIdentity",
@@ -43,7 +45,10 @@ import {
     createDatabase,
     openDatabase,
     isEncryptedValue,
+    isDenkmitError,
+    encryptValueFor,
     type CreateDatabaseOptions,
+    type ErrorCode,
     type Database,
     type HeliaNode,
     type Identity,
@@ -80,7 +85,13 @@ const removed: CreateDatabaseOptions<unknown> = { helia, identity, access: "publ
 // @ts-expect-error a fetched identity cannot sign
 void (asPublic as Identity).sign;
 
-export { created, opened, provenance, accessName, validityCid, writer, isEnc, custom, removed };
+const denied: boolean = isDenkmitError(new Error("x"), "ACCESS_DENIED");
+const someCode: ErrorCode = "VALIDITY_REJECTED";
+const sealed = encryptValueFor(identity, 1, { database: "db", key: "k", writer: "w" });
+// @ts-expect-error the encryption context is required
+const unbound = encryptValueFor(identity, 1);
+
+export { denied, someCode, sealed, unbound, created, opened, provenance, accessName, validityCid, writer, isEnc, custom, removed };
 `;
 
 try {

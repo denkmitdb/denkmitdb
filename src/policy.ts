@@ -68,6 +68,5 @@ export async function createPolicy(definition: PolicyDefinition, controller: Hel
 /** Fetches and verifies a policy. */
 export async function fetchPolicy(cid: CID, controller: HeliaController): Promise<SignedPolicy> {
     const result = await controller.getSigned<PolicyDefinition>(cid);
-    if (!result) throw new Error("Policy not found");
-    return toPolicy(result);
+        return toPolicy(result);
 }

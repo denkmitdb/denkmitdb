@@ -44,4 +44,4 @@ The new identity, able to sign.
 
 ## Throws
 
-An Error if the identity already exists.
+DenkmitError - `ALREADY_EXISTS`.

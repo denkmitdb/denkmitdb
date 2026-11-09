@@ -36,6 +36,8 @@ signed-record internals are no longer reachable. Wire formats are unchanged
 | `PolicyData` / `PolicyInterface` | `PolicyDefinition` / `SignedPolicy` |
 | `DenkmitHeliaInterface` | `HeliaNode` |
 | `createEntry`, `createPollard`, `HeliaController`, `SortedItemsStore`, … | internal |
+| plain `Error` / `TypeError` / `ReferenceError` | `DenkmitError` with a stable `code` (`ErrorCode`): `INVALID_ARGUMENT`, `ACCESS_DENIED`, `VALIDITY_REJECTED`, `NOT_FOUND`, `ALREADY_EXISTS`, `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED`, `UNSUPPORTED_VERSION`, `KEY_UNAVAILABLE`, `INVALID_PASSPHRASE`, `INTERNAL`; `isDenkmitError(e, code)`. MCP tools return `{ error: { code, message } }` |
+| `encryptValueFor(recipients, value, context?)` / `decryptValue(identity, value, expected?)` | the context is required in both (`INVALID_ARGUMENT` without it); an envelope sealed without a context never opens |
 
 Removed options passed from plain JavaScript (`access`, `accessPolicy`,
 `validationPolicy`, `publicWrite`, `order`, `cache`, `keyValueStorage`) throw

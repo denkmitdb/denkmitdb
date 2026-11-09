@@ -37,10 +37,12 @@ export function openDatabase<T>(address: CID | string, options: DatabaseOptions<
     return openDatabaseInstance<T>(address, options);
 }
 
+export { DenkmitError, isDenkmitError } from "./errors.js";
 export { createIdentity, fetchIdentity, hasIdentity, openIdentity } from "./identity.js";
 export { decryptValue, encryptedValueRecipients, encryptValueFor, isEncryptedValue } from "./encryption.js";
 
 export type { EncryptedValue, EncryptionContext } from "./encryption.js";
+export type { ErrorCode } from "./errors.js";
 export type { IdentityAlgorithm } from "./protocol/identity.js";
 export type { PolicyDefinition } from "./protocol/policy.js";
 export type {

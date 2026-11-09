@@ -299,6 +299,8 @@ try {
     assert(seen.found, "b must read a's write immediately (same node)");
     const outside = await a.callTool({ name: "memory_set", arguments: { key: "shared/x", value: 1 } });
     assert((outside as { isError?: boolean }).isError, "namespace-per-writer must refuse writes outside the namespace");
+    const outsideError = (firstText(outside) as { error: { code: string } }).error;
+    assert(outsideError.code === "ACCESS_DENIED", `outside the namespace: expected ACCESS_DENIED, got ${outsideError.code}`);
     await a.close();
     const still = firstText(await b.callTool({ name: "memory_get", arguments: { key } })) as { found: boolean };
     assert(still.found, "closing one client must not affect another");

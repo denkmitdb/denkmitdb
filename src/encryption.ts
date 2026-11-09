@@ -2,6 +2,7 @@ import * as jose from "jose";
 import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import type { Identity, SigningIdentity } from "./types.js";
 import { HeliaStorage } from "./storage/helia.js";
+import { DenkmitError } from "./errors.js";
 
 /** Key management algorithm for every recipient: ECDH-ES key agreement + AES key wrap. */
 export const ENCRYPTION_KEY_ALG = "ECDH-ES+A256KW";
@@ -64,6 +65,17 @@ export function encryptedValueRecipients(value: EncryptedValue): string[] {
     return value.jwe.recipients.map((r) => r.header?.kid).filter(isString);
 }
 
+/**
+ * Requires a complete context. Without one, an envelope could be re-posted under
+ * another key or writer and still open, so the context is not optional.
+ */
+function assertContext(context: unknown, fn: string): asserts context is EncryptionContext {
+    const c = context as Partial<EncryptionContext> | null | undefined;
+    if (typeof c !== "object" || c === null || ![c.database, c.key, c.writer].every((v) => typeof v === "string" && v.length > 0)) {
+        throw new DenkmitError("INVALID_ARGUMENT", `${fn} needs a context { database, key, writer } of non-empty strings`);
+    }
+}
+
 /** Canonical encoding of a context (dag-cbor sorts map keys), as JWE AAD. */
 function contextAad(context: EncryptionContext): Uint8Array {
     return HeliaStorage.encode({ database: context.database, key: context.key, writer: context.writer });
@@ -78,27 +90,33 @@ function contextAad(context: EncryptionContext): Uint8Array {
  *
  * @param recipients - One identity or a list (duplicates are folded).
  * @param value - Any dag-cbor-serializable value.
- * @param context - Optional publication context to bind (see {@link EncryptionContext}).
+ * @param context - Where the value is published: database address, key and the
+ *   writer's identity CID (see {@link EncryptionContext}). Bound into the envelope.
  * @returns The envelope to store as the entry's value.
- * @throws Error - With no recipients, or a recipient whose key cannot do ECDH (not EC).
+ * @throws DenkmitError - `INVALID_ARGUMENT` with no recipients, a recipient whose key
+ *   cannot do ECDH (not EC), or an incomplete context.
  */
 export async function encryptValueFor(
     recipients: Identity | Identity[],
     value: unknown,
-    context?: EncryptionContext,
+    context: EncryptionContext,
 ): Promise<EncryptedValue> {
+    assertContext(context, "encryptValueFor");
     const list = Array.isArray(recipients) ? recipients : [recipients];
     const unique = [...new Map(list.map((r) => [r.cid.toString(), r])).values()];
-    if (unique.length === 0) throw new Error("encryptValueFor needs at least one recipient");
+    if (unique.length === 0) throw new DenkmitError("INVALID_ARGUMENT", "encryptValueFor needs at least one recipient");
 
     const encrypt = new jose.GeneralEncrypt(HeliaStorage.encode(value)).setProtectedHeader({
         enc: ENCRYPTION_CONTENT_ENC,
     });
-    if (context) encrypt.setAdditionalAuthenticatedData(contextAad(context));
+    encrypt.setAdditionalAuthenticatedData(contextAad(context));
     for (const recipient of unique) {
         const jwk = HeliaStorage.decode<jose.JWK>(uint8ArrayFromString(recipient.publicKey, "base64"));
         if (jwk.kty !== "EC") {
-            throw new Error(`identity ${recipient.cid.toString()} has a ${jwk.kty} key; encryption needs an EC key`);
+            throw new DenkmitError(
+                "INVALID_ARGUMENT",
+                `identity ${recipient.cid.toString()} has a ${jwk.kty} key; encryption needs an EC key`,
+            );
         }
         const key = (await jose.importJWK({ ...jwk, alg: ENCRYPTION_KEY_ALG }, ENCRYPTION_KEY_ALG)) as CryptoKey;
         encrypt.addRecipient(key).setUnprotectedHeader({ alg: ENCRYPTION_KEY_ALG, kid: recipient.cid.toString() });
@@ -109,24 +127,27 @@ export async function encryptValueFor(
 /**
  * Decrypts a value produced by {@link encryptValueFor} with this identity's
  * private key. Returns `undefined` when this identity is not a recipient, its
- * private key is unavailable, the envelope is malformed or tampered with, or —
- * when `expected` is given — the envelope is not bound to exactly that context
- * (re-posted elsewhere, or sealed without a context). It never throws, so callers
- * can probe records without try/catch.
+ * private key is unavailable, the envelope is malformed or tampered with, or the
+ * envelope is not bound to exactly the `expected` context (re-posted under another
+ * key, writer or database, or sealed without a context). For envelopes it never
+ * throws, so callers can probe records without try/catch.
  *
  * @param identity - A recipient identity with its private key.
  * @param value - The stored envelope.
- * @param expected - The context the value is read in; strongly recommended.
+ * @param expected - The context the value is read in: this database's address, the
+ *   record's key and its actual writer (from `provenance`).
  * @returns The decoded value, or undefined.
+ * @throws DenkmitError - `INVALID_ARGUMENT` only for an incomplete `expected` context.
  */
 export async function decryptValue<T>(
     identity: SigningIdentity,
     value: EncryptedValue,
-    expected?: EncryptionContext,
+    expected: EncryptionContext,
 ): Promise<T | undefined> {
+    assertContext(expected, "decryptValue");
     try {
         if (!isEncryptedValue(value)) return undefined;
-        if (expected && value.jwe.aad !== jose.base64url.encode(contextAad(expected))) return undefined;
+        if (value.jwe.aad !== jose.base64url.encode(contextAad(expected))) return undefined;
         const kid = identity.cid.toString();
         const recipient = value.jwe.recipients.find((r) => r.header?.kid === kid);
         if (!recipient) return undefined;

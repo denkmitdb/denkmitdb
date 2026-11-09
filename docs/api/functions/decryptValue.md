@@ -6,14 +6,14 @@
 
 # Function: decryptValue()
 
-> **decryptValue**\<`T`\>(`identity`, `value`, `expected?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
+> **decryptValue**\<`T`\>(`identity`, `value`, `expected`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 Decrypts a value produced by [encryptValueFor](encryptValueFor.md) with this identity's
 private key. Returns `undefined` when this identity is not a recipient, its
-private key is unavailable, the envelope is malformed or tampered with, or —
-when `expected` is given — the envelope is not bound to exactly that context
-(re-posted elsewhere, or sealed without a context). It never throws, so callers
-can probe records without try/catch.
+private key is unavailable, the envelope is malformed or tampered with, or the
+envelope is not bound to exactly the `expected` context (re-posted under another
+key, writer or database, or sealed without a context). For envelopes it never
+throws, so callers can probe records without try/catch.
 
 ## Type Parameters
 
@@ -35,14 +35,19 @@ A recipient identity with its private key.
 
 The stored envelope.
 
-### expected?
+### expected
 
 [`EncryptionContext`](../type-aliases/EncryptionContext.md)
 
-The context the value is read in; strongly recommended.
+The context the value is read in: this database's address, the
+  record's key and its actual writer (from `provenance`).
 
 ## Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
 
 The decoded value, or undefined.
+
+## Throws
+
+DenkmitError - `INVALID_ARGUMENT` only for an incomplete `expected` context.

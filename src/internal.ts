@@ -5,6 +5,7 @@
  */
 export * from "./database.js";
 export * from "./encryption.js";
+export * from "./errors.js";
 export * from "./entry.js";
 export * from "./head.js";
 export * from "./identity.js";
