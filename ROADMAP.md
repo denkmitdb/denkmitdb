@@ -56,7 +56,7 @@ Next, in order:
    - Rejected as consensus languages: json-rules-engine (JS-function facts and
      operators, cannot express namespace-per-writer, no cross-language spec),
      Rego/OPA (too heavy to embed in every replica), Cedar and Biscuit (own
-     entity/token models). See the discussion in the 4.0.0 changelog period.
+     entity/token models).
 
 The phase history below is kept as the record of how the project got here.
 
