@@ -44,7 +44,7 @@ export { decryptValue, encryptedValueRecipients, encryptValueFor, isEncryptedVal
 export type { EncryptedValue, EncryptionContext } from "./encryption.js";
 export type { ErrorCode } from "./errors.js";
 export type { IdentityAlgorithm } from "./protocol/identity.js";
-export type { PolicyDefinition } from "./protocol/policy.js";
+export type { PolicyDefinition, PolicyLiteral, PolicyOperator, PolicyRule } from "./protocol/policy.js";
 export type {
     AccessRule,
     Consensus,

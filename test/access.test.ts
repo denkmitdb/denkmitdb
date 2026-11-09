@@ -1,4 +1,4 @@
-import type { RulesLogic } from "json-logic-js";
+import type { PolicyRule } from "../src/internal";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
     createDatabase,
@@ -315,7 +315,7 @@ describe("Custom policies and entryOperation", () => {
                 { "==": [{ var: "entryOperation" }, "put"] },
                 { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
             ],
-        } as unknown as RulesLogic,
+        } as unknown as PolicyRule,
     };
 
     it("a custom access policy can tell puts from deletes (local and merge path)", async () => {
@@ -369,7 +369,7 @@ describe("Custom policies and entryOperation", () => {
                             { startsWith: [{ var: "entryKey" }, "facts/"] },
                             { "==": [{ var: "entryOperation" }, "put"] },
                         ],
-                    } as unknown as RulesLogic,
+                    } as unknown as PolicyRule,
                 },
             },
         });

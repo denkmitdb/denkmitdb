@@ -53,6 +53,7 @@ import {
     type HeliaNode,
     type Identity,
     type PolicyDefinition,
+    type PolicyRule,
     type Provenance,
     type SigningIdentity,
 } from "@denkmitdb/denkmitdb";
@@ -87,11 +88,14 @@ void (asPublic as Identity).sign;
 
 const denied: boolean = isDenkmitError(new Error("x"), "ACCESS_DENIED");
 const someCode: ErrorCode = "VALIDITY_REJECTED";
+const rule: PolicyRule = { startsWith: [{ var: "entryKey" }, "facts/"] };
+// @ts-expect-error operators outside DenkMit Logic 1 do not type-check
+const outside: PolicyRule = { "+": [1, 1] };
 const sealed = encryptValueFor(identity, 1, { database: "db", key: "k", writer: "w" });
 // @ts-expect-error the encryption context is required
 const unbound = encryptValueFor(identity, 1);
 
-export { denied, someCode, sealed, unbound, created, opened, provenance, accessName, validityCid, writer, isEnc, custom, removed };
+export { rule, outside, denied, someCode, sealed, unbound, created, opened, provenance, accessName, validityCid, writer, isEnc, custom, removed };
 `;
 
 try {

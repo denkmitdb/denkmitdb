@@ -9,7 +9,7 @@ import * as dagCborCodec from "@ipld/dag-cbor";
 import { createHeliaLight } from "helia";
 import { Libp2p } from "libp2p";
 import { CID } from "multiformats/cid";
-import type { RulesLogic } from "json-logic-js";
+import type { PolicyRule } from "../src/internal";
 import {
     createEmptyPollard,
     createHead,
@@ -134,7 +134,7 @@ export async function createCustomDb<T>(
 ): Promise<DenkmitDatabase<T>> {
     const controller = new HeliaController(node.helia, node.identity);
     const policy = (policyName: string, logic: unknown) =>
-        createPolicy({ version: 1, name: policyName, description: policyName, logic: logic as RulesLogic }, controller);
+        createPolicy({ version: 1, name: policyName, description: policyName, logic: logic as PolicyRule }, controller);
     const manifest = await createManifest(
         {
             version: manifestVersion,

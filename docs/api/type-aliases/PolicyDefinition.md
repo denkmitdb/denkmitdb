@@ -8,9 +8,9 @@
 
 > **PolicyDefinition** = `object`
 
-A json-logic policy, exactly as signed into a database. Write your own for
-`accessPolicy` / `validationPolicy`; the inputs available to the rule are listed
-in docs/policies.md.
+A policy, exactly as signed into a database — one of its consensus rules. Write
+your own for `consensus.access` (`{ policy }`) or `consensus.validity`; the inputs
+a rule sees are listed in docs/policies.md.
 
 ## Properties
 
@@ -22,7 +22,7 @@ in docs/policies.md.
 
 ### logic
 
-> `readonly` **logic**: `RulesLogic`
+> `readonly` **logic**: [`PolicyRule`](PolicyRule.md)
 
 ***
 
@@ -36,4 +36,4 @@ in docs/policies.md.
 
 > `readonly` **version**: `1`
 
-Policy format version; always 1.
+The policy language: 1 = DenkMit Logic 1.

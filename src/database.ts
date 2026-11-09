@@ -1,5 +1,4 @@
 import type { Logger } from "@libp2p/interface";
-import type { RulesLogic } from "json-logic-js";
 import { Key } from "interface-datastore";
 import Keyv from "keyv";
 import { CID } from "multiformats/cid";
@@ -332,7 +331,7 @@ function accessPolicyRule(access: AccessPreset): PolicyDefinition {
                     { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
                     { startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }] },
                 ],
-            } as unknown as RulesLogic,
+            },
         };
     }
     if (access === "namespace-per-writer") {
@@ -342,7 +341,7 @@ function accessPolicyRule(access: AccessPreset): PolicyDefinition {
             description: "Every identity, the creator included, writes only under agents/<its-cid>/",
             logic: {
                 startsWith: [{ var: "entryKey" }, { cat: ["agents/", { var: "entryCreator" }, "/"] }],
-            } as unknown as RulesLogic,
+            },
         };
     }
     if (typeof access === "object") {
@@ -350,7 +349,7 @@ function accessPolicyRule(access: AccessPreset): PolicyDefinition {
             version: 1,
             name: "denkmit-access-allowlist",
             description: "Only listed identities may write",
-            logic: { in: [{ var: "entryCreator" }, access.allowlist] } as unknown as RulesLogic,
+            logic: { in: [{ var: "entryCreator" }, access.allowlist] },
         };
     }
     return {

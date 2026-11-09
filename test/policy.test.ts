@@ -1,4 +1,4 @@
-import type { RulesLogic } from "json-logic-js";
+import type { PolicyRule } from "../src/internal";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPolicy, fetchPolicy, HeliaController, evaluatePolicy } from "../src/internal";
 import { PolicyDefinition } from "../src/internal";
@@ -66,7 +66,7 @@ describe("policies", () => {
                 version: 1,
                 name: "prefix-test",
                 description: "startsWith works",
-                logic: { startsWith: [{ var: "entryKey" }, "agents/"] } as unknown as RulesLogic,
+                logic: { startsWith: [{ var: "entryKey" }, "agents/"] } as unknown as PolicyRule,
             },
             heliaController,
         );
@@ -83,7 +83,7 @@ describe("policies", () => {
                 version: 1,
                 name: "broken",
                 description: "uses an operation no replica registers",
-                logic: { noSuchOperation: [1] } as unknown as RulesLogic,
+                logic: { noSuchOperation: [1] } as unknown as PolicyRule,
             },
             heliaController,
         );
