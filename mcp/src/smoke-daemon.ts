@@ -100,13 +100,14 @@ async function twoMachines(): Promise<void> {
     const peerDir = mkdtempSync(join(tmpdir(), "denkmit-peer-"));
     const port = 40_000 + Math.floor(Math.random() * 20_000);
     const base = { ...process.env, DENKMIT_MDNS: "off", DENKMIT_ACCESS: "namespace-per-writer" };
-    const seed = startDaemon({
+    const seedEnv = {
         ...base,
         DENKMIT_DATADIR: seedDir,
         DENKMIT_IDENTITY: "seed-owner",
         DENKMIT_PASSPHRASE: "seed-secret",
         DENKMIT_LISTEN: `/ip4/127.0.0.1/tcp/${port}`,
-    });
+    };
+    let seed = startDaemon(seedEnv);
     let peer: ChildProcess | undefined;
     try {
         await waitForSocket(join(seedDir, "denkmitd.sock"));
@@ -125,6 +126,7 @@ async function twoMachines(): Promise<void> {
             DENKMIT_LISTEN: "/ip4/127.0.0.1/tcp/0",
             DENKMIT_DB: seedStatus.databaseAddress,
             DENKMIT_PEERS: `/ip4/127.0.0.1/tcp/${port}`,
+            DENKMIT_REDIAL_SECONDS: "1",
         });
         await waitForSocket(join(peerDir, "denkmitd.sock"));
         const onPeer = await client("laptop", peerDir);
@@ -189,7 +191,20 @@ async function twoMachines(): Promise<void> {
         const seedReadsPeers = await read(onSeed, forPeer);
         assert(!seedReadsPeers.readable, "includeSelf: false must keep the writer out too");
         console.log("encrypted values: recipients read them, everyone else sees only key, writer and recipients");
+
+        // The seed restarts on the same address. It does not know the peer, so only the
+        // peer can restore the connection: it must redial on its own.
         await onSeed.close();
+        seed.kill("SIGTERM");
+        await exitCode(seed);
+        seed = startDaemon(seedEnv);
+        await waitForSocket(join(seedDir, "denkmitd.sock"));
+        const onSeedAgain = await client("seed-again", seedDir);
+        const afterRestart = `${seedStatus.access.ownNamespace}after-restart`;
+        await onSeedAgain.callTool({ name: "memory_set", arguments: { key: afterRestart, value: { by: "seed" } } });
+        await waitFor("a fact written after the seed restarted, on the peer", onPeer, afterRestart);
+        console.log("the peer redials a restarted seed by itself (DENKMIT_PEERS stays connected)");
+        await onSeedAgain.close();
         await onPeer.close();
         console.log("two daemons (separate machines, mDNS off) replicate both ways via DENKMIT_PEERS");
     } finally {

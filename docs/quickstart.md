@@ -162,7 +162,8 @@ Ask an agent there:
 **Things to know:**
 
 - The first machine must be online when the second one joins for the first time.
-  After that each machine keeps its own copy and works offline.
+  After that each machine keeps its own copy and works offline, and reconnects by
+  itself when the other machine is back (after sleep, a network change or a restart).
 - Same network (home, office): use the `192.168…` / `10.…` peer address.
 - Across the internet: the first machine needs a public address and TCP port
   `4001` open in its firewall. A small always-on server works well as the meeting
