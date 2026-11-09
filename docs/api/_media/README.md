@@ -132,6 +132,28 @@ keeps the data reachable when everybody else is offline, and new peers can join
 through it. (Peer discovery by database address over a DHT, and NAT traversal
 through libp2p relays, are the next steps; today peers dial each other directly.)
 
+**Behind a firewall that allows only HTTPS** (common on corporate networks),
+port 4001 is unreachable. A seed can also listen on WebSockets behind any TLS
+reverse proxy on 443, and peers dial it as `wss`:
+
+```bash
+# seed: a WebSockets listener for the proxy, and the public wss address to announce
+DENKMIT_LISTEN=/ip4/0.0.0.0/tcp/4001,/ip4/127.0.0.1/tcp/4002/ws
+DENKMIT_ANNOUNCE=/dns4/seed.example.org/tcp/4001,/dns4/seed.example.org/tcp/443/tls/ws
+```
+
+```caddyfile
+# Caddy terminates TLS and passes the WebSocket upgrade through
+seed.example.org {
+    reverse_proxy 127.0.0.1:4002
+}
+```
+
+```bash
+# a peer on the restricted network
+DENKMIT_PEERS=/dns4/seed.example.org/tcp/443/tls/ws/p2p/12D3Koo…
+```
+
 On one machine or LAN, peers also find each other without configuration: mDNS on
 the local network, and a file rendezvous for servers that share a
 `DENKMIT_DATADIR` root.
@@ -228,9 +250,10 @@ the daemon's environment, and the thin client only uses `DENKMIT_DAEMON`,
 | `DENKMIT_ACCESS` | `creator-only` | Preset for a created database: `creator-only`, `public`, `prefix-per-writer`, `namespace-per-writer`, `allowlist:<cid>,…` (unknown values refuse to start) |
 | `DENKMIT_POLICY_FILE` | — | JSON `{ "access"?, "validity"? }`: custom consensus rules (policy definitions) for a created database |
 | `DENKMIT_MAX_VALUE_BYTES` | `65536` | Largest value `memory_set` accepts (UTF-8 bytes of its JSON) |
-| `DENKMIT_LISTEN` | daemon `/ip4/0.0.0.0/tcp/4001`, embedded random port | Comma-separated libp2p listen multiaddrs |
+| `DENKMIT_LISTEN` | daemon `/ip4/0.0.0.0/tcp/4001`, embedded random port | Comma-separated libp2p listen multiaddrs: TCP, or WebSockets (`…/tcp/4002/ws`, e.g. behind a TLS proxy) |
 | `DENKMIT_ANNOUNCE` | — | Multiaddrs to advertise instead (public IP / DNS of a server) |
-| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to dial at start |
+| `DENKMIT_PEERS` | — | Comma-separated multiaddrs to keep connected: dialed at start and again whenever the connection is lost (sleep, network change, a restarted seed) |
+| `DENKMIT_REDIAL_SECONDS` | `30` | How often a `DENKMIT_PEERS` entry that is not connected is dialed again (a drop is retried within seconds) |
 | `DENKMIT_MDNS` | on | `off` disables local-network discovery (e.g. on a server) |
 
 State (blocks, identity key, head pointer) persists in the data directory, so a

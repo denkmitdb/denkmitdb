@@ -24,17 +24,39 @@ Done since 3.0.0 (all in 4.0.0 / MCP 0.3.0, ready to publish):
   presets `prefix-per-writer`, `namespace-per-writer`, allowlists.
 - `denkmitd` daemon + thin MCP client, seeds, per-agent identities.
 - Encrypted values (multi-recipient, context-bound).
-- Two-agent demo and launch post draft.
+- Public API: explicit exports, consensus rules `{ access, validity }`, typed
+  errors with stable codes, a required encryption context, and a versioned,
+  closed policy language (DenkMit Logic 1); wire formats frozen by `test/wire`.
+- Docs: quick start for agent users; two-agent demo and launch post draft.
 
 Next, in order:
 
 1. **npm publish** of 4.0.0 / MCP 0.3.0.
 2. **Delegation** phase 2–3: owner-signed certificates so other parties see the
-   owner behind device and agent keys (`specs/delegation.md`, draft).
+   owner behind device and agent keys (`specs/delegation.md`, draft). Candidate
+   for the certificates' restrictions: the UCAN 1.0 policy language (predicates
+   over IPLD with jq-style selectors) once 1.0 is final — see below.
 3. **Discovery and reachability, peer-to-peer only:** peer discovery by database
    address over a DHT and NAT traversal through libp2p relays. (The HTTP
    head-rendezvous idea in "Post-v2" below is withdrawn as a central component.)
 4. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
+5. **Policy languages** (policy `version` = language version; decided 2026-11-09):
+   - Before the first port: `specs/policy-language.md` for DenkMit Logic 1 and
+     language-neutral test vectors, built from the community JSON Logic suite
+     ([json-logic/compat-tables](https://github.com/json-logic/compat-tables))
+     filtered to our 17 operators and pinned to json-logic-js 2.0.5 semantics,
+     which existing databases rely on; then decide on an own small evaluator.
+     Implementations differ exactly on loose `==`, truthiness and mixed-type
+     comparisons, which the current presets avoid.
+   - `version: 2` candidate: **CEL** (Common Expression Language) — readable
+     (`entryKey.startsWith("agents/" + entryCreator + "/")`), deterministic,
+     a language-independent conformance suite, official Go/Java/C++ and Rust
+     implementations; the JS side is community-only, so gate it on conformance.
+     Or the community JSON Logic spec's core, if it is published first.
+   - Rejected as consensus languages: json-rules-engine (JS-function facts and
+     operators, cannot express namespace-per-writer, no cross-language spec),
+     Rego/OPA (too heavy to embed in every replica), Cedar and Biscuit (own
+     entity/token models).
 
 The phase history below is kept as the record of how the project got here.
 
@@ -312,6 +334,32 @@ features. Sequence, each step shippable on its own:
 7. **Encrypted values (S/M):** per-value JWE to a recipient identity using the
    existing, tested, unused `Identity.encrypt`/`decrypt` — replicate facts peers
    cannot read.
+
+#### November 2026 update — MVP first, pure P2P
+
+Agreed direction after the landscape review: ship the simplest version that
+tests the concept with real agents, and keep every step peer-to-peer (no
+component that only works with a central service).
+
+- ✅ **Daemon (`denkmitd`) + thin MCP client** — one long-lived peer per machine;
+  any always-on peer can act as a seed with no special authority. First seed:
+  `open.zhakenov.pro:4001`.
+- ✅ **`namespace-per-writer`, `entryOperation`, custom policies** — equal parties,
+  expressible delete rules.
+- **Next: a real two-machine test** (seed + laptop, Claude Code and Codex), then
+  **P2P discovery by database address** (libp2p DHT provider records: the address
+  is the rendezvous key — a P2P space per database) and **NAT traversal through
+  libp2p relays** (circuit relay v2 + DCUtR; any public peer can relay).
+- **Step 6 above (HTTP head rendezvous) is withdrawn:** an HTTP endpoint is a
+  central component. Durable head discovery comes from seeds and, later, signed
+  head pointers in the DHT (IPNS-style).
+- **Bounded growth:** [specs/succession.md](specs/succession.md) (draft) — local
+  GC first, then a signed hand-over to a successor database that carries only
+  live, originally-signed records.
+- **Future direction — P2P git for agents.** Refs as signed facts in per-writer
+  namespaces, project rules (who may move `main`) in the manifest, issues,
+  reviews and CI attestations as attributable records. Radicle is the closest
+  prior art; the agent-native angle is the difference.
 
 Still-relevant engine work, slotted where it pays for the wedge: **persisted
 materialized index** (reopen time — with 3), **tombstone GC/compaction**
