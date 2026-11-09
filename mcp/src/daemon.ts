@@ -112,7 +112,7 @@ for (const { path: p } of servers) await chmod(p, 0o600);
 
 log(
     `ready — db ${db.address.toString()} · identity ${config.identityName} (${identity.cid.toString()}) · ` +
-        `${db.size} records`,
+        `${db.recordCount} records`,
 );
 log(`peers can dial: ${node.helia.libp2p.getMultiaddrs().map(String).join(" ") || "(no addresses)"}`);
 log(`local agents connect through ${path}`);

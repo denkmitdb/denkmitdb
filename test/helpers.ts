@@ -17,25 +17,24 @@ import {
     createManifest,
     createPolicy,
     HeliaController,
-    openDenkmitDatabase,
-} from "../src/functions";
+    openDatabase,
+} from "../src/internal";
 import {
-    DenkmitDatabaseInterface,
-    EntryData,
+    DenkmitDatabase,
+    EntryPayload,
     ENTRY_VERSION,
-    HeadInterface,
+    Head,
     HEAD_VERSION,
-    IdentityInterface,
-    LeafTypes,
+    SigningIdentity,
+    LeafKind,
     LEGACY_ENTRY_VERSION,
     MANIFEST_VERSION,
-    ManifestVersionType,
-} from "../src/types";
-import type { DenkmitHeliaInterface } from "../src/types";
+} from "../src/internal";
+import type { HeliaNode, ManifestPayload } from "../src/internal";
 
 export type TestNode = {
-    helia: DenkmitHeliaInterface;
-    identity: IdentityInterface;
+    helia: HeliaNode;
+    identity: SigningIdentity;
     stop: () => Promise<void>;
 };
 
@@ -61,7 +60,7 @@ export async function createTestNode(name: string): Promise<TestNode> {
         }),
     );
     await node.start();
-    const helia = node as unknown as DenkmitHeliaInterface;
+    const helia = node as unknown as HeliaNode;
     const identity = await createIdentity(name, "test-passphrase", helia);
 
     return {
@@ -94,7 +93,7 @@ export async function putSignedEntry<T>(
 ): Promise<{ cid: CID; creator: CID; timestamp: number; key: string }> {
     // With a manifest: a current (v2) entry bound to that database. Without one: a
     // legacy v1 entry, which only legacy (v1-manifest) databases accept.
-    const data: EntryData<T> = manifest
+    const data: EntryPayload<T> = manifest
         ? { version: ENTRY_VERSION, manifest, timestamp, key, value }
         : { version: LEGACY_ENTRY_VERSION, timestamp, key, value };
     const signed = await heliaController.addSigned(data);
@@ -108,15 +107,15 @@ export async function putSignedTombstone(
     timestamp: number,
     manifest: CID,
 ): Promise<{ cid: CID; creator: CID; timestamp: number; key: string }> {
-    const data: EntryData<never> = { version: ENTRY_VERSION, manifest, timestamp, key, deleted: true };
+    const data: EntryPayload<never> = { version: ENTRY_VERSION, manifest, timestamp, key, deleted: true };
     const signed = await heliaController.addSigned(data);
     return { cid: signed.cid, creator: signed.creator, timestamp, key };
 }
 
 /**
  * Creates a database from a hand-built manifest — custom json-logic policies
- * and/or a legacy manifest version that `createDenkmitDatabase` no longer emits —
- * and opens it through the normal `openDenkmitDatabase` path.
+ * and/or a legacy manifest version that `createDatabase` no longer emits —
+ * and opens it through the normal `openDatabase` path.
  */
 export async function createCustomDb<T>(
     node: TestNode,
@@ -129,10 +128,10 @@ export async function createCustomDb<T>(
     }: {
         consensus?: unknown;
         access?: unknown;
-        manifestVersion?: ManifestVersionType;
+        manifestVersion?: ManifestPayload["version"];
         order?: number;
     } = {},
-): Promise<DenkmitDatabaseInterface<T>> {
+): Promise<DenkmitDatabase<T>> {
     const controller = new HeliaController(node.helia, node.identity);
     const policy = (policyName: string, logic: unknown) =>
         createPolicy({ version: 1, name: policyName, description: policyName, logic: logic as RulesLogic }, controller);
@@ -148,7 +147,7 @@ export async function createCustomDb<T>(
         },
         controller,
     );
-    return openDenkmitDatabase<T>(manifest.cid, { helia: node.helia, identity: node.identity });
+    return openDatabase<T>(manifest.cid, { helia: node.helia, identity: node.identity });
 }
 
 /** A leaf to place in a forged head: what CID/creator/sort-key/key to claim. */
@@ -165,10 +164,10 @@ export async function buildHead(
     manifest: CID,
     leaves: ForgedLeaf[],
     order = 3,
-): Promise<HeadInterface> {
+): Promise<Head> {
     const pollard = await createEmptyPollard(order);
     for (const leaf of leaves) {
-        await pollard.append(LeafTypes.SortedEntry, leaf.cid, leaf.creator, leaf.sort, leaf.key);
+        await pollard.append(LeafKind.SortedEntry, leaf.cid, leaf.creator, leaf.sort, leaf.key);
     }
     await pollard.updateLayers();
     await heliaController.add(pollard.toJSON());

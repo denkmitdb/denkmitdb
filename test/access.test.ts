@@ -1,14 +1,14 @@
 import type { RulesLogic } from "json-logic-js";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
     createSyncController,
     emptyCID,
     HeliaController,
-    openDenkmitDatabase,
-} from "../src/functions";
-import { IdentityInterface, PolicyData } from "../src/types";
+    openDatabase,
+} from "../src/internal";
+import { SigningIdentity, PolicyDefinition } from "../src/internal";
 import { buildHead, createTestNode, putSignedEntry, putSignedTombstone, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -16,13 +16,13 @@ type Value = { value: string };
 /**
  * Access control (KNOWN_ISSUES.md D1, ROADMAP.md Phase 4 step 2). The default policy
  * is creator-only: only the identity that created the database may write, enforced on
- * both the local `set` path and the authenticated merge/load path. `publicWrite: true`
+ * both the local `set` path and the authenticated merge/load path. `access: "public"`
  * opts into a world-writable database. The policy is a deterministic json-logic rule
  * bound to the manifest, so every replica reaches the same decision.
  */
 describe("Access control", () => {
     let node: TestNode; // node.identity = the creator ("A")
-    let other: IdentityInterface; // a different, non-creator identity ("B")
+    let other: SigningIdentity; // a different, non-creator identity ("B")
     let otherController: HeliaController;
 
     beforeAll(async () => {
@@ -35,27 +35,31 @@ describe("Access control", () => {
         await node.stop();
     });
 
-    async function createDb(name: string, publicWrite = false) {
-        return createDenkmitDatabase<Value>(name, { helia: node.helia, identity: node.identity, publicWrite });
+    async function createDb(name: string, isPublic = false) {
+        return createDatabase<Value>(name, {
+            helia: node.helia,
+            identity: node.identity,
+            consensus: { access: isPublic ? "public" : "creator-only" },
+        });
     }
 
     it("installs a real (non-empty) access policy in the manifest and lets the creator write", async () => {
         const db = await createDb("acc-default");
-        const manifest = await db.getManifest();
-        expect(manifest.access.equals(await emptyCID())).toBe(false);
+        const manifest = db.manifest;
+        expect(manifest.consensus.access.equals(await emptyCID())).toBe(false);
 
         await db.set("k", { value: "v" });
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("k")).toEqual({ value: "v" });
         await db.close();
     });
 
     it("rejects a local write from a non-creator identity", async () => {
         const db = await createDb("acc-reject-local");
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         await expect(dbAsB.set("k", { value: "v" })).rejects.toThrow(/access denied/i);
-        expect(dbAsB.size).toBe(0);
+        expect(dbAsB.recordCount).toBe(0);
 
         await dbAsB.close();
         await db.close();
@@ -73,34 +77,34 @@ describe("Access control", () => {
         ]);
 
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(0);
+        expect(db.recordCount).toBe(0);
         expect(await db.get("intruder")).toBeUndefined();
         await db.close();
     });
 
-    it("publicWrite: true allows a non-creator identity to write", async () => {
+    it("access: public allows a non-creator identity to write", async () => {
         const db = await createDb("acc-public", true);
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         await dbAsB.set("k", { value: "from B" });
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         expect(await dbAsB.get("k")).toEqual({ value: "from B" });
 
         await dbAsB.close();
         await db.close();
     });
 
-    it("open reads the policy from the signed manifest, ignoring local publicWrite", async () => {
+    it("open reads the policy from the signed manifest, ignoring local access options", async () => {
         // Database created creator-only; a peer opening it cannot loosen the policy by
-        // passing publicWrite locally (that would let replicas disagree — KNOWN_ISSUES #19).
+        // passing an access preset locally (that would let replicas disagree — KNOWN_ISSUES #19).
         const db = await createDb("acc-no-local-override", false);
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, {
+        const dbAsB = await openDatabase<Value>(db.address, {
             helia: node.helia,
             identity: other,
-            publicWrite: true,
-        });
+            consensus: { access: "public" },
+        } as Parameters<typeof openDatabase<Value>>[1]);
 
         await expect(dbAsB.set("k", { value: "v" })).rejects.toThrow(/access denied/i);
         await dbAsB.close();
@@ -110,7 +114,7 @@ describe("Access control", () => {
 
 describe("Access presets", () => {
     let node: TestNode; // node.identity = the creator
-    let other: IdentityInterface;
+    let other: SigningIdentity;
     let otherController: HeliaController;
 
     beforeAll(async () => {
@@ -124,12 +128,12 @@ describe("Access presets", () => {
     });
 
     it("prefix-per-writer: others write only under agents/<their-cid>/", async () => {
-        const db = await createDenkmitDatabase<Value>("acc-prefix", {
+        const db = await createDatabase<Value>("acc-prefix", {
             helia: node.helia,
             identity: node.identity,
-            access: "prefix-per-writer",
+            consensus: { access: "prefix-per-writer" },
         });
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         const mine = `agents/${other.cid.toString()}/`;
 
         await db.set("anything/goes", { value: "creator" }); // the creator writes anywhere
@@ -153,7 +157,7 @@ describe("Access presets", () => {
             { cid: inside.cid, creator: inside.creator, sort: [inside.timestamp], key: inside.key },
         ]);
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("free/merged")).toBeUndefined();
         expect(await db.get(`${mine}merged`)).toEqual({ value: "ok" });
 
@@ -162,16 +166,16 @@ describe("Access presets", () => {
     });
 
     it("allowlist: listed identities write, others are rejected locally and via merge", async () => {
-        const db = await createDenkmitDatabase<Value>("acc-allow", {
+        const db = await createDatabase<Value>("acc-allow", {
             helia: node.helia,
             identity: node.identity,
-            access: { allowlist: [node.identity.cid.toString(), other.cid.toString()] },
+            consensus: { access: { allowlist: [node.identity.cid.toString(), other.cid.toString()] } },
         });
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         await dbAsB.set("b-key", { value: "allowed" });
 
         const third = await createIdentity("presets-third", "pw", node.helia);
-        const dbAsC = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: third });
+        const dbAsC = await openDatabase<Value>(db.address, { helia: node.helia, identity: third });
         await expect(dbAsC.set("c-key", { value: "nope" })).rejects.toThrow(/access denied/i);
 
         const thirdController = new HeliaController(node.helia, third);
@@ -180,7 +184,7 @@ describe("Access presets", () => {
             { cid: forged.cid, creator: forged.creator, sort: [forged.timestamp], key: forged.key },
         ]);
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("c-merge")).toBeUndefined();
 
         await dbAsC.close();
@@ -190,44 +194,22 @@ describe("Access presets", () => {
 
     it("allowlist: refuses entries that are not identity CIDs", async () => {
         await expect(
-            createDenkmitDatabase<Value>("acc-allow-bad", {
+            createDatabase<Value>("acc-allow-bad", {
                 helia: node.helia,
                 identity: node.identity,
-                access: { allowlist: ["not-a-cid"] },
+                consensus: { access: { allowlist: ["not-a-cid"] } },
             }),
         ).rejects.toThrow(/allowlist/i);
     });
 
-    it("publicWrite: true still works as a deprecated alias for access: public", async () => {
-        const db = await createDenkmitDatabase<Value>("acc-alias", {
-            helia: node.helia,
-            identity: node.identity,
-            publicWrite: true,
-        });
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
-        await dbAsB.set("open", { value: "ok" });
-        await dbAsB.close();
-        await db.close();
-    });
-
-    it("access and publicWrite cannot disagree", async () => {
-        await expect(
-            createDenkmitDatabase<Value>("acc-conflict", {
-                helia: node.helia,
-                identity: node.identity,
-                access: "creator-only",
-                publicWrite: true,
-            }),
-        ).rejects.toThrow(/publicWrite/);
-    });
 
     it("namespace-per-writer: nobody, the creator included, writes outside its own namespace", async () => {
-        const db = await createDenkmitDatabase<Value>("acc-strict", {
+        const db = await createDatabase<Value>("acc-strict", {
             helia: node.helia,
             identity: node.identity,
-            access: "namespace-per-writer",
+            consensus: { access: "namespace-per-writer" },
         });
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         const creatorNs = `agents/${node.identity.cid.toString()}/`;
         const otherNs = `agents/${other.cid.toString()}/`;
 
@@ -240,7 +222,7 @@ describe("Access presets", () => {
         await expect(dbAsB.set(`${creatorNs}decision`, { value: "x" })).rejects.toThrow(/access denied/i);
 
         // Merge path: a creator-signed tombstone for B's key is not indexed.
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         const creatorController = new HeliaController(node.helia, node.identity);
         const tomb = await putSignedTombstone(creatorController, `${otherNs}finding`, Date.now() + 10, db.address);
         await dbAsB.syncNewHead(
@@ -250,7 +232,7 @@ describe("Access presets", () => {
                 ])
             ).cid.bytes,
         );
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         expect(await dbAsB.get(`${otherNs}finding`)).toEqual({ value: "b" });
 
         await dbAsB.close();
@@ -260,7 +242,7 @@ describe("Access presets", () => {
 
 describe("Writing as another identity (WriteOptions.identity)", () => {
     let node: TestNode; // node.identity = the device
-    let agent: IdentityInterface;
+    let agent: SigningIdentity;
 
     beforeAll(async () => {
         node = await createTestNode("signer-device");
@@ -272,36 +254,36 @@ describe("Writing as another identity (WriteOptions.identity)", () => {
     });
 
     it("signs, authorizes and attributes the write to the given identity", async () => {
-        const db = await createDenkmitDatabase<Value>("signer-ns", {
+        const db = await createDatabase<Value>("signer-ns", {
             helia: node.helia,
             identity: node.identity,
-            access: "namespace-per-writer",
+            consensus: { access: "namespace-per-writer" },
         });
         const agentNs = `agents/${agent.cid.toString()}/`;
         const deviceNs = `agents/${node.identity.cid.toString()}/`;
 
         await db.set(`${agentNs}fact`, { value: "from the agent" }, { identity: agent });
         await db.set(`${deviceNs}fact`, { value: "from the device" }); // default signer unchanged
-        expect((await db.provenance(`${agentNs}fact`))!.creator.equals(agent.cid)).toBe(true);
-        expect((await db.provenance(`${deviceNs}fact`))!.creator.equals(node.identity.cid)).toBe(true);
+        expect((await db.provenance(`${agentNs}fact`))!.writer.equals(agent.cid)).toBe(true);
+        expect((await db.provenance(`${deviceNs}fact`))!.writer.equals(node.identity.cid)).toBe(true);
 
         // Authorization is evaluated for the signing identity, not the database's own.
         await expect(db.set(`${deviceNs}x`, { value: "x" }, { identity: agent })).rejects.toThrow(/access denied/i);
         await expect(db.set(`${agentNs}x`, { value: "x" })).rejects.toThrow(/access denied/i);
         await db.delete(`${agentNs}fact`, { identity: agent });
         expect(await db.get(`${agentNs}fact`)).toBeUndefined();
-        expect((await db.provenance(`${agentNs}fact`))!.creator.equals(agent.cid)).toBe(true);
+        expect((await db.provenance(`${agentNs}fact`))!.writer.equals(agent.cid)).toBe(true);
 
         // The agent's entries replicate like any other (merge path on a second replica).
         await db.set(`${agentNs}again`, { value: "replicated" }, { identity: agent });
-        await db.idle();
-        const replica = await openDenkmitDatabase<Value>(db.address, {
+        await db.waitUntilIdle();
+        const replica = await openDatabase<Value>(db.address, {
             helia: node.helia,
             identity: node.identity,
             syncController: await createSyncController("signer-ns-replica", new HeliaController(node.helia, node.identity)),
         });
         await replica.syncNewHead((await db.createHead()).cid.bytes);
-        await replica.idle();
+        await replica.waitUntilIdle();
         expect(await replica.get(`${agentNs}again`)).toEqual({ value: "replicated" });
         await replica.close();
         await db.close();
@@ -310,7 +292,7 @@ describe("Writing as another identity (WriteOptions.identity)", () => {
 
 describe("Custom policies and entryOperation", () => {
     let node: TestNode;
-    let other: IdentityInterface;
+    let other: SigningIdentity;
     let otherController: HeliaController;
 
     beforeAll(async () => {
@@ -324,7 +306,7 @@ describe("Custom policies and entryOperation", () => {
     });
 
     // Anyone may put; only the database creator may delete.
-    const onlyCreatorDeletes: PolicyData = {
+    const onlyCreatorDeletes: PolicyDefinition = {
         version: 1,
         name: "puts-open-deletes-creator-only",
         description: "Any identity may put; only the creator may delete",
@@ -337,12 +319,12 @@ describe("Custom policies and entryOperation", () => {
     };
 
     it("a custom access policy can tell puts from deletes (local and merge path)", async () => {
-        const db = await createDenkmitDatabase<Value>("custom-deletes", {
+        const db = await createDatabase<Value>("custom-deletes", {
             helia: node.helia,
             identity: node.identity,
-            accessPolicy: onlyCreatorDeletes,
+            consensus: { access: { policy: onlyCreatorDeletes } },
         });
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         await dbAsB.set("note", { value: "from b" });
         await expect(dbAsB.delete("note")).rejects.toThrow(/access denied/i);
@@ -350,9 +332,9 @@ describe("Custom policies and entryOperation", () => {
         await db.delete("creator-note"); // the creator may delete
 
         // Merge path: B's signed tombstone is rejected by the creator's replica.
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         await db.syncNewHead((await dbAsB.createHead()).cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("note")).toEqual({ value: "from b" });
         const tomb = await putSignedTombstone(otherController, "note", Date.now() + 10, db.address);
         await db.syncNewHead(
@@ -362,11 +344,11 @@ describe("Custom policies and entryOperation", () => {
                 ])
             ).cid.bytes,
         );
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("note")).toEqual({ value: "from b" });
 
-        const manifest = await db.getManifest();
-        const reopened = await openDenkmitDatabase<Value>(manifest.cid, { helia: node.helia, identity: other });
+        const manifest = db.manifest;
+        const reopened = await openDatabase<Value>(manifest.cid, { helia: node.helia, identity: other });
         await expect(reopened.delete("note")).rejects.toThrow(/access denied/i); // the rule travels with the manifest
         await reopened.close();
         await dbAsB.close();
@@ -374,19 +356,21 @@ describe("Custom policies and entryOperation", () => {
     });
 
     it("a custom validation policy is enforced and sees entryOperation and entryKey", async () => {
-        const db = await createDenkmitDatabase<Value>("custom-validation", {
+        const db = await createDatabase<Value>("custom-validation", {
             helia: node.helia,
             identity: node.identity,
-            validationPolicy: {
-                version: 1,
-                name: "facts-only-no-deletes",
-                description: "Only facts/… keys; nothing is ever deleted",
-                logic: {
-                    and: [
-                        { startsWith: [{ var: "entryKey" }, "facts/"] },
-                        { "==": [{ var: "entryOperation" }, "put"] },
-                    ],
-                } as unknown as RulesLogic,
+            consensus: {
+                validity: {
+                    version: 1,
+                    name: "facts-only-no-deletes",
+                    description: "Only facts/… keys; nothing is ever deleted",
+                    logic: {
+                        and: [
+                            { startsWith: [{ var: "entryKey" }, "facts/"] },
+                            { "==": [{ var: "entryOperation" }, "put"] },
+                        ],
+                    } as unknown as RulesLogic,
+                },
             },
         });
         await db.set("facts/a", { value: "1" });
@@ -396,13 +380,26 @@ describe("Custom policies and entryOperation", () => {
         await db.close();
     });
 
-    it("refuses malformed custom policies and a preset combined with a custom access policy", async () => {
+    it("refuses malformed custom policies, allowlist + policy, and removed options", async () => {
         const base = { helia: node.helia, identity: node.identity };
         await expect(
-            createDenkmitDatabase<Value>("custom-bad", { ...base, accessPolicy: { logic: true } as unknown as PolicyData }),
+            createDatabase<Value>("custom-bad", {
+                ...base,
+                consensus: { access: { policy: { logic: true } as unknown as PolicyDefinition } },
+            }),
         ).rejects.toThrow(/policy/i);
         await expect(
-            createDenkmitDatabase<Value>("custom-both", { ...base, access: "public", accessPolicy: onlyCreatorDeletes }),
-        ).rejects.toThrow(/access/i);
+            createDatabase<Value>("custom-both", {
+                ...base,
+                consensus: { access: { allowlist: [node.identity.cid.toString()], policy: onlyCreatorDeletes } },
+            } as unknown as Parameters<typeof createDatabase<Value>>[1]),
+        ).rejects.toThrow(/allowlist.*policy/i);
+        // Removed options are refused, not ignored: ignoring one would sign a
+        // different, permanent manifest than intended.
+        for (const removed of [{ access: "public" }, { accessPolicy: onlyCreatorDeletes }, { publicWrite: true }, { order: 2 }]) {
+            await expect(
+                createDatabase<Value>("removed", { ...base, ...removed } as unknown as Parameters<typeof createDatabase<Value>>[1]),
+            ).rejects.toThrow(/was removed/);
+        }
     });
 });

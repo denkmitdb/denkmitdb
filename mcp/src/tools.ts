@@ -8,20 +8,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
     decryptValue,
-    encryptedRecipients,
+    encryptedValueRecipients,
     encryptValueFor,
     fetchIdentity,
-    fetchPolicy,
     isEncryptedValue,
 } from "@denkmitdb/denkmitdb";
-import type { HeliaStorage } from "@denkmitdb/denkmitdb";
-import { CID } from "multiformats/cid";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
-import type { IdentityInterface } from "@denkmitdb/denkmitdb";
+import type { SigningIdentity } from "@denkmitdb/denkmitdb";
 
 /** The identity an MCP session acts as. */
 export type MemorySession = {
-    identity: IdentityInterface;
+    identity: SigningIdentity;
     /** Identity name in the node's keychain (e.g. "lab" or "lab-codex"). */
     name: string;
     /** Agent name when the session is bound to a daemon agent identity. */
@@ -72,7 +69,7 @@ export function createMemoryServer(
         writer: string | undefined,
     ): Promise<{ value: unknown; encrypted?: true; readable?: boolean; recipients?: string[]; note?: string }> => {
         if (!isEncryptedValue(value)) return { value };
-        const recipients = encryptedRecipients(value);
+        const recipients = encryptedValueRecipients(value);
         // Open only in the context it was sealed for: this database, this key, this writer.
         const plain = writer
             ? await decryptValue<unknown>(identity, value, { database: db.address.toString(), key, writer })
@@ -139,7 +136,7 @@ export function createMemoryServer(
                 const others = await Promise.all(
                     encryptFor.map(async (cid) => {
                         try {
-                            return await fetchIdentity(CID.parse(cid), db.heliaController as unknown as HeliaStorage);
+                            return await fetchIdentity(cid, node.helia);
                         } catch (error) {
                             throw new Error(`Cannot encrypt to ${cid}: identity not found or invalid`, {
                                 cause: error,
@@ -154,7 +151,7 @@ export function createMemoryServer(
                     key,
                     writer: identity.cid.toString(),
                 });
-                recipients = encryptedRecipients(envelope);
+                recipients = encryptedValueRecipients(envelope);
                 stored = envelope;
                 // The cap bounds what every peer stores and replicates, so it applies to
                 // the envelope too: base64url plus one wrapped key per recipient grow it.
@@ -167,7 +164,7 @@ export function createMemoryServer(
                 }
             }
             await db.set(key, stored, { identity });
-            await db.idle();
+            await db.waitUntilIdle();
             await db.announceHead();
             return okJson({ ok: true, key, ...(recipients ? { encrypted: true, recipients } : {}) });
         },
@@ -188,7 +185,7 @@ export function createMemoryServer(
             const value = await db.get(key);
             if (value === undefined) return okJson({ key, found: false, value: null });
             const record = await db.provenance(key);
-            const writer = record?.creator.toString();
+            const writer = record?.writer.toString();
             return okJson({
                 key,
                 found: true,
@@ -210,7 +207,7 @@ export function createMemoryServer(
         },
         async ({ key }) => {
             await db.delete(key, { identity });
-            await db.idle();
+            await db.waitUntilIdle();
             await db.announceHead();
             return okJson({ ok: true, key });
         },
@@ -243,7 +240,7 @@ export function createMemoryServer(
                 }
                 const value = await db.get(key);
                 if (value === undefined) continue; // unfetchable value — skip, don't fail the listing
-                const writer = (await db.provenance(key))?.creator.toString();
+                const writer = (await db.provenance(key))?.writer.toString();
                 entries.push({
                     key,
                     ...(await readable(value, key, writer)),
@@ -272,12 +269,12 @@ export function createMemoryServer(
             return okJson({
                 key,
                 found: true,
-                entryCid: record.cid.toString(),
-                writer: record.creator.toString(),
+                entryCid: record.entryCid.toString(),
+                writer: record.writer.toString(),
                 timestamp: record.timestamp,
                 writtenAt: new Date(record.timestamp).toISOString(),
                 deleted: record.deleted,
-                byThisAgent: record.creator.toString() === identity.cid.toString(),
+                byThisAgent: record.writer.toString() === identity.cid.toString(),
             });
         },
     );
@@ -288,15 +285,15 @@ export function createMemoryServer(
             title: "Memory node status",
             description:
                 "Show this memory node's status: the database address (share it as DENKMIT_DB to give " +
-                "other agents a replica), this agent's identity CID, the database's write-access policy " +
-                "(and this agent's own key namespace), record count, and connected peers.",
+                "other agents a replica), this agent's identity CID, the database's consensus rules — write " +
+                "access (and this agent's own key namespace) and entry validity, record count, and connected peers.",
             inputSchema: {},
             annotations: { readOnlyHint: true },
         },
         async () => {
             const peers = node.helia.libp2p.getPeers().map((p: { toString(): string }) => p.toString());
-            const manifest = await db.getManifest();
-            const access = await fetchPolicy(manifest.access, db.heliaController);
+            const { manifest } = db;
+            const { access, validity } = db.consensus;
             const isCreator = manifest.creator.equals(identity.cid);
             return okJson({
                 databaseAddress: db.address.toString(),
@@ -311,7 +308,9 @@ export function createMemoryServer(
                     // Where this agent may write under prefix-/namespace-per-writer.
                     ownNamespace: `agents/${identity.cid.toString()}/`,
                 },
-                records: db.size,
+                // The other consensus rule: which authorized entries every replica accepts.
+                validity: { policy: validity.name, description: validity.description },
+                records: db.recordCount,
                 connectedPeers: peers,
                 // Addresses other peers can dial (DENKMIT_PEERS) — e.g. when this node is a seed.
                 listenAddresses: node.helia.libp2p.getMultiaddrs().map(String),

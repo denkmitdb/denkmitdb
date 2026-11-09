@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createIdentity, fetchIdentity, hasIdentity, openIdentity, HeliaStorage } from "../src/functions";
+import { createIdentity, fetchIdentity, hasIdentity, openIdentity, HeliaStorage } from "../src/internal";
+import type { SigningIdentity } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 describe("Identity", () => {
@@ -66,13 +67,13 @@ describe("Identity", () => {
     });
 
     it("fetchIdentity retrieves a verifiable public identity from the network", async () => {
-        const fetched = await fetchIdentity(node.identity.cid, new HeliaStorage(node.helia));
+        const fetched = await fetchIdentity(node.identity.cid, node.helia);
         expect(fetched.name).toBe("identity-tests");
         expect(fetched.cid.equals(node.identity.cid)).toBe(true);
 
         // Public identity can verify signatures but cannot sign (no private key).
         const jws = await node.identity.sign(new Uint8Array([7]));
         expect(await fetched.verify(jws)).toEqual(new Uint8Array([7]));
-        await expect(fetched.sign(new Uint8Array([8]))).rejects.toThrow("Private key is not available");
+        await expect((fetched as SigningIdentity).sign(new Uint8Array([8]))).rejects.toThrow("Private key is not available");
     });
 });

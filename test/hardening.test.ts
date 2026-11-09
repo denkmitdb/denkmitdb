@@ -1,7 +1,7 @@
 import Keyv from "keyv";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDenkmitDatabase, createIdentity, openDenkmitDatabase } from "../src/functions";
-import { IdentityInterface } from "../src/types";
+import { createDatabase, createIdentity, openDatabase } from "../src/internal";
+import { SigningIdentity } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -13,7 +13,7 @@ type Value = { value: string };
  */
 describe("Pre-publish hardening", () => {
     let node: TestNode;
-    let other: IdentityInterface;
+    let other: SigningIdentity;
 
     beforeAll(async () => {
         node = await createTestNode("hardening");
@@ -25,8 +25,8 @@ describe("Pre-publish hardening", () => {
     });
 
     it("an unauthorized set() persists and pins nothing", async () => {
-        const db = await createDenkmitDatabase<Value>("hard-no-pin", { helia: node.helia, identity: node.identity });
-        const dbAsB = await openDenkmitDatabase<Value>(db.address, { helia: node.helia, identity: other });
+        const db = await createDatabase<Value>("hard-no-pin", { helia: node.helia, identity: node.identity });
+        const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         const pinsBefore: string[] = [];
         for await (const pin of node.helia.pins.ls()) pinsBefore.push(pin.cid.toString());
@@ -47,20 +47,20 @@ describe("Pre-publish hardening", () => {
         const keyv = new Keyv<Value>();
         await keyv.set("unrelated", { value: "the caller's own data" });
 
-        const writer = await createDenkmitDatabase<Value>("hard-keyv", { helia: node.helia, identity: node.identity });
+        const writer = await createDatabase<Value>("hard-keyv", { helia: node.helia, identity: node.identity });
         await writer.set("shared", { value: "from writer" });
-        await writer.idle();
+        await writer.waitUntilIdle();
         const head = await writer.createHead();
 
         // A second instance over the same helia, caller-supplied Keyv, empty index:
         // syncing the head takes the load() path (size === 0 → full replacement).
-        const reader = await openDenkmitDatabase<Value>(writer.address, {
+        const reader = await openDatabase<Value>(writer.address, {
             helia: node.helia,
             identity: node.identity,
-            keyValueStorage: keyv,
+            valueCache: keyv,
         });
         await reader.syncNewHead(head.cid.bytes);
-        await reader.idle();
+        await reader.waitUntilIdle();
 
         expect(await reader.get("shared")).toEqual({ value: "from writer" });
         // The caller's unrelated key survived the load-triggered invalidation.
@@ -71,13 +71,13 @@ describe("Pre-publish hardening", () => {
     });
 
     it("provenance() answers from the index and get() tolerates an unfetchable entry", async () => {
-        const db = await createDenkmitDatabase<Value>("hard-missing", { helia: node.helia, identity: node.identity });
+        const db = await createDatabase<Value>("hard-missing", { helia: node.helia, identity: node.identity });
         await db.set("k", { value: "v" });
-        await db.idle();
+        await db.waitUntilIdle();
 
         const record = await db.provenance("k");
         expect(record).toBeDefined();
-        expect(record!.creator.equals(node.identity.cid)).toBe(true);
+        expect(record!.writer.equals(node.identity.cid)).toBe(true);
         expect(record!.deleted).toBe(false);
 
         // Simulate an unfetchable block (never replicated / GC'd elsewhere): a
@@ -92,7 +92,7 @@ describe("Pre-publish hardening", () => {
             throw new ReferenceError("Entry not found");
         };
         // The cache is keyed by entry CID (KNOWN_ISSUES.md #30).
-        await (db as unknown as { keyValueStorage: Keyv<Value> }).keyValueStorage.delete(record!.cid.toString());
+        await (db as unknown as { cache: Keyv<Value> }).cache.delete(record!.entryCid.toString());
 
         try {
             await expect(db.get("k")).resolves.toBeUndefined(); // absent, not a throw
@@ -100,7 +100,7 @@ describe("Pre-publish hardening", () => {
 
             // iterator() skips the unfetchable key instead of aborting.
             const seen: string[] = [];
-            for await (const [key] of db.iterator()) seen.push(key);
+            for await (const [key] of db.entries()) seen.push(key);
             expect(seen).not.toContain("k");
         } finally {
             controller.getSigned = realGetSigned;
@@ -110,12 +110,12 @@ describe("Pre-publish hardening", () => {
     });
 
     it("keys() lists live keys without fetching values and skips tombstones", async () => {
-        const db = await createDenkmitDatabase<Value>("hard-keys", { helia: node.helia, identity: node.identity });
+        const db = await createDatabase<Value>("hard-keys", { helia: node.helia, identity: node.identity });
         await db.set("a", { value: "1" });
         await db.set("b", { value: "2" });
         await db.set("c", { value: "3" });
         await db.delete("b");
-        await db.idle();
+        await db.waitUntilIdle();
 
         const keys: string[] = [];
         for await (const key of db.keys()) keys.push(key);

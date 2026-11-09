@@ -1,0 +1,402 @@
+import * as codec from "@ipld/dag-cbor";
+import { CID } from "multiformats/cid";
+import { sha256 } from "multiformats/hashes/sha2";
+
+import { Leaf, LeafKind, POLLARD_VERSION } from "../protocol/tree.js";
+import type { PollardInput, PollardOptions, PollardType } from "./types.js";
+import { createLeaf, isLeavesEqual } from "./leaf.js";
+
+/**
+ * Represents a Pollard data structure.
+ * The Pollard data structure is used for efficient storage and retrieval of data in a tree-like structure.
+ * It supports operations like appending data, retrieving data, updating layers, and comparing with other Pollard instances.
+ */
+export class Pollard implements PollardType {
+    readonly version = POLLARD_VERSION;
+    readonly order: number;
+    readonly maxLength: number;
+    readonly codec;
+    private readonly _hashFunc: (data: Uint8Array) => Promise<Uint8Array>;
+    private _layers: Leaf[][];
+    private _length: number = 0;
+    private _needUpdate: boolean = true;
+    private _cid: CID | undefined;
+
+    /**
+     * Represents a Pollard object.
+     */
+    constructor(pollard: PollardInput, options: PollardOptions = {}) {
+        if (pollard.order <= 0 || pollard.order > 8) {
+            throw new Error("Order must be greater than 0 or less than or equal 8");
+        }
+        this.order = pollard.order;
+        this.maxLength = 2 ** pollard.order;
+        this.codec = codec.code;
+        this._hashFunc = async (data) => (await sha256.digest(data)).digest;
+        this._hashFunc = options.hashFunc || this._hashFunc;
+
+        if (pollard.layers && pollard.length) {
+            // Copy, don't alias: a single-argument Object.assign returns the same
+            // reference, letting the caller mutate our internals (KNOWN_ISSUES.md #8).
+            this._layers = pollard.layers.map((layer) => layer.map((leaf) => ({ ...leaf })));
+            this._length = pollard.length;
+        } else {
+            this._layers = Array.from({ length: this.order }, (_, i) =>
+                Array.from({ length: 2 ** (this.order - i) }, () => createLeaf()),
+            );
+        }
+
+        this._needUpdate = options.noUpdate ?? false;
+
+        this._cid = options.cid;
+    }
+
+    async append(): Promise<boolean>;
+    async append(type: LeafKind.Empty): Promise<boolean>;
+    async append(type: LeafKind.Hash, data: Uint8Array): Promise<boolean>;
+    async append(type: LeafKind.Pollard, data: CID): Promise<boolean>;
+    async append(type: LeafKind.Identity, data: CID): Promise<boolean>;
+    async append(type: LeafKind.Entry, data: CID, creator: CID): Promise<boolean>;
+    async append(type: LeafKind.SortedEntry, data: CID, creator: CID, sort: number[], key: string): Promise<boolean>;
+    async append(
+        type?: LeafKind,
+        data?: CID | Uint8Array,
+        creator?: CID,
+        sort?: number[],
+        key?: string,
+    ): Promise<boolean> {
+        let leaf;
+
+        switch (type) {
+            case undefined:
+            case LeafKind.Empty:
+                leaf = createLeaf();
+                break;
+            case LeafKind.Hash:
+                leaf = createLeaf(type, data as Uint8Array);
+                break;
+            case LeafKind.Pollard:
+                leaf = createLeaf(type, data as CID);
+                break;
+            case LeafKind.Identity:
+                leaf = createLeaf(type, data as CID);
+                break;
+            case LeafKind.Entry:
+                leaf = createLeaf(type, data as CID, creator as CID);
+                break;
+            case LeafKind.SortedEntry:
+                leaf = createLeaf(type, data as CID, creator as CID, sort as number[], key as string);
+                break;
+            default:
+                throw new Error("Invalid leaf type");
+        }
+
+        const res = this.addLeaf(leaf);
+        if (res) await this.updateLayersOneLeaf(this._length - 1);
+        return res;
+    }
+
+    isFree(): boolean {
+        return this._length < this.maxLength;
+    }
+
+    addLeaf(leaf: Leaf): boolean {
+        if (!this.isFree()) return false;
+
+        this._layers[0][this._length] = { ...leaf };
+        this._length++;
+
+        this._needUpdate = true;
+
+        return true;
+    }
+
+    getLeaf(index: number): Leaf {
+        return this._layers[0][index];
+    }
+
+    get length(): number {
+        return this._length;
+    }
+
+    async updateLayersOneLeaf(index: number): Promise<CID> {
+        if (!this._needUpdate && this._cid) return this._cid;
+
+        let startIndex = (index >> 1) << 1;
+
+        for (let i = 0; i < this.order - 1; i++) {
+            const { hash1, hash2 } = this.getHashes(this._layers[i][startIndex], this._layers[i][startIndex + 1]);
+
+            const combined = new Uint8Array(hash1.length + hash2.length);
+            combined.set(hash1);
+            combined.set(hash2, hash1.length);
+            const hash = await this._hashFunc(combined);
+            const nextLayerIndex = startIndex >> 1;
+            this._layers[i + 1][nextLayerIndex] = createLeaf(LeafKind.Hash, hash);
+            startIndex = (nextLayerIndex >> 1) << 1;
+        }
+
+        this._needUpdate = false;
+        const buf = this.encode();
+        const hash = await sha256.digest(buf);
+        this._cid = CID.createV1(codec.code, hash);
+
+        return this._cid;
+    }
+
+    private getHashes(left: Leaf, right: Leaf) {
+        let hash1;
+        let hash2;
+        switch (left.type) {
+            case LeafKind.Hash:
+                hash1 = left.hash;
+                break;
+            case LeafKind.Pollard:
+            case LeafKind.Entry:
+            case LeafKind.SortedEntry:
+            case LeafKind.Identity:
+                hash1 = left.link.bytes;
+                break;
+            default:
+                hash1 = new Uint8Array(0);
+                break;
+        }
+
+        switch (right.type) {
+            case LeafKind.Hash:
+                hash2 = right.hash;
+                break;
+            case LeafKind.Pollard:
+            case LeafKind.Entry:
+            case LeafKind.SortedEntry:
+            case LeafKind.Identity:
+                hash2 = right.link.bytes;
+                break;
+            default:
+                hash2 = new Uint8Array(0);
+                break;
+        }
+        return { hash1, hash2 };
+    }
+
+    /**
+     * Updates the layers of the Pollard object.
+     *
+     * @returns A Promise that resolves to the CID (Content Identifier) of the updated object.
+     */
+    async updateLayers(startPosition: number = 0): Promise<CID> {
+        let startIndex = (startPosition >> 1) << 1;
+
+        for (let i = 0; i < this.order - 1; i++) {
+            for (let j = startIndex; j < 2 ** (this.order - i); j += 2) {
+                const { hash1, hash2 } = this.getHashes(this._layers[i][j], this._layers[i][j + 1]);
+                const combined = new Uint8Array(hash1.length + hash2.length);
+                combined.set(hash1);
+                combined.set(hash2, hash1.length);
+                const hash = await this._hashFunc(combined);
+                const nextLayerIndex = j >> 1;
+                this._layers[i + 1][nextLayerIndex] = createLeaf(LeafKind.Hash, hash);
+            }
+            startIndex = ((startIndex >> 1) >> 1) << 1;
+        }
+
+        this._needUpdate = false;
+        const buf = this.encode();
+        const hash = await sha256.digest(buf);
+        this._cid = CID.createV1(codec.code, hash);
+
+        return this._cid;
+    }
+
+    get cid(): CID {
+        if (this._needUpdate || !this._cid) {
+            throw new Error("Pollard is not updated. Please, use getCID() method to get CID.");
+        }
+        return this._cid;
+    }
+
+    async getNode(layerIndex: number, position: number): Promise<Leaf> {
+        if (this._needUpdate) {
+            await this.updateLayers();
+        }
+
+        if (layerIndex > this.order || position >= 2 ** (this.order - layerIndex)) {
+            return createLeaf();
+        }
+
+        if (layerIndex === this.order && position === 0) {
+            return await this.getRoot();
+        }
+
+        return this._layers[layerIndex][position];
+    }
+
+    /**
+     * Retrieves all the elements in the first layer of the Pollard object.
+     *
+     * @returns An array of Leaf elements representing all the elements in the first layer.
+     */
+    all(): Leaf[] {
+        // Snapshot: callers must not be able to mutate internal tree state (#20).
+        return this._layers[0].map((leaf) => ({ ...leaf }));
+    }
+
+    /**
+     * Returns an iterator that yields each leaf in the tree.
+     * @returns A generator that yields each leaf in the tree.
+     */
+    *iterator(): Generator<Leaf> {
+        for (const leaf of this._layers[0]) {
+            yield leaf;
+        }
+    }
+
+    async getRoot(): Promise<Leaf> {
+        if (this._needUpdate || !this._cid) {
+            this._cid = await this.updateLayers();
+        }
+
+        return createLeaf(LeafKind.Pollard, this._cid);
+    }
+
+    get layers(): Leaf[][] {
+        // Snapshot: callers must not be able to mutate internal tree state (#20).
+        return this._layers.map((layer) => layer.map((leaf) => ({ ...leaf })));
+    }
+
+    async getLayers(): Promise<Leaf[][]> {
+        if (this._needUpdate) {
+            await this.updateLayers();
+        }
+        return this.layers; // snapshot (#20)
+    }
+
+    /**
+     * Retrieves the CID (Content Identifier) associated with this instance.
+     * If the CID is not available or needs to be updated, it will be fetched by calling the `updateLayers` method.
+     *
+     * @returns A Promise that resolves to the CID.
+     */
+    async getCID(): Promise<CID> {
+        if (this._needUpdate || !this._cid) {
+            this._cid = await this.updateLayers();
+        }
+
+        return this._cid;
+    }
+
+    /**
+     * Converts the Pollard object to a JSON representation.
+     * @returns The JSON representation of the Pollard object.
+     * @throws If the Pollard object is not updated.
+     */
+    toJSON(): Omit<PollardType, "cid"> {
+        if (this._needUpdate) {
+            throw new Error("Pollard is not updated");
+        }
+        return {
+            version: this.version,
+            order: this.order,
+            maxLength: this.maxLength,
+            length: this._length,
+            layers: this._layers,
+        };
+    }
+
+    encode(): Uint8Array {
+        return codec.encode(this.toJSON());
+    }
+
+    get size(): number {
+        if (this._needUpdate) {
+            return 0;
+        }
+        return this._layers.reduce((acc, layer) => acc + layer.reduce((acc, u) => acc + codec.encode(u).length, 0), 0);
+    }
+
+    /**
+     * Compares the nodes of two Pollard trees in a specific order.
+     * @param other - The other Pollard tree to compare with.
+     * @param layerIndex - The index of the current layer in the tree.
+     * @param position - The position of the node in the current layer.
+     * @returns A promise that resolves to an array of two arrays, where the first array contains the nodes from the current tree and the second array contains the nodes from the other tree.
+     */
+    private async comparePollardNodesOrdered(
+        other: Pollard,
+        layerIndex: number,
+        position: number,
+    ): Promise<[Leaf[], Leaf[]]> {
+        const result: [Leaf[], Leaf[]] = [[], []];
+        const leaf1 = await this.getNode(layerIndex, position);
+        const leaf2 = await other.getNode(layerIndex, position);
+        let next;
+
+        if (isLeavesEqual(leaf1, leaf2)) {
+            result[0] = new Array(2 ** layerIndex).fill(createLeaf());
+            result[1] = new Array(2 ** layerIndex).fill(createLeaf());
+            return result;
+        }
+
+        if (layerIndex === 0) {
+            result[0][0] = leaf1;
+            result[1][0] = leaf2;
+            return result;
+        }
+
+        const nextPosition = position * 2;
+
+        next = await this.comparePollardNodesOrdered(other, layerIndex - 1, nextPosition);
+
+        result[0] = result[0].concat(next[0]);
+        result[1] = result[1].concat(next[1]);
+
+        next = await this.comparePollardNodesOrdered(other, layerIndex - 1, nextPosition + 1);
+
+        result[0] = result[0].concat(next[0]);
+        result[1] = result[1].concat(next[1]);
+
+        return result;
+    }
+
+    async compare(other?: Pollard): Promise<{ isEqual: boolean; difference: [Leaf[], Leaf[]] }> {
+        other = other || (await createEmptyPollard(this.order));
+
+        if (this.order !== other.order) {
+            throw new Error("Orders are different");
+        }
+
+        const difference = await this.comparePollardNodesOrdered(other, this.order, 0);
+
+        const isEqual = difference.every((x) => x.every((y) => y.type === LeafKind.Empty));
+
+        return { isEqual, difference };
+    }
+}
+
+/**
+ * Creates a new Pollard instance with the provided configuration and options.
+ *
+ * @param pollard - The partial configuration for the Pollard instance.
+ * @param options - The options for the Pollard instance.
+ * @returns A Promise that resolves to the created Pollard instance.
+ */
+export async function createPollard(pollard: PollardInput, options: PollardOptions = {}): Promise<Pollard> {
+    const res = new Pollard(pollard, options);
+    if (options.noUpdate) return res;
+    await res.updateLayers();
+    return res;
+}
+
+/**
+ * Creates an empty Pollard with the specified order.
+ * @param order - The order of the Pollard.
+ * @returns A Promise that resolves to a Pollard representing the empty Pollard.
+ */
+export async function createEmptyPollard(order: number): Promise<Pollard> {
+    const pollard: PollardInput = {
+        order,
+        length: 0,
+        layers: Array.from({ length: order }, (_, i) => Array.from({ length: 2 ** (order - i) }, () => createLeaf())),
+    };
+    return await createPollard(pollard);
+}

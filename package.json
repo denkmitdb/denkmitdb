@@ -2,12 +2,12 @@
     "name": "@denkmitdb/denkmitdb",
     "version": "4.0.0",
     "description": "Distributed Merkle Tree Database on IPFS",
-    "main": "./dist/functions/index.js",
+    "main": "./dist/index.js",
     "publishConfig": {
         "access": "public"
     },
     "type": "module",
-    "types": "./dist/functions/index.d.ts",
+    "types": "./dist/index.d.ts",
     "files": [
         "src",
         "dist",
@@ -16,8 +16,8 @@
     ],
     "exports": {
         ".": {
-            "types": "./dist/functions/index.d.ts",
-            "import": "./dist/functions/index.js"
+            "types": "./dist/index.d.ts",
+            "import": "./dist/index.js"
         },
         "./package.json": "./package.json"
     },

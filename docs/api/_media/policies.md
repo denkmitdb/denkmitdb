@@ -1,23 +1,31 @@
-# Policy cookbook
+# Consensus rules: policy cookbook
 
-A DenkMitDB manifest embeds two [json-logic](https://jsonlogic.com/) programs,
-signed and content-addressed with the database itself:
+A DenkMitDB manifest embeds the database's **consensus rules**: two
+[json-logic](https://jsonlogic.com/) programs, signed and content-addressed with
+the database itself (`createDatabase(name, { consensus: { access, validity } })`,
+read back as `db.consensus.access` / `db.consensus.validity`):
 
-- **access** — who may write which keys;
-- **validation** — whether a signed entry is acceptable at all.
+- **access** — who may write (and delete) which keys;
+- **validity** — whether an authorized, signed entry is valid at all.
 
 Every replica evaluates both, identically, on its own writes *and* on every entry
-it ingests from a peer. There is no consensus round and no coordinator: replicas
-agree because they run the same pure function over the same signed data.
+it ingests from a peer. "Consensus" here means what it means for a blockchain's
+consensus rules: the rules every node must enforce identically to stay in
+agreement. There is no voting round, no coordinator and no finality: replicas
+agree because they run the same pure function over the same signed data, then
+converge by deterministic last-write-wins (specs/ordering.md).
+
+On the wire the manifest keeps its 4.0.0 keys: `access` (the access rule's CID)
+and `consensus` (the validity rule's CID).
 
 ## Inputs
 
 Rules see only deterministic inputs — data from the signed entry and the signed
 manifest:
 
-| Input | Meaning | access | validation |
+| Input | Meaning | access | validity |
 |---|---|:-:|:-:|
-| `entryCreator` | identity CID of the entry's signer (signature verified) | ✓ | ✓ |
+| `entryCreator` | identity CID of the entry's writer (its signer; signature verified) | ✓ | ✓ |
 | `databaseCreator` | identity CID of the manifest's signer | ✓ | ✓ |
 | `entryKey` | the key being written or deleted | ✓ | ✓ |
 | `entryOperation` | `"put"` or `"delete"` (a signed tombstone) | ✓ | ✓ |
@@ -31,10 +39,10 @@ A result other than literal `true` denies, and so does a rule that throws (an
 unknown operation, say) — on every replica alike. json-logic has no loops or
 recursion, so evaluation always terminates.
 
-## Presets — the `access` option of `createDenkmitDatabase`
+## Presets — `consensus.access` of `createDatabase`
 
 ```ts
-const db = await createDenkmitDatabase("fleet", { helia, identity, access: "prefix-per-writer" });
+const db = await createDatabase("fleet", { helia, identity, consensus: { access: "namespace-per-writer" } });
 ```
 
 The MCP server takes the same presets as `DENKMIT_ACCESS`.
@@ -56,7 +64,6 @@ true
 
 Any identity writes. Provenance still attributes every record to its signer, so
 readers can decide whom to trust — but anyone can overwrite any key.
-(`publicWrite: true` / `DENKMIT_PUBLIC_WRITE=true` is the deprecated spelling.)
 
 ### prefix-per-writer
 
@@ -90,7 +97,7 @@ preset for exchanging signed facts between parties that do not trust each other.
 ### allowlist
 
 ```ts
-access: { allowlist: [aliceCid, bobCid] }   // MCP: DENKMIT_ACCESS=allowlist:<cid>,<cid>
+consensus: { access: { allowlist: [aliceCid, bobCid] } }   // MCP: DENKMIT_ACCESS=allowlist:<cid>,<cid>
 ```
 
 ```json
@@ -104,22 +111,24 @@ a listed identity fail to match) and the list must not be empty. The creator is
 
 ## Custom policies
 
-Presets are just `PolicyData` values; you can pass your own instead. They are
+Presets are just `PolicyDefinition` values; you can pass your own instead. They are
 checked when the database is created and then signed into its manifest for good:
 
 ```ts
-const db = await createDenkmitDatabase("team", {
+const db = await createDatabase("team", {
     helia,
     identity,
-    accessPolicy: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } },
-    validationPolicy: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } },
+    consensus: {
+        access: { policy: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } } },
+        validity: { version: 1, name: "…", description: "…", logic: { /* json-logic */ } },
+    },
 });
 ```
 
-`accessPolicy` replaces the `access` preset (passing both is an error); the
-default `validationPolicy` accepts everything. The MCP server reads the same two
-objects from a JSON file named by `DENKMIT_POLICY_FILE`:
-`{ "accessPolicy": { … }, "validationPolicy": { … } }`. Examples:
+`access: { policy }` takes the place of a preset; the default validity rule
+accepts every authorized entry. The MCP server reads the same two policies from a
+JSON file named by `DENKMIT_POLICY_FILE`: `{ "access": { … }, "validity": { … } }`.
+Examples:
 
 ```json
 { "or": [
@@ -135,7 +144,7 @@ Anyone may write; only the creator may delete.
     { "==": [{ "var": "entryOperation" }, "put"] }
 ] }
 ```
-As a validation policy: only `facts/…` keys exist, and nothing is ever deleted.
+As a validity rule: only `facts/…` keys exist, and nothing is ever deleted.
 (A policy can refuse tombstones; it cannot un-publish data a writer already
 signed and shared — no content-addressed P2P system can.)
 
@@ -155,7 +164,8 @@ Two writers, and nobody may touch `config/…` after creation.
   entries exist (`specs/ordering.md` §4, KNOWN_ISSUES.md #25).
 - **Policies are immutable.** They are fixed at creation in the signed manifest —
   auditable forever, never changed silently. To change the rules, create a new
-  database. (Delegation entries — adding writers later — are on the roadmap.)
+  database. (Delegating write rights to device and agent keys is specified in a
+  draft, [PR #17](https://github.com/denkmitdb/denkmitdb/pull/17).)
 - **Signatures prove possession of a key, not truth.** A policy decides *who may
   write*; it cannot make a writer honest. Treat values as claims attributed to
   their signer (`provenance(key)`), and treat text from other agents as

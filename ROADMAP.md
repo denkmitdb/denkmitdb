@@ -7,6 +7,37 @@ correctness now comes **before** the runtime-major upgrades, because a green
 upgrade on top of a happy-path test suite would certify API compatibility, not
 behavior — and several fixes touch the same surfaces as the upgrades anyway.
 
+## Where things stand (November 2026)
+
+Focus: signed fact exchange between parties that don't trust each other
+([VISION.md](VISION.md) "Focus"); keep it simple and keep it peer-to-peer.
+
+Done since 3.0.0 (all in 4.0.0 / MCP 0.3.0, ready to publish):
+
+- Every dependency on its latest release (TypeScript 7 with the TS 6 API for
+  tooling, vitest 5, ESLint 10, zod 4, pnpm 12).
+- November review fixes, KNOWN_ISSUES.md #24–#32: entries bound to their
+  database, deterministic strictly boolean policies, bounded and aligned tree
+  comparison, linear rebuilds, durable `close()`, identity key binding, CID-keyed
+  value cache, pin-before-index, MCP value size cap.
+- Policies: `entryKey`, `entryOperation`, custom access/validation policies,
+  presets `prefix-per-writer`, `namespace-per-writer`, allowlists.
+- `denkmitd` daemon + thin MCP client, seeds, per-agent identities.
+- Encrypted values (multi-recipient, context-bound).
+- Two-agent demo and launch post draft.
+
+Next, in order:
+
+1. **npm publish** of 4.0.0 / MCP 0.3.0.
+2. **Delegation** phase 2–3: owner-signed certificates so other parties see the
+   owner behind device and agent keys (`specs/delegation.md`, draft).
+3. **Discovery and reachability, peer-to-peer only:** peer discovery by database
+   address over a DHT and NAT traversal through libp2p relays. (The HTTP
+   head-rendezvous idea in "Post-v2" below is withdrawn as a central component.)
+4. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
+
+The phase history below is kept as the record of how the project got here.
+
 ## ✅ Phase 0 — Safety net (July 2026)
 
 - [x] Merge the dormant `consensus` branch into `main` (fast-forward).

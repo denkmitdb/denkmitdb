@@ -1,18 +1,18 @@
 import * as jose from "jose";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
     decryptValue,
-    encryptedRecipients,
+    encryptedValueRecipients,
     encryptValueFor,
     EncryptedValue,
     fetchIdentity,
     HeliaStorage,
     isEncryptedValue,
-    openDenkmitDatabase,
-} from "../src/functions";
-import { IdentityInterface } from "../src/types";
+    openDatabase,
+} from "../src/internal";
+import { SigningIdentity } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 /**
@@ -22,8 +22,8 @@ import { createTestNode, TestNode } from "./helpers";
  */
 describe("Encrypted values", () => {
     let node: TestNode; // node.identity = alice (holds her private key)
-    let bob: IdentityInterface;
-    let carol: IdentityInterface;
+    let bob: SigningIdentity;
+    let carol: SigningIdentity;
 
     beforeAll(async () => {
         node = await createTestNode("enc-alice");
@@ -38,27 +38,27 @@ describe("Encrypted values", () => {
     it("round-trips a value encrypted to one recipient", async () => {
         const enc = await encryptValueFor(bob, { secret: "for bob", n: 42 });
         expect(isEncryptedValue(enc)).toBe(true);
-        expect(encryptedRecipients(enc)).toEqual([bob.cid.toString()]);
+        expect(encryptedValueRecipients(enc)).toEqual([bob.cid.toString()]);
         expect(await decryptValue(bob, enc)).toEqual({ secret: "for bob", n: 42 });
     });
 
     it("every listed recipient can decrypt; a non-recipient (even the sender) cannot", async () => {
         const enc = await encryptValueFor([bob, carol], { shared: "bob and carol" });
-        expect(new Set(encryptedRecipients(enc))).toEqual(new Set([bob.cid.toString(), carol.cid.toString()]));
+        expect(new Set(encryptedValueRecipients(enc))).toEqual(new Set([bob.cid.toString(), carol.cid.toString()]));
         expect(await decryptValue(bob, enc)).toEqual({ shared: "bob and carol" });
         expect(await decryptValue(carol, enc)).toEqual({ shared: "bob and carol" });
         expect(await decryptValue(node.identity, enc)).toBeUndefined();
     });
 
     it("encrypts to a FETCHED identity (public key only) — the sender never needs the private key", async () => {
-        const bobPublic = await fetchIdentity(bob.cid, new HeliaStorage(node.helia));
+        const bobPublic = await fetchIdentity(bob.cid, node.helia);
         const enc = await encryptValueFor(bobPublic, { secret: "remote" });
         expect(await decryptValue(bob, enc)).toEqual({ secret: "remote" });
     });
 
     it("duplicate recipients are folded and an empty recipient list is refused", async () => {
         const enc = await encryptValueFor([bob, bob, carol], 1);
-        expect(encryptedRecipients(enc)).toHaveLength(2);
+        expect(encryptedValueRecipients(enc)).toHaveLength(2);
         await expect(encryptValueFor([], 1)).rejects.toThrow(/recipient/i);
     });
 
@@ -82,7 +82,7 @@ describe("Encrypted values", () => {
         ];
         for (const value of bad) {
             expect(isEncryptedValue(value)).toBe(false);
-            expect(() => encryptedRecipients(value as unknown as EncryptedValue)).not.toThrow();
+            expect(() => encryptedValueRecipients(value as unknown as EncryptedValue)).not.toThrow();
             expect(await decryptValue(bob, value as unknown as EncryptedValue)).toBeUndefined();
         }
     });
@@ -111,22 +111,22 @@ describe("Encrypted values", () => {
     });
 
     it("an encrypted value replicates through the database like any value", async () => {
-        const db = await createDenkmitDatabase<EncryptedValue>("enc-db", {
+        const db = await createDatabase<EncryptedValue>("enc-db", {
             helia: node.helia,
             identity: node.identity,
-            access: "public",
+            consensus: { access: "public" },
         });
         await db.set("private/token", await encryptValueFor([node.identity, bob], { secret: "stored" }));
-        await db.idle();
+        await db.waitUntilIdle();
 
-        const asBob = await openDenkmitDatabase<EncryptedValue>(db.address, { helia: node.helia, identity: bob });
+        const asBob = await openDatabase<EncryptedValue>(db.address, { helia: node.helia, identity: bob });
         await asBob.syncNewHead((await db.createHead()).cid.bytes);
-        await asBob.idle();
+        await asBob.waitUntilIdle();
 
         const stored = await asBob.get("private/token");
         expect(isEncryptedValue(stored)).toBe(true);
         // Provenance still attributes it to alice; alice and bob can open it, carol cannot.
-        expect((await asBob.provenance("private/token"))!.creator.equals(node.identity.cid)).toBe(true);
+        expect((await asBob.provenance("private/token"))!.writer.equals(node.identity.cid)).toBe(true);
         expect(await decryptValue(bob, stored!)).toEqual({ secret: "stored" });
         expect(await decryptValue(node.identity, stored!)).toEqual({ secret: "stored" });
         expect(await decryptValue(carol, stored!)).toBeUndefined();

@@ -1,6 +1,6 @@
 import Keyv from "keyv";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDenkmitDatabase, headStoreKey, openDenkmitDatabase } from "../src/functions";
+import { createDatabase, headStoreKey, openDatabase } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -24,12 +24,12 @@ describe("Local head persistence (D4)", () => {
     });
 
     it("persists the head pointer under the manifest-namespaced key", async () => {
-        const db = await createDenkmitDatabase<Value>("persist-key", {
+        const db = await createDatabase<Value>("persist-key", {
             helia: node.helia,
             identity: node.identity,
         });
         await db.set("k", { value: "v" });
-        await db.idle();
+        await db.waitUntilIdle();
         const head = await db.createHead();
 
         const stored = await node.helia.datastore.get(headStoreKey(db.address));
@@ -38,26 +38,26 @@ describe("Local head persistence (D4)", () => {
     });
 
     it("reopens its own state with no live peer", async () => {
-        const db = await createDenkmitDatabase<Value>("persist-reopen", {
+        const db = await createDatabase<Value>("persist-reopen", {
             helia: node.helia,
             identity: node.identity,
         });
         const address = db.address;
         await db.set("a", { value: "1" });
         await db.set("b", { value: "2" });
-        await db.idle();
+        await db.waitUntilIdle();
         const headBefore = await db.createHead(); // builds + persists the pointer
         await db.close();
 
         // Reopen by address only — no peer announces anything. Restore goes through
         // syncNewHead, so the head is re-validated like a remote announcement.
-        const reopened = await openDenkmitDatabase<Value>(address, {
+        const reopened = await openDatabase<Value>(address, {
             helia: node.helia,
             identity: node.identity,
         });
-        await reopened.idle();
+        await reopened.waitUntilIdle();
 
-        expect(reopened.size).toBe(2);
+        expect(reopened.recordCount).toBe(2);
         expect(await reopened.get("a")).toEqual({ value: "1" });
         expect(await reopened.get("b")).toEqual({ value: "2" });
         const headAfter = await reopened.createHead();
@@ -67,14 +67,14 @@ describe("Local head persistence (D4)", () => {
 
     it("does not clear a caller-supplied Keyv on close", async () => {
         const myStore = new Keyv<Value>();
-        const db = await createDenkmitDatabase<Value>("persist-keyv", {
+        const db = await createDatabase<Value>("persist-keyv", {
             helia: node.helia,
             identity: node.identity,
-            keyValueStorage: myStore,
+            valueCache: myStore,
         });
         await db.set("mine", { value: "kept" });
-        await db.idle();
-        const cacheKey = (await db.provenance("mine"))!.cid.toString(); // keyed by entry CID (#30)
+        await db.waitUntilIdle();
+        const cacheKey = (await db.provenance("mine"))!.entryCid.toString(); // keyed by entry CID (#30)
         await db.close();
 
         // The caller's store survives close(); only internally owned caches are cleared.

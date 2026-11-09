@@ -3,7 +3,7 @@
  * Benchmark / soak harness. Measures, against the BUILT package (dist/):
  *
  *   1. write throughput — N sequential set()s (signing + indexing + queued
- *      Merkle rebuilds), then idle() to drain the rebuild queue;
+ *      Merkle rebuilds), then waitUntilIdle() to drain the rebuild queue;
  *   2. read latency — cold get() (fetch + verify from the blockstore) vs
  *      warm get() (Keyv cache hit);
  *   3. listing — keys() full walk (no value fetches);
@@ -31,10 +31,10 @@ import { identify } from "@libp2p/identify";
 import { tcp } from "@libp2p/tcp";
 import { createHeliaLight } from "helia";
 import {
-    createDenkmitDatabase,
+    createDatabase,
     createIdentity,
-    openDenkmitDatabase,
-} from "../dist/functions/index.js";
+    openDatabase,
+} from "../dist/internal.js";
 
 const N = Number(process.argv[2] ?? 10_000);
 if (!Number.isInteger(N) || N < 1) {
@@ -67,17 +67,17 @@ function record(name, totalMs, count) {
 
 console.error(`bench: N=${N} …`);
 const writer = await makeNode("bench-writer");
-const db = await createDenkmitDatabase("bench", { helia: writer.helia, identity: writer.identity });
+const db = await createDatabase("bench", { helia: writer.helia, identity: writer.identity });
 
 // 1. writes
 let t = now();
 for (let i = 0; i < N; i++) await db.set(`key-${i}`, { n: i, s: `value-${i}` });
 const tSet = now() - t;
 t = now();
-await db.idle();
+await db.waitUntilIdle();
 const tIdle = now() - t;
 record("set() (sequential, incl. queued rebuild scheduling)", tSet, N);
-record("idle() — drain Merkle rebuild queue after N writes", tIdle, 1);
+record("waitUntilIdle() — drain Merkle rebuild queue after N writes", tIdle, 1);
 
 // 2. reads
 t = now();
@@ -86,9 +86,9 @@ record("get() warm (Keyv cache)", now() - t, Math.min(N, 1000));
 
 // cold: new instance over the same helia — same blocks, empty cache
 const head = await db.createHead();
-const cold = await openDenkmitDatabase(db.address, { helia: writer.helia, identity: writer.identity });
+const cold = await openDatabase(db.address, { helia: writer.helia, identity: writer.identity });
 await cold.syncNewHead(head.cid.bytes);
-await cold.idle();
+await cold.waitUntilIdle();
 t = now();
 for (let i = 0; i < Math.min(N, 1000); i++) await cold.get(`key-${i}`);
 record("get() cold (blockstore fetch + JWS verify)", now() - t, Math.min(N, 1000));
@@ -110,12 +110,12 @@ record("createHead() over settled tree", now() - t, 1);
 // 5. replication to a second node (full-database load() over TCP+bitswap)
 const reader = await makeNode("bench-reader");
 await reader.helia.libp2p.dial(writer.helia.libp2p.getMultiaddrs());
-const replica = await openDenkmitDatabase(db.address, { helia: reader.helia, identity: reader.identity });
+const replica = await openDatabase(db.address, { helia: reader.helia, identity: reader.identity });
 t = now();
 await replica.syncNewHead(head.cid.bytes);
-await replica.idle();
+await replica.waitUntilIdle();
 const tRepl = now() - t;
-if (replica.size !== N) throw new Error(`replica has ${replica.size}/${N} records`);
+if (replica.recordCount !== N) throw new Error(`replica has ${replica.recordCount}/${N} records`);
 const rootA = (await db.createHead()).root;
 const rootB = (await replica.createHead()).root;
 if (!rootB.equals(rootA)) throw new Error("replicas diverged");
@@ -125,10 +125,10 @@ await reader.helia.stop();
 
 // 6. reopen from the persisted head pointer (same helia, D4 path)
 t = now();
-const reopened = await openDenkmitDatabase(db.address, { helia: writer.helia, identity: writer.identity });
-await reopened.idle();
+const reopened = await openDatabase(db.address, { helia: writer.helia, identity: writer.identity });
+await reopened.waitUntilIdle();
 const tReopen = now() - t;
-if (reopened.size !== N) throw new Error(`reopen restored ${reopened.size}/${N} records`);
+if (reopened.recordCount !== N) throw new Error(`reopen restored ${reopened.recordCount}/${N} records`);
 record("reopen from persisted head (restore + reindex)", tReopen, N);
 
 // report

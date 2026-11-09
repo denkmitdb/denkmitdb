@@ -1,12 +1,56 @@
 # Changelog
 
-## [4.0.0] — 2026-11-09
+## [4.0.0] — unreleased
 
-Published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
+To be published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
 version: the entry and manifest formats change** (entries are bound to their
 database — see "Security & correctness" below). Databases created by 3.0.0 stay
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
+
+### Public API (breaking; no compatibility aliases)
+
+The package exports exactly the public API, by name; tree, sync, storage and
+signed-record internals are no longer reachable. Wire formats are unchanged
+(test/wire freezes payload bytes and CIDs).
+
+| 3.x | 4.0.0 |
+|---|---|
+| `createDenkmitDatabase(name, options)` | `createDatabase(name, options)` → `Database<T>` |
+| `openDenkmitDatabase(cid, options)` | `openDatabase(address, options)` — address as CID or string |
+| `DenkmitDatabaseInterface<T>` | `Database<T>` (no `layers`, `merge`, `load`, `compare`, `heliaController`, …) |
+| `DenkmitDatabaseOptions<T>` | `DatabaseOptions<T>` (open) / `CreateDatabaseOptions<T>` (create) |
+| `access`, `accessPolicy`, `validationPolicy` options | `consensus: { access, validity }`; `access` is a preset, `{ allowlist }` or `{ policy }` (type `AccessRule`, was `AccessPreset`) |
+| `publicWrite: true` | `consensus: { access: "public" }` (MCP: `DENKMIT_PUBLIC_WRITE` refuses to start; use `DENKMIT_ACCESS=public`) |
+| `order: 3` | `subtreeLeaves: 8` (leaves per Merkle subtree; the manifest still stores `order`) |
+| `keyValueStorage` option | `valueCache` (any `ValueCache`; a Keyv fits) |
+| `await db.getManifest()` | `db.manifest`; `manifest.consensus` / `manifest.access` → `manifest.consensus.validity` / `.access`; `manifest.meta` → `metadata`; `manifest.order` → `subtreeLeaves` |
+| policy controllers via `db.heliaController` | `db.consensus.access` / `db.consensus.validity` (`SignedPolicy`, frozen) |
+| `db.size` / `db.iterator()` / `db.idle()` | `db.recordCount` / `db.entries()` / `db.waitUntilIdle()` |
+| `provenance(key)` → `{ cid, creator, … }` | `{ entryCid, writer, timestamp, deleted }` |
+| `encryptedRecipients` | `encryptedValueRecipients` |
+| MCP `DENKMIT_POLICY_FILE` `{ accessPolicy, validationPolicy }` | `{ access, validity }` (old keys refuse to start) |
+| `IdentityInterface` | `Identity` (public: verify, encrypt) / `SigningIdentity` (+ sign, decrypt) |
+| `fetchIdentity(cid, new HeliaStorage(helia))` | `fetchIdentity(cid, helia)` |
+| `identity.decrypt()` → `false` on failure | → `undefined` |
+| `PolicyData` / `PolicyInterface` | `PolicyDefinition` / `SignedPolicy` |
+| `DenkmitHeliaInterface` | `HeliaNode` |
+| `createEntry`, `createPollard`, `HeliaController`, `SortedItemsStore`, … | internal |
+
+Removed options passed from plain JavaScript (`access`, `accessPolicy`,
+`validationPolicy`, `publicWrite`, `order`, `cache`, `keyValueStorage`) throw
+instead of being ignored: ignoring one would sign a different, permanent manifest.
+
+### Documentation
+
+- README rewritten around the focus (signed fact exchange between untrusting
+  parties): an agent quick start with the daemon, current features, a runnable
+  library example (now `examples/example.ts`, type-checked in CI), performance
+  table for both machines, and an updated documentation map.
+- ARCHITECTURE, KNOWN_ISSUES (status, D8), VISION (sequence), ROADMAP ("Where
+  things stand"), the policy cookbook and the launch draft brought up to date:
+  entry binding, policies and presets, encrypted values, daemon/seeds/agents,
+  and the dropped HTTP head rendezvous.
 
 ### Agent identities (delegation, phase 1)
 
@@ -62,8 +106,9 @@ so upgrade every writer before using a new database.
 - **`namespace-per-writer` preset:** every identity, the creator included, writes
   and deletes only under `agents/<its-identity-cid>/` — no privileged party.
 - **`entryOperation`** (`"put"` | `"delete"`) is a policy input, so delete rules
-  are expressible; `createDenkmitDatabase` accepts custom `accessPolicy` /
-  `validationPolicy` (MCP: `DENKMIT_POLICY_FILE`). A policy that throws denies.
+  are expressible; `createDatabase` accepts custom rules,
+  `consensus: { access: { policy }, validity }` (MCP: `DENKMIT_POLICY_FILE`). A
+  policy that throws denies.
 - `pnpm smoke:daemon` (in CI): daemon + thin clients, restart persistence, and two
   daemons replicating over `DENKMIT_PEERS` with mDNS off.
 
@@ -95,12 +140,11 @@ so upgrade every writer before using a new database.
 
 ### Access presets & policy hardening
 
-- **`access` option on `createDenkmitDatabase`:** `"creator-only"` (default),
+- **Access presets** (`consensus.access` of `createDatabase`): `"creator-only"` (default),
   `"public"`, `"prefix-per-writer"` (the creator writes anywhere; every other
   identity writes and deletes only under `agents/<its-identity-cid>/`), or
   `{ allowlist: [cid, …] }` (validated and normalized at create time).
-  `publicWrite: true` stays as a deprecated alias; conflicting combinations throw.
-- **`entryKey`** is a policy input for both access and validation policies, and
+- **`entryKey`** is a policy input for both the access and the validity rule, and
   policies may use the deterministic `startsWith(value, prefix)` operation.
 - **MCP:** `DENKMIT_ACCESS` selects the preset (`allowlist:<cid>,…` too; unknown
   values refuse to start); `memory_status` reports the access policy and the
