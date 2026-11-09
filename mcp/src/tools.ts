@@ -17,16 +17,34 @@ import {
 import type { HeliaStorage } from "@denkmitdb/denkmitdb";
 import { CID } from "multiformats/cid";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
+import type { IdentityInterface } from "@denkmitdb/denkmitdb";
+
+/** The identity an MCP session acts as. */
+export type MemorySession = {
+    identity: IdentityInterface;
+    /** Identity name in the node's keychain (e.g. "lab" or "lab-codex"). */
+    name: string;
+    /** Agent name when the session is bound to a daemon agent identity. */
+    agent?: string;
+};
 
 /**
  * Creates an MCP server exposing the memory tools for `node`.
  *
  * @param node - The running memory node (helia, identity, database).
  * @param config - The node configuration (identity name, value size cap).
+ * @param session - Which identity this MCP session signs, reads and decrypts as:
+ *   the node's own (device) identity by default, or one of the daemon's agent
+ *   identities (specs/delegation.md, phase 1).
  * @returns An MCP server, not yet connected to a transport.
  */
-export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): McpServer {
-    const { db, identity } = node;
+export function createMemoryServer(
+    node: MemoryNode,
+    config: MemoryNodeConfig,
+    session: MemorySession = { identity: node.identity, name: config.identityName },
+): McpServer {
+    const { db } = node;
+    const identity = session.identity;
     const server = new McpServer(
         { name: "denkmit-mcp", version: "0.3.0" },
         {
@@ -148,7 +166,7 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                     );
                 }
             }
-            await db.set(key, stored);
+            await db.set(key, stored, { identity });
             await db.idle();
             await db.announceHead();
             return okJson({ ok: true, key, ...(recipients ? { encrypted: true, recipients } : {}) });
@@ -191,7 +209,7 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             inputSchema: { key: z.string().min(1).describe("Key to delete") },
         },
         async ({ key }) => {
-            await db.delete(key);
+            await db.delete(key, { identity });
             await db.idle();
             await db.announceHead();
             return okJson({ ok: true, key });
@@ -283,7 +301,9 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             return okJson({
                 databaseAddress: db.address.toString(),
                 databaseName: manifest.name,
-                identity: { name: config.identityName, cid: identity.cid.toString() },
+                identity: { name: session.name, cid: identity.cid.toString() },
+                agent: session.agent ?? null,
+                device: { name: config.identityName, cid: node.identity.cid.toString() },
                 access: {
                     policy: access.name,
                     description: access.description,

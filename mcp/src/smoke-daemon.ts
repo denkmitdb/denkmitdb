@@ -70,12 +70,17 @@ async function waitForSocket(path = socket, timeoutMs = 60_000): Promise<void> {
     throw new Error("DAEMON SMOKE FAIL: daemon socket never came up");
 }
 
-async function client(name: string, dir = dataDir) {
+async function client(name: string, dir = dataDir, agent?: string) {
     const transport = new StdioClientTransport({
         command: process.execPath,
         args: [join(here, "index.js")],
         // Deliberately no DENKMIT_PASSPHRASE: in daemon mode the client holds no key.
-        env: { PATH: process.env.PATH ?? "", DENKMIT_DATADIR: dir, DENKMIT_DAEMON: "require" },
+        env: {
+            PATH: process.env.PATH ?? "",
+            DENKMIT_DATADIR: dir,
+            DENKMIT_DAEMON: "require",
+            ...(agent ? { DENKMIT_AGENT: agent } : {}),
+        },
         stderr: "pipe",
     });
     const c = new Client({ name: `daemon-smoke-${name}`, version: "0.0.0" });
@@ -152,12 +157,25 @@ async function twoMachines(): Promise<void> {
         const forSeed = `${seedStatus.access.ownNamespace}seed-only`;
         await onSeed.callTool({
             name: "memory_set",
-            arguments: { key: forPeer, value: { token: "laptop" }, encryptFor: [peerStatus.identity.cid], includeSelf: false },
+            arguments: {
+                key: forPeer,
+                value: { token: "laptop" },
+                encryptFor: [peerStatus.identity.cid],
+                includeSelf: false,
+            },
         });
-        await onSeed.callTool({ name: "memory_set", arguments: { key: forSeed, value: { token: "seed" }, encryptFor: [] } });
+        await onSeed.callTool({
+            name: "memory_set",
+            arguments: { key: forSeed, value: { token: "seed" }, encryptFor: [] },
+        });
         await waitFor("the encrypted facts on the peer", onPeer, forSeed);
         await waitFor("the encrypted facts on the peer", onPeer, forPeer);
-        type Read = { encrypted?: boolean; readable?: boolean; value: { token?: string } | null; recipients?: string[] };
+        type Read = {
+            encrypted?: boolean;
+            readable?: boolean;
+            value: { token?: string } | null;
+            recipients?: string[];
+        };
         const read = async (c: Client, key: string) =>
             firstText(await c.callTool({ name: "memory_get", arguments: { key } })) as Read;
         const peerReadsOwn = await read(onPeer, forPeer);
@@ -183,6 +201,81 @@ async function twoMachines(): Promise<void> {
         }
         rmSync(seedDir, { recursive: true, force: true });
         rmSync(peerDir, { recursive: true, force: true });
+    }
+}
+
+/**
+ * DENKMIT_AGENTS: one daemon, separate identities per agent. Each agent signs,
+ * reads and decrypts as itself through its own socket; the main socket stays the
+ * device identity.
+ */
+async function agentIdentities(): Promise<void> {
+    const dir = mkdtempSync(join(tmpdir(), "denkmit-agents-"));
+    const daemon = startDaemon({
+        ...process.env,
+        DENKMIT_DATADIR: dir,
+        DENKMIT_IDENTITY: "box",
+        DENKMIT_PASSPHRASE: "agents-secret",
+        DENKMIT_ACCESS: "namespace-per-writer",
+        DENKMIT_LISTEN: "/ip4/127.0.0.1/tcp/0",
+        DENKMIT_MDNS: "off",
+        DENKMIT_AGENTS: "claude-code,codex",
+    });
+    try {
+        await waitForSocket(join(dir, "denkmitd.sock"));
+        await waitForSocket(join(dir, "denkmitd-codex.sock"));
+        const device = await client("device", dir);
+        const claude = await client("claude", dir, "claude-code");
+        const codex = await client("codex", dir, "codex");
+        type S = Status & { agent: string | null; device: { cid: string }; identity: { cid: string; name: string } };
+        const status = async (c: Client) => firstText(await c.callTool({ name: "memory_status", arguments: {} })) as S;
+        const [sd, sc, sx] = [await status(device), await status(claude), await status(codex)];
+        assert(
+            sd.agent === null && sc.agent === "claude-code" && sx.agent === "codex",
+            "sessions must report their agent",
+        );
+        assert(new Set([sd.identity.cid, sc.identity.cid, sx.identity.cid]).size === 3, "three distinct identities");
+        assert(sc.device.cid === sd.identity.cid && sx.device.cid === sd.identity.cid, "agents report their device");
+        assert(sx.identity.name === "box-codex", "agent identity name is <device>-<agent>");
+
+        const fact = `${sx.access.ownNamespace}fact`;
+        await codex.callTool({ name: "memory_set", arguments: { key: fact, value: { by: "codex" } } });
+        const prov = firstText(await claude.callTool({ name: "memory_provenance", arguments: { key: fact } })) as {
+            writer: string;
+            byThisAgent: boolean;
+        };
+        assert(
+            prov.writer === sx.identity.cid && !prov.byThisAgent,
+            "the fact is attributed to codex, not claude-code",
+        );
+        const intrude = await claude.callTool({ name: "memory_set", arguments: { key: `${fact}2`, value: 1 } });
+        assert((intrude as { isError?: boolean }).isError, "claude-code must not write into codex's namespace");
+
+        const secret = `${sc.access.ownNamespace}for-codex`;
+        await claude.callTool({
+            name: "memory_set",
+            arguments: { key: secret, value: { token: "x" }, encryptFor: [sx.identity.cid], includeSelf: false },
+        });
+        type Read = { readable?: boolean; value: { token?: string } | null };
+        const read = async (c: Client) =>
+            firstText(await c.callTool({ name: "memory_get", arguments: { key: secret } })) as Read;
+        assert((await read(codex)).value?.token === "x", "codex decrypts what was sealed to codex");
+        assert(!(await read(device)).readable, "the device identity is not a recipient");
+        assert(!(await read(claude)).readable, "includeSelf: false keeps the writing agent out");
+
+        const ghost = spawn(process.execPath, [join(here, "index.js")], {
+            env: { PATH: process.env.PATH ?? "", DENKMIT_DATADIR: dir, DENKMIT_AGENT: "ghost" },
+            stdio: ["pipe", "ignore", "ignore"],
+        });
+        assert((await exitCode(ghost)) === 1, "an unknown agent must fail instead of falling back");
+        for (const c of [device, claude, codex]) await c.close();
+        console.log("agent identities: separate keys, namespaces, provenance and decryption per agent");
+    } finally {
+        if (daemon.exitCode === null) {
+            daemon.kill("SIGTERM");
+            await exitCode(daemon).catch(() => daemon.kill("SIGKILL"));
+        }
+        rmSync(dir, { recursive: true, force: true });
     }
 }
 
@@ -239,6 +332,7 @@ try {
     console.log("DENKMIT_DAEMON=require fails without a daemon");
 
     await twoMachines();
+    await agentIdentities();
     console.log("MCP DAEMON SMOKE TEST PASSED");
 } finally {
     if (daemon.exitCode === null) daemon.kill("SIGKILL");

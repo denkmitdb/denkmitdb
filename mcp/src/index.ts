@@ -16,7 +16,7 @@
  */
 import { connect, type Socket } from "node:net";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { configFromEnv, socketPath, startMemoryNode } from "./node.js";
+import { agentSocketPath, configFromEnv, socketPath, startMemoryNode } from "./node.js";
 import { createMemoryServer } from "./tools.js";
 
 /** Connects to the daemon socket, or resolves undefined when nothing listens there. */
@@ -83,18 +83,36 @@ async function runEmbedded(): Promise<void> {
     process.on("SIGTERM", shutdown);
 }
 
-const mode = process.env.DENKMIT_DAEMON ?? "auto";
+// DENKMIT_AGENT selects one of the daemon's agent identities. It only exists in
+// a daemon, so it implies DENKMIT_DAEMON=require: silently falling back to an
+// embedded node would sign as a different identity than the one asked for.
+const agent = process.env.DENKMIT_AGENT?.trim() || undefined;
+const mode = process.env.DENKMIT_DAEMON ?? (agent ? "require" : "auto");
 if (!["auto", "off", "require"].includes(mode)) {
     console.error(`[denkmit-mcp] DENKMIT_DAEMON must be auto, off or require (got ${mode})`);
     process.exit(1);
 }
 
-const path = socketPath(process.env);
+if (agent && mode !== "require") {
+    console.error(`[denkmit-mcp] DENKMIT_AGENT=${agent} needs the daemon; DENKMIT_DAEMON must be require`);
+    process.exit(1);
+}
+let path: string;
+try {
+    path = agent ? agentSocketPath(process.env, agent) : socketPath(process.env);
+} catch (error) {
+    console.error(`[denkmit-mcp] ${(error as Error).message}`);
+    process.exit(1);
+}
 const socket = mode === "off" ? undefined : await tryConnect(path);
 if (socket) {
     relay(socket, path);
 } else if (mode === "require") {
-    console.error(`[denkmit-mcp] no denkmitd daemon is listening on ${path} (DENKMIT_DAEMON=require)`);
+    console.error(
+        agent
+            ? `[denkmit-mcp] no daemon serves agent "${agent}" on ${path} — is it in the daemon's DENKMIT_AGENTS?`
+            : `[denkmit-mcp] no denkmitd daemon is listening on ${path} (DENKMIT_DAEMON=require)`,
+    );
     process.exit(1);
 } else {
     await runEmbedded();

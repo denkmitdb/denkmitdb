@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
     createDenkmitDatabase,
     createIdentity,
+    createSyncController,
     emptyCID,
     HeliaController,
     openDenkmitDatabase,
@@ -253,6 +254,56 @@ describe("Access presets", () => {
         expect(await dbAsB.get(`${otherNs}finding`)).toEqual({ value: "b" });
 
         await dbAsB.close();
+        await db.close();
+    });
+});
+
+describe("Writing as another identity (WriteOptions.identity)", () => {
+    let node: TestNode; // node.identity = the device
+    let agent: IdentityInterface;
+
+    beforeAll(async () => {
+        node = await createTestNode("signer-device");
+        agent = await createIdentity("signer-device-codex", "pw", node.helia);
+    }, 30_000);
+
+    afterAll(async () => {
+        await node.stop();
+    });
+
+    it("signs, authorizes and attributes the write to the given identity", async () => {
+        const db = await createDenkmitDatabase<Value>("signer-ns", {
+            helia: node.helia,
+            identity: node.identity,
+            access: "namespace-per-writer",
+        });
+        const agentNs = `agents/${agent.cid.toString()}/`;
+        const deviceNs = `agents/${node.identity.cid.toString()}/`;
+
+        await db.set(`${agentNs}fact`, { value: "from the agent" }, { identity: agent });
+        await db.set(`${deviceNs}fact`, { value: "from the device" }); // default signer unchanged
+        expect((await db.provenance(`${agentNs}fact`))!.creator.equals(agent.cid)).toBe(true);
+        expect((await db.provenance(`${deviceNs}fact`))!.creator.equals(node.identity.cid)).toBe(true);
+
+        // Authorization is evaluated for the signing identity, not the database's own.
+        await expect(db.set(`${deviceNs}x`, { value: "x" }, { identity: agent })).rejects.toThrow(/access denied/i);
+        await expect(db.set(`${agentNs}x`, { value: "x" })).rejects.toThrow(/access denied/i);
+        await db.delete(`${agentNs}fact`, { identity: agent });
+        expect(await db.get(`${agentNs}fact`)).toBeUndefined();
+        expect((await db.provenance(`${agentNs}fact`))!.creator.equals(agent.cid)).toBe(true);
+
+        // The agent's entries replicate like any other (merge path on a second replica).
+        await db.set(`${agentNs}again`, { value: "replicated" }, { identity: agent });
+        await db.idle();
+        const replica = await openDenkmitDatabase<Value>(db.address, {
+            helia: node.helia,
+            identity: node.identity,
+            syncController: await createSyncController("signer-ns-replica", new HeliaController(node.helia, node.identity)),
+        });
+        await replica.syncNewHead((await db.createHead()).cid.bytes);
+        await replica.idle();
+        expect(await replica.get(`${agentNs}again`)).toEqual({ value: "replicated" });
+        await replica.close();
         await db.close();
     });
 });

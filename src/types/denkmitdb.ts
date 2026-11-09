@@ -40,14 +40,25 @@ export type DenkmitDatabaseInput<T> = {
  * Represents the interface for the Denkmit database.
  * @typeParam T - The type of values stored in the database.
  */
+/**
+ * Options for a write. `identity` signs the entry instead of the identity the
+ * database was opened with — e.g. one of several agent identities a daemon holds
+ * (specs/delegation.md, phase 1). It needs its private key; access and validation
+ * policies are evaluated for it.
+ */
+export type WriteOptions = {
+    identity?: IdentityInterface;
+};
+
 export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
     /**
      * Sets a value in the database with the specified key.
      * @param key - The key to set the value for.
      * @param value - The value to set.
+     * @param options - Optional signer override.
      * @returns A promise that resolves when the value is set.
      */
-    set(key: string, value: T): Promise<void>;
+    set(key: string, value: T, options?: WriteOptions): Promise<void>;
 
     /**
      * Retrieves the value associated with the specified key from the database.
@@ -62,9 +73,10 @@ export interface DenkmitDatabaseInterface<T> extends DenkmitDatabaseType<T> {
      * `get`/`iterator`; a newer `set` resurrects it. The record remains in the
      * Merkle tree and replicates like any entry.
      * @param key - The key to delete.
+     * @param options - Optional signer override.
      * @returns A promise that resolves when the tombstone is indexed.
      */
-    delete(key: string): Promise<void>;
+    delete(key: string, options?: WriteOptions): Promise<void>;
 
     /**
      * Returns the provenance of the current record for a key — signed entry CID,

@@ -413,3 +413,9 @@ Re-exports [SyncControllerInterface](../functions/interfaces/SyncControllerInter
 ### TombstoneEntryData
 
 Re-exports [TombstoneEntryData](../functions/type-aliases/TombstoneEntryData.md)
+
+***
+
+### WriteOptions
+
+Re-exports [WriteOptions](../functions/type-aliases/WriteOptions.md)
