@@ -103,6 +103,7 @@
 
 - [assertEntryShape](functions/assertEntryShape.md)
 - [assertManifestShape](functions/assertManifestShape.md)
+- [assertPolicyData](functions/assertPolicyData.md)
 - [createDenkmitDatabase](functions/createDenkmitDatabase.md)
 - [createEmptyPollard](functions/createEmptyPollard.md)
 - [createEntry](functions/createEntry.md)

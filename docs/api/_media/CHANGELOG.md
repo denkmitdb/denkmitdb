@@ -8,6 +8,27 @@ database — see "Security & correctness" below). Databases created by 3.0.0 sta
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
 
+### MCP daemon (`denkmitd`) and policy extensions
+
+- **`denkmitd`, a long-lived P2P node per machine.** It holds the identity, the
+  database and a fixed libp2p port (default `4001`), keeps replicating — and
+  serving data to peers — while no agent is open, and serves one MCP session per
+  local connection on an owner-only Unix socket. `denkmit-mcp` became a thin stdio
+  client that pipes to the daemon when its socket answers and otherwise runs the
+  embedded node as before (`DENKMIT_DAEMON=auto|require|off`). A systemd user unit
+  and an env template ship in `mcp/systemd/`.
+- **Networking settings:** `DENKMIT_LISTEN`, `DENKMIT_ANNOUNCE`, `DENKMIT_MDNS=off`
+  — enough to run a seed (an always-on peer with no special authority) on a public
+  host and join it from anywhere with `DENKMIT_PEERS`. `memory_status` reports the
+  node's dialable addresses.
+- **`namespace-per-writer` preset:** every identity, the creator included, writes
+  and deletes only under `agents/<its-identity-cid>/` — no privileged party.
+- **`entryOperation`** (`"put"` | `"delete"`) is a policy input, so delete rules
+  are expressible; `createDenkmitDatabase` accepts custom `accessPolicy` /
+  `validationPolicy` (MCP: `DENKMIT_POLICY_FILE`). A policy that throws denies.
+- `pnpm smoke:daemon` (in CI): daemon + thin clients, restart persistence, and two
+  daemons replicating over `DENKMIT_PEERS` with mDNS off.
+
 ### Fixed — KNOWN_ISSUES.md #30–#32
 
 - **Value cache keyed by entry CID (#30).** A merge racing an in-flight `get()`

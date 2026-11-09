@@ -1,0 +1,32 @@
+# denkmitd as a systemd *user* service — one long-lived DenkMitDB peer per user.
+#
+# Install:
+#   npm install -g @denkmitdb/mcp            # provides the `denkmitd` binary
+#   mkdir -p ~/.config/denkmit ~/.config/systemd/user
+#   cp denkmitd.env.example ~/.config/denkmit/denkmitd.env && chmod 600 ~/.config/denkmit/denkmitd.env
+#   cp denkmitd.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now denkmitd
+#   loginctl enable-linger "$USER"           # keep it running without a login session
+#
+# Logs: journalctl --user -u denkmitd -f
+# Agents then connect with `denkmit-mcp` (no passphrase needed on the client side).
+
+[Unit]
+Description=DenkMitDB memory daemon (P2P node for agent memory)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/denkmit/denkmitd.env
+# `command -v denkmitd` shows the path if your npm prefix differs.
+ExecStart=/usr/bin/env denkmitd
+Restart=on-failure
+RestartSec=5
+# SIGTERM makes the daemon persist its head before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
