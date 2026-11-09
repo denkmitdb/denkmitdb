@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDenkmitDatabase, openDenkmitDatabase, syncTopic } from "../src/functions";
-import { DenkmitDatabaseInterface } from "../src/types";
+import { createDatabase, openDatabase, syncTopic } from "../src/internal";
+import { DenkmitDatabase } from "../src/internal";
 import { connectNodes, createTestNode, TestNode, waitFor } from "./helpers";
 
 type Value = { value: string };
@@ -10,8 +10,8 @@ const NAME = "sync-test";
 describe("Two-node synchronization", () => {
     let nodeA: TestNode;
     let nodeB: TestNode;
-    let dbA: DenkmitDatabaseInterface<Value>;
-    let dbB: DenkmitDatabaseInterface<Value>;
+    let dbA: DenkmitDatabase<Value>;
+    let dbB: DenkmitDatabase<Value>;
     let topic: string;
 
     beforeAll(async () => {
@@ -19,10 +19,10 @@ describe("Two-node synchronization", () => {
         nodeB = await createTestNode("node-b");
         await connectNodes(nodeA, nodeB);
 
-        dbA = await createDenkmitDatabase<Value>(NAME, { helia: nodeA.helia, identity: nodeA.identity });
+        dbA = await createDatabase<Value>(NAME, { helia: nodeA.helia, identity: nodeA.identity });
 
         // Node B opens the database by its address; the manifest travels over bitswap.
-        dbB = await openDenkmitDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
+        dbB = await openDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
 
         // The sync topic is derived from the manifest CID (D5), not the name.
         topic = syncTopic(dbA.address);
@@ -36,7 +36,7 @@ describe("Two-node synchronization", () => {
     });
 
     it("opens the same database on a second node via its address", async () => {
-        const manifestB = await dbB.getManifest();
+        const manifestB = dbB.manifest;
         expect(manifestB.cid.equals(dbA.address)).toBe(true);
         expect(manifestB.name).toBe(NAME);
     });
@@ -59,11 +59,11 @@ describe("Two-node synchronization", () => {
 
         await dbA.set("greeting", { value: "hello from A" });
         await dbA.set("farewell", { value: "bye from A" });
-        await dbA.idle();
+        await dbA.waitUntilIdle();
 
         await dbA.sendHead();
 
-        await waitFor(() => dbB.size === 2, { message: "node B to merge the announced head" });
+        await waitFor(() => dbB.recordCount === 2, { message: "node B to merge the announced head" });
 
         expect(await dbB.get("greeting")).toEqual({ value: "hello from A" });
         expect(await dbB.get("farewell")).toEqual({ value: "bye from A" });
@@ -84,8 +84,8 @@ describe("Two-node synchronization", () => {
 describe("Late-joiner head re-announcement (#21)", () => {
     let nodeA: TestNode;
     let nodeB: TestNode;
-    let dbA: DenkmitDatabaseInterface<Value>;
-    let dbB: DenkmitDatabaseInterface<Value>;
+    let dbA: DenkmitDatabase<Value>;
+    let dbB: DenkmitDatabase<Value>;
     let topic: string;
 
     beforeAll(async () => {
@@ -93,7 +93,7 @@ describe("Late-joiner head re-announcement (#21)", () => {
         nodeB = await createTestNode("late-b");
         await connectNodes(nodeA, nodeB);
 
-        dbA = await createDenkmitDatabase<Value>("late-join-test", {
+        dbA = await createDatabase<Value>("late-join-test", {
             helia: nodeA.helia,
             identity: nodeA.identity,
         });
@@ -103,12 +103,12 @@ describe("Late-joiner head re-announcement (#21)", () => {
         // periodic task won't fire during the test, so no announcement goes out.
         await dbA.set("k1", { value: "v1" });
         await dbA.set("k2", { value: "v2" });
-        await dbA.idle();
+        await dbA.waitUntilIdle();
         await dbA.createHead(); // fix the root; a later sendHead() is a no-op
 
         // Node B is the late joiner — it opens and subscribes only now, after A's
         // (unsent) head already exists.
-        dbB = await openDenkmitDatabase<Value>(dbA.address, {
+        dbB = await openDatabase<Value>(dbA.address, {
             helia: nodeB.helia,
             identity: nodeB.identity,
         });
@@ -135,12 +135,12 @@ describe("Late-joiner head re-announcement (#21)", () => {
         await dbA.sendHead();
         // Give any (non-existent) message time to arrive; the joiner must stay empty.
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        expect(dbB.size).toBe(0);
+        expect(dbB.recordCount).toBe(0);
     });
 
     it("announceHead() re-announces so the late joiner converges", { timeout: 60_000 }, async () => {
         await dbA.announceHead();
-        await waitFor(() => dbB.size === 2, { message: "late joiner to converge after re-announcement" });
+        await waitFor(() => dbB.recordCount === 2, { message: "late joiner to converge after re-announcement" });
 
         expect(await dbB.get("k1")).toEqual({ value: "v1" });
         expect(await dbB.get("k2")).toEqual({ value: "v2" });
@@ -155,13 +155,13 @@ describe("Late-joiner head re-announcement (#21)", () => {
  * SAME key concurrently converge on the same winner and the same Merkle root after
  * exchanging heads — regardless of delivery order, and even if the two writes land
  * in the same millisecond (the entry-CID tie-break decides deterministically).
- * Requires a publicWrite database so both identities may write.
+ * Requires an access: "public" database so both identities may write.
  */
 describe("Concurrent same-key convergence", () => {
     let nodeA: TestNode;
     let nodeB: TestNode;
-    let dbA: DenkmitDatabaseInterface<Value>;
-    let dbB: DenkmitDatabaseInterface<Value>;
+    let dbA: DenkmitDatabase<Value>;
+    let dbB: DenkmitDatabase<Value>;
     let topic: string;
 
     beforeAll(async () => {
@@ -169,12 +169,12 @@ describe("Concurrent same-key convergence", () => {
         nodeB = await createTestNode("conflict-b");
         await connectNodes(nodeA, nodeB);
 
-        dbA = await createDenkmitDatabase<Value>("conflict-test", {
+        dbA = await createDatabase<Value>("conflict-test", {
             helia: nodeA.helia,
             identity: nodeA.identity,
-            publicWrite: true,
+            consensus: { access: "public" },
         });
-        dbB = await openDenkmitDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
+        dbB = await openDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
         topic = syncTopic(dbA.address);
 
         await waitFor(
@@ -196,14 +196,14 @@ describe("Concurrent same-key convergence", () => {
         // Concurrent conflicting writes to the same key on both replicas, before any
         // head exchange.
         await Promise.all([dbA.set("contested", { value: "from A" }), dbB.set("contested", { value: "from B" })]);
-        await Promise.all([dbA.idle(), dbB.idle()]);
+        await Promise.all([dbA.waitUntilIdle(), dbB.waitUntilIdle()]);
 
         // Cross-announce (both directions), then wait for the roots to agree.
         await dbA.announceHead();
         await dbB.announceHead();
         await waitFor(
             async () => {
-                await Promise.all([dbA.idle(), dbB.idle()]);
+                await Promise.all([dbA.waitUntilIdle(), dbB.waitUntilIdle()]);
                 const [headA, headB] = await Promise.all([dbA.createHead(), dbB.createHead()]);
                 return headA.root.equals(headB.root);
             },
@@ -217,7 +217,7 @@ describe("Concurrent same-key convergence", () => {
         expect(winnerA).toEqual(winnerB);
 
         // Exactly one live record for the key on each replica.
-        expect(dbA.size).toBe(1);
-        expect(dbB.size).toBe(1);
+        expect(dbA.recordCount).toBe(1);
+        expect(dbB.recordCount).toBe(1);
     });
 });

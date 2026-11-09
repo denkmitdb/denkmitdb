@@ -234,15 +234,26 @@ actually consume a policy engine.
 
 ## Sequence
 
-1. Land the #22/#23 fix (correctness first, always).
-2. helia 7 + remaining medium findings (the interface break, pre-publish).
-3. npm publish — both packages.
-4. Benchmark numbers in the README.
-5. Demo + launch post.
-6. Policy input hardening (+`entryKey`, drop node-local fields) — then
-   namespace ACLs land as a preset policy, with the policy cookbook.
-7. HTTP head-rendezvous.
-8. ~~Encrypted values~~ — shipped November 2026 (`encryptValueFor` / `decryptValue`, multi-recipient; MCP `encryptFor`).
+1. ✅ Land the #22/#23 fix (correctness first, always).
+2. ✅ helia 7 + remaining medium findings; then every dependency on its latest
+   release (TypeScript 7, pnpm 12, …) and the November review fixes #24–#32.
+3. npm publish — both packages: 4.0.0 / MCP 0.3.0 are ready (waiting on an npm
+   account hold, not on code).
+4. ✅ Benchmark numbers in the README.
+5. ✅ Demo (`cd mcp && pnpm demo`) + launch post draft (`docs/launch/show-hn.md`).
+6. ✅ Policy input hardening (`entryKey`, `entryOperation`, node-local fields
+   removed, strict booleans) and namespace ACLs as presets (`namespace-per-writer`,
+   allowlists), with the policy cookbook and custom policies.
+7. ~~HTTP head-rendezvous~~ — dropped as a central component. Instead: the
+   `denkmitd` daemon and seeds (done), then discovery by database address over a
+   DHT and libp2p relays.
+8. ✅ Encrypted values (`encryptValueFor` / `decryptValue`, multi-recipient,
+   context-bound; MCP `encryptFor`).
+9. Delegation: per-agent identities (done, phase 1), then owner-signed
+   certificates so parties — not just keys — are visible (`specs/delegation.md`,
+   draft).
+10. Bounded growth: local GC, then succession to a successor database
+    (`specs/succession.md`, draft).
 
 Each step after (3) is independently shippable.
 

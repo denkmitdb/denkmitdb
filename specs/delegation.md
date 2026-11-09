@@ -1,6 +1,8 @@
 # Spec (draft): delegation — agents that write on an owner's behalf
 
-Status: **draft for discussion** (November 2026). Nothing here is implemented.
+Status: **draft for discussion** (November 2026). Phase 1 — separate keys per agent in
+the daemon (§11, `DENKMIT_AGENTS` / `DENKMIT_AGENT`, `WriteOptions.identity`) — is
+implemented; phases 2–3 (certificates, entry v3, manifest v3) are not.
 Revision 2 incorporates an independent review (Codex) of revision 1; §12 lists
 what changed and why.
 Related: [succession](https://github.com/denkmitdb/denkmitdb/pull/15) (PR #15),

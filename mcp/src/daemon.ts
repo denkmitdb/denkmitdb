@@ -20,8 +20,15 @@ import { chmod, mkdir, unlink } from "node:fs/promises";
 import { connect, createServer, type Socket } from "node:net";
 import { dirname } from "node:path";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { configFromEnv, DEFAULT_DAEMON_PORT, socketPath, startMemoryNode } from "./node.js";
-import { createMemoryServer } from "./tools.js";
+import {
+    agentIdentityName,
+    agentSocketPath,
+    configFromEnv,
+    DEFAULT_DAEMON_PORT,
+    socketPath,
+    startMemoryNode,
+} from "./node.js";
+import { createMemoryServer, type MemorySession } from "./tools.js";
 
 const log = (message: string) => console.error(`[denkmitd] ${message}`);
 
@@ -44,48 +51,74 @@ if (!config.passphrase) {
 }
 
 const path = socketPath(process.env);
+const agentPaths = new Map(config.agents.map((agent) => [agent, agentSocketPath(process.env, agent)]));
 await mkdir(dirname(path), { recursive: true, mode: 0o700 });
 if (await isListening(path)) {
     log(`another daemon is already serving ${path}; exiting`);
     process.exit(1);
 }
-await unlink(path).catch(() => {}); // a stale socket left by a crashed daemon
+// Stale sockets left by a crashed daemon.
+for (const p of [path, ...agentPaths.values()]) await unlink(p).catch(() => {});
 
 const node = await startMemoryNode(config);
 const { db, identity } = node;
 if (node.created) log(`created memory database ${db.address.toString()}`);
 
 const sessions = new Set<Socket>();
-const server = createServer((socket) => {
-    sessions.add(socket);
-    const mcp = createMemoryServer(node, config);
+/**
+ * One socket per identity: the main socket serves the device identity, each
+ * agent socket serves that agent's identity. Choosing a socket selects an
+ * identity; it is not authentication (any process of this user can connect to
+ * any of them — specs/delegation.md §11).
+ */
+const serve = (session: MemorySession) =>
+    createServer((socket) => {
+        sessions.add(socket);
+        const mcp = createMemoryServer(node, config, session);
     const closeSession = () => {
         sessions.delete(socket);
         void mcp.close().catch(() => {});
     };
-    socket.once("close", closeSession);
-    socket.on("error", (error) => log(`session error: ${error.message}`));
-    mcp.connect(new StdioServerTransport(socket, socket)).catch((error: Error) => {
-        log(`could not start an MCP session: ${error.message}`);
-        socket.destroy();
+        socket.once("close", closeSession);
+        socket.on("error", (error) => log(`session error: ${error.message}`));
+        mcp.connect(new StdioServerTransport(socket, socket)).catch((error: Error) => {
+            log(`could not start an MCP session: ${error.message}`);
+            socket.destroy();
+        });
     });
-});
 
-// Create the socket owner-only from the first instant (umask), then make sure.
+const servers = [
+    { path, server: serve({ identity: node.identity, name: config.identityName }) },
+    ...[...agentPaths].map(([agent, agentPath]) => ({
+        path: agentPath,
+        server: serve({
+            identity: node.agents.get(agent)!,
+            name: agentIdentityName(config.identityName, agent),
+            agent,
+        }),
+    })),
+];
+
+// Create each socket owner-only from the first instant (umask), then make sure.
 const previousUmask = process.umask(0o177);
-await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(path, () => resolve());
-});
+for (const { path: p, server } of servers) {
+    await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(p, () => resolve());
+    });
+}
 process.umask(previousUmask);
-await chmod(path, 0o600);
+for (const { path: p } of servers) await chmod(p, 0o600);
 
 log(
     `ready — db ${db.address.toString()} · identity ${config.identityName} (${identity.cid.toString()}) · ` +
-        `${db.size} records`,
+        `${db.recordCount} records`,
 );
 log(`peers can dial: ${node.helia.libp2p.getMultiaddrs().map(String).join(" ") || "(no addresses)"}`);
 log(`local agents connect through ${path}`);
+for (const [agent, agentPath] of agentPaths) {
+    log(`agent ${agent} (${node.agents.get(agent)!.cid.toString()}) connects through ${agentPath}`);
+}
 
 let stopping = false;
 const shutdown = async (signal: string) => {
@@ -93,10 +126,10 @@ const shutdown = async (signal: string) => {
     stopping = true;
     log(`${signal}: shutting down`);
     try {
-        server.close();
+        for (const { server } of servers) server.close();
         for (const socket of sessions) socket.destroy();
         await node.stop(); // persists the head (db.close) before libp2p stops
-        await unlink(path).catch(() => {});
+        for (const { path: p } of servers) await unlink(p).catch(() => {});
     } finally {
         process.exit(0);
     }

@@ -2,7 +2,7 @@ import * as codec from "@ipld/dag-cbor";
 import { CID } from "multiformats/cid";
 import { sha256 } from "multiformats/hashes/sha2";
 import { describe, expect, it } from "vitest";
-import { SortedItemsStore } from "../src/functions";
+import { SortedItemsStore } from "../src/internal";
 
 async function cidOf(value: unknown): Promise<CID> {
     const bytes = codec.encode(value);
@@ -19,7 +19,7 @@ describe("SortedItemsStore", () => {
 
         const item = await store.getByKey("k1");
         expect(item).toBeDefined();
-        expect(item?.sortField).toBe(100);
+        expect(item?.timestamp).toBe(100);
         expect(item?.cid.equals(cid)).toBe(true);
         expect(store.size).toBe(1);
     });
@@ -52,7 +52,7 @@ describe("SortedItemsStore", () => {
         await store.set(200, "k", await cidOf("new"), creator);
 
         const item = await store.getByKey("k");
-        expect(item?.sortField).toBe(200);
+        expect(item?.timestamp).toBe(200);
         expect(item?.cid.equals(await cidOf("new"))).toBe(true);
     });
 
@@ -80,7 +80,7 @@ describe("SortedItemsStore", () => {
         expect(await store.set(100, "k", await cidOf("old"), creator)).toEqual({ applied: false });
 
         const item = await store.getByKey("k");
-        expect(item?.sortField).toBe(200);
+        expect(item?.timestamp).toBe(200);
         expect(item?.cid.equals(await cidOf("new"))).toBe(true);
         expect(item?.creator.equals(newerCreator)).toBe(true);
         expect(store.size).toBe(1);

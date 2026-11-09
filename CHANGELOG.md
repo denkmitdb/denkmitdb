@@ -1,12 +1,88 @@
 # Changelog
 
-## [4.0.0] — 2026-11-09
+## [4.0.0] — unreleased
 
-Published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
+To be published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
 version: the entry and manifest formats change** (entries are bound to their
 database — see "Security & correctness" below). Databases created by 3.0.0 stay
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
+
+### Public API (breaking; no compatibility aliases)
+
+The package exports exactly the public API, by name; tree, sync, storage and
+signed-record internals are no longer reachable. Wire formats are unchanged
+(test/wire freezes payload bytes and CIDs).
+
+| 3.x | 4.0.0 |
+|---|---|
+| `createDenkmitDatabase(name, options)` | `createDatabase(name, options)` → `Database<T>` |
+| `openDenkmitDatabase(cid, options)` | `openDatabase(address, options)` — address as CID or string |
+| `DenkmitDatabaseInterface<T>` | `Database<T>` (no `layers`, `merge`, `load`, `compare`, `heliaController`, …) |
+| `DenkmitDatabaseOptions<T>` | `DatabaseOptions<T>` (open) / `CreateDatabaseOptions<T>` (create) |
+| `access`, `accessPolicy`, `validationPolicy` options | `consensus: { access, validity }`; `access` is a preset, `{ allowlist }` or `{ policy }` (type `AccessRule`, was `AccessPreset`) |
+| `publicWrite: true` | `consensus: { access: "public" }` (MCP: `DENKMIT_PUBLIC_WRITE` refuses to start; use `DENKMIT_ACCESS=public`) |
+| `order: 3` | `subtreeLeaves: 8` (leaves per Merkle subtree; the manifest still stores `order`) |
+| `keyValueStorage` option | `valueCache` (any `ValueCache`; a Keyv fits) |
+| `await db.getManifest()` | `db.manifest`; `manifest.consensus` / `manifest.access` → `manifest.consensus.validity` / `.access`; `manifest.meta` → `metadata`; `manifest.order` → `subtreeLeaves` |
+| policy controllers via `db.heliaController` | `db.consensus.access` / `db.consensus.validity` (`SignedPolicy`, frozen) |
+| `db.size` / `db.iterator()` / `db.idle()` | `db.recordCount` / `db.entries()` / `db.waitUntilIdle()` |
+| `provenance(key)` → `{ cid, creator, … }` | `{ entryCid, writer, timestamp, deleted }` |
+| `encryptedRecipients` | `encryptedValueRecipients` |
+| MCP `DENKMIT_POLICY_FILE` `{ accessPolicy, validationPolicy }` | `{ access, validity }` (old keys refuse to start) |
+| `IdentityInterface` | `Identity` (public: verify, encrypt) / `SigningIdentity` (+ sign, decrypt) |
+| `fetchIdentity(cid, new HeliaStorage(helia))` | `fetchIdentity(cid, helia)` |
+| `identity.decrypt()` → `false` on failure | → `undefined` |
+| `PolicyData` / `PolicyInterface` | `PolicyDefinition` / `SignedPolicy` |
+| `DenkmitHeliaInterface` | `HeliaNode` |
+| `createEntry`, `createPollard`, `HeliaController`, `SortedItemsStore`, … | internal |
+| plain `Error` / `TypeError` / `ReferenceError` | `DenkmitError` with a stable `code` (`ErrorCode`): `INVALID_ARGUMENT`, `ACCESS_DENIED`, `VALIDITY_REJECTED`, `NOT_FOUND`, `ALREADY_EXISTS`, `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED`, `UNSUPPORTED_VERSION`, `KEY_UNAVAILABLE`, `INVALID_PASSPHRASE`, `INTERNAL`; `isDenkmitError(e, code)`. MCP tools return `{ error: { code, message } }` |
+| `RulesLogic` (from json-logic-js) in `PolicyDefinition.logic` | `PolicyRule`: DenkMit Logic 1, a closed JsonLogic subset (`var`, comparisons, `and`/`or`/`!`/`!!`/`if`, `in`, `cat`, `startsWith`); other operators are refused at creation (`INVALID_ARGUMENT`) and deny at evaluation. The policy `version` names the language; unknown versions are refused (`UNSUPPORTED_VERSION`) |
+| `encryptValueFor(recipients, value, context?)` / `decryptValue(identity, value, expected?)` | the context is required in both (`INVALID_ARGUMENT` without it); an envelope sealed without a context never opens |
+
+Removed options passed from plain JavaScript (`access`, `accessPolicy`,
+`validationPolicy`, `publicWrite`, `order`, `cache`, `keyValueStorage`) throw
+instead of being ignored: ignoring one would sign a different, permanent manifest.
+
+### Documentation
+
+- README rewritten around the focus (signed fact exchange between untrusting
+  parties): an agent quick start with the daemon, current features, a runnable
+  library example (now `examples/example.ts`, type-checked in CI), performance
+  table for both machines, and an updated documentation map.
+- ARCHITECTURE, KNOWN_ISSUES (status, D8), VISION (sequence), ROADMAP ("Where
+  things stand"), the policy cookbook and the launch draft brought up to date:
+  entry binding, policies and presets, encrypted values, daemon/seeds/agents,
+  and the dropped HTTP head rendezvous.
+
+### Added
+
+- **WebSockets transport** in the daemon: a node can listen on a `/ws` address
+  (e.g. behind a TLS reverse proxy on 443) and dial `/ws` and `/tls/ws` (`wss`)
+  peers — the way through networks that allow only HTTPS. `smoke:daemon` runs a
+  seed reachable only over WebSockets.
+
+### Fixed
+
+- **Peers in `DENKMIT_PEERS` stay connected.** They were dialed once at start: a
+  connection lost later (a laptop that slept, a changed network, a restarted
+  seed) was never restored, and a peer that was down at start was never reached,
+  so a replica could silently fall behind. The daemon now redials every
+  `DENKMIT_REDIAL_SECONDS` (default 30) and within seconds of a drop, logging
+  only changes. `smoke:daemon` restarts the seed and checks that the peer
+  reconnects by itself.
+
+### Agent identities (delegation, phase 1)
+
+- **`WriteOptions.identity`** on `db.set` / `db.delete`: sign a write with another
+  identity (it needs its private key; access and validation policies are
+  evaluated for it) without opening the database twice.
+- **Daemon:** `DENKMIT_AGENTS=claude-code,codex,…` holds one identity per agent
+  (`<device>-<agent>`) and serves each on `denkmitd-<agent>.sock`; the thin client
+  selects one with `DENKMIT_AGENT` (implies `DENKMIT_DAEMON=require`). Each agent
+  has its own key, namespace, provenance and decryption; `memory_status` reports
+  `identity`, `agent` and `device`. The main socket is unchanged.
+- Socket choice selects, it does not authenticate (specs/delegation.md §11).
 
 ### Private values
 
@@ -50,8 +126,9 @@ so upgrade every writer before using a new database.
 - **`namespace-per-writer` preset:** every identity, the creator included, writes
   and deletes only under `agents/<its-identity-cid>/` — no privileged party.
 - **`entryOperation`** (`"put"` | `"delete"`) is a policy input, so delete rules
-  are expressible; `createDenkmitDatabase` accepts custom `accessPolicy` /
-  `validationPolicy` (MCP: `DENKMIT_POLICY_FILE`). A policy that throws denies.
+  are expressible; `createDatabase` accepts custom rules,
+  `consensus: { access: { policy }, validity }` (MCP: `DENKMIT_POLICY_FILE`). A
+  policy that throws denies.
 - `pnpm smoke:daemon` (in CI): daemon + thin clients, restart persistence, and two
   daemons replicating over `DENKMIT_PEERS` with mDNS off.
 
@@ -83,12 +160,11 @@ so upgrade every writer before using a new database.
 
 ### Access presets & policy hardening
 
-- **`access` option on `createDenkmitDatabase`:** `"creator-only"` (default),
+- **Access presets** (`consensus.access` of `createDatabase`): `"creator-only"` (default),
   `"public"`, `"prefix-per-writer"` (the creator writes anywhere; every other
   identity writes and deletes only under `agents/<its-identity-cid>/`), or
   `{ allowlist: [cid, …] }` (validated and normalized at create time).
-  `publicWrite: true` stays as a deprecated alias; conflicting combinations throw.
-- **`entryKey`** is a policy input for both access and validation policies, and
+- **`entryKey`** is a policy input for both the access and the validity rule, and
   policies may use the deterministic `startsWith(value, prefix)` operation.
 - **MCP:** `DENKMIT_ACCESS` selects the preset (`allowlist:<cid>,…` too; unknown
   values refuse to start); `memory_status` reports the access policy and the

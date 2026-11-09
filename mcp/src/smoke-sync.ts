@@ -55,7 +55,7 @@ async function waitUntil(what: string, cond: () => Promise<boolean>, timeoutMs =
     throw new Error(`SYNC SMOKE FAIL: timed out waiting for ${what}`);
 }
 
-const a = makeClient("agent-a", { DENKMIT_PUBLIC_WRITE: "true" });
+const a = makeClient("agent-a", { DENKMIT_ACCESS: "public" });
 const b = makeClient("agent-b", {});
 
 try {

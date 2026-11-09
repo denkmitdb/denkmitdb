@@ -70,12 +70,17 @@ async function waitForSocket(path = socket, timeoutMs = 60_000): Promise<void> {
     throw new Error("DAEMON SMOKE FAIL: daemon socket never came up");
 }
 
-async function client(name: string, dir = dataDir) {
+async function client(name: string, dir = dataDir, agent?: string) {
     const transport = new StdioClientTransport({
         command: process.execPath,
         args: [join(here, "index.js")],
         // Deliberately no DENKMIT_PASSPHRASE: in daemon mode the client holds no key.
-        env: { PATH: process.env.PATH ?? "", DENKMIT_DATADIR: dir, DENKMIT_DAEMON: "require" },
+        env: {
+            PATH: process.env.PATH ?? "",
+            DENKMIT_DATADIR: dir,
+            DENKMIT_DAEMON: "require",
+            ...(agent ? { DENKMIT_AGENT: agent } : {}),
+        },
         stderr: "pipe",
     });
     const c = new Client({ name: `daemon-smoke-${name}`, version: "0.0.0" });
@@ -95,13 +100,14 @@ async function twoMachines(): Promise<void> {
     const peerDir = mkdtempSync(join(tmpdir(), "denkmit-peer-"));
     const port = 40_000 + Math.floor(Math.random() * 20_000);
     const base = { ...process.env, DENKMIT_MDNS: "off", DENKMIT_ACCESS: "namespace-per-writer" };
-    const seed = startDaemon({
+    const seedEnv = {
         ...base,
         DENKMIT_DATADIR: seedDir,
         DENKMIT_IDENTITY: "seed-owner",
         DENKMIT_PASSPHRASE: "seed-secret",
         DENKMIT_LISTEN: `/ip4/127.0.0.1/tcp/${port}`,
-    });
+    };
+    let seed = startDaemon(seedEnv);
     let peer: ChildProcess | undefined;
     try {
         await waitForSocket(join(seedDir, "denkmitd.sock"));
@@ -120,6 +126,7 @@ async function twoMachines(): Promise<void> {
             DENKMIT_LISTEN: "/ip4/127.0.0.1/tcp/0",
             DENKMIT_DB: seedStatus.databaseAddress,
             DENKMIT_PEERS: `/ip4/127.0.0.1/tcp/${port}`,
+            DENKMIT_REDIAL_SECONDS: "1",
         });
         await waitForSocket(join(peerDir, "denkmitd.sock"));
         const onPeer = await client("laptop", peerDir);
@@ -152,12 +159,25 @@ async function twoMachines(): Promise<void> {
         const forSeed = `${seedStatus.access.ownNamespace}seed-only`;
         await onSeed.callTool({
             name: "memory_set",
-            arguments: { key: forPeer, value: { token: "laptop" }, encryptFor: [peerStatus.identity.cid], includeSelf: false },
+            arguments: {
+                key: forPeer,
+                value: { token: "laptop" },
+                encryptFor: [peerStatus.identity.cid],
+                includeSelf: false,
+            },
         });
-        await onSeed.callTool({ name: "memory_set", arguments: { key: forSeed, value: { token: "seed" }, encryptFor: [] } });
+        await onSeed.callTool({
+            name: "memory_set",
+            arguments: { key: forSeed, value: { token: "seed" }, encryptFor: [] },
+        });
         await waitFor("the encrypted facts on the peer", onPeer, forSeed);
         await waitFor("the encrypted facts on the peer", onPeer, forPeer);
-        type Read = { encrypted?: boolean; readable?: boolean; value: { token?: string } | null; recipients?: string[] };
+        type Read = {
+            encrypted?: boolean;
+            readable?: boolean;
+            value: { token?: string } | null;
+            recipients?: string[];
+        };
         const read = async (c: Client, key: string) =>
             firstText(await c.callTool({ name: "memory_get", arguments: { key } })) as Read;
         const peerReadsOwn = await read(onPeer, forPeer);
@@ -171,7 +191,20 @@ async function twoMachines(): Promise<void> {
         const seedReadsPeers = await read(onSeed, forPeer);
         assert(!seedReadsPeers.readable, "includeSelf: false must keep the writer out too");
         console.log("encrypted values: recipients read them, everyone else sees only key, writer and recipients");
+
+        // The seed restarts on the same address. It does not know the peer, so only the
+        // peer can restore the connection: it must redial on its own.
         await onSeed.close();
+        seed.kill("SIGTERM");
+        await exitCode(seed);
+        seed = startDaemon(seedEnv);
+        await waitForSocket(join(seedDir, "denkmitd.sock"));
+        const onSeedAgain = await client("seed-again", seedDir);
+        const afterRestart = `${seedStatus.access.ownNamespace}after-restart`;
+        await onSeedAgain.callTool({ name: "memory_set", arguments: { key: afterRestart, value: { by: "seed" } } });
+        await waitFor("a fact written after the seed restarted, on the peer", onPeer, afterRestart);
+        console.log("the peer redials a restarted seed by itself (DENKMIT_PEERS stays connected)");
+        await onSeedAgain.close();
         await onPeer.close();
         console.log("two daemons (separate machines, mDNS off) replicate both ways via DENKMIT_PEERS");
     } finally {
@@ -183,6 +216,145 @@ async function twoMachines(): Promise<void> {
         }
         rmSync(seedDir, { recursive: true, force: true });
         rmSync(peerDir, { recursive: true, force: true });
+    }
+}
+
+/**
+ * A seed reachable only over WebSockets (as behind a TLS reverse proxy on 443,
+ * for networks that block other ports): the peer dials its /ws address.
+ */
+async function overWebSockets(): Promise<void> {
+    const seedDir = mkdtempSync(join(tmpdir(), "denkmit-ws-seed-"));
+    const peerDir = mkdtempSync(join(tmpdir(), "denkmit-ws-peer-"));
+    const port = 40_000 + Math.floor(Math.random() * 20_000);
+    const base = { ...process.env, DENKMIT_MDNS: "off", DENKMIT_ACCESS: "namespace-per-writer" };
+    const seed = startDaemon({
+        ...base,
+        DENKMIT_DATADIR: seedDir,
+        DENKMIT_IDENTITY: "ws-seed",
+        DENKMIT_PASSPHRASE: "ws-seed-secret",
+        DENKMIT_LISTEN: `/ip4/127.0.0.1/tcp/${port}/ws`,
+    });
+    let peer: ChildProcess | undefined;
+    try {
+        await waitForSocket(join(seedDir, "denkmitd.sock"));
+        const onSeed = await client("ws-seed", seedDir);
+        const seedStatus = firstText(await onSeed.callTool({ name: "memory_status", arguments: {} })) as Status & {
+            listenAddresses: string[];
+        };
+        assert(
+            seedStatus.listenAddresses.some((a) => a.includes("/ws")),
+            `the seed must listen on WebSockets (got ${seedStatus.listenAddresses.join(", ")})`,
+        );
+        const fact = `${seedStatus.access.ownNamespace}over-ws`;
+        await onSeed.callTool({ name: "memory_set", arguments: { key: fact, value: { via: "websockets" } } });
+
+        peer = startDaemon({
+            ...base,
+            DENKMIT_DATADIR: peerDir,
+            DENKMIT_IDENTITY: "ws-peer",
+            DENKMIT_PASSPHRASE: "ws-peer-secret",
+            DENKMIT_LISTEN: "/ip4/127.0.0.1/tcp/0",
+            DENKMIT_DB: seedStatus.databaseAddress,
+            DENKMIT_PEERS: `/ip4/127.0.0.1/tcp/${port}/ws`,
+        });
+        await waitForSocket(join(peerDir, "denkmitd.sock"));
+        const onPeer = await client("ws-peer", peerDir);
+        const started = Date.now();
+        let found = false;
+        while (!found && Date.now() - started < 60_000) {
+            found = (firstText(await onPeer.callTool({ name: "memory_get", arguments: { key: fact } })) as { found: boolean })
+                .found;
+            if (!found) await new Promise((r) => setTimeout(r, 500));
+        }
+        assert(found, "the peer must replicate from a seed reachable only over WebSockets");
+        await onSeed.close();
+        await onPeer.close();
+        console.log("a seed reachable only over WebSockets replicates (the /wss-behind-443 path)");
+    } finally {
+        for (const child of [peer, seed]) {
+            if (child && child.exitCode === null) {
+                child.kill("SIGTERM");
+                await exitCode(child).catch(() => child.kill("SIGKILL"));
+            }
+        }
+        rmSync(seedDir, { recursive: true, force: true });
+        rmSync(peerDir, { recursive: true, force: true });
+    }
+}
+
+/**
+ * DENKMIT_AGENTS: one daemon, separate identities per agent. Each agent signs,
+ * reads and decrypts as itself through its own socket; the main socket stays the
+ * device identity.
+ */
+async function agentIdentities(): Promise<void> {
+    const dir = mkdtempSync(join(tmpdir(), "denkmit-agents-"));
+    const daemon = startDaemon({
+        ...process.env,
+        DENKMIT_DATADIR: dir,
+        DENKMIT_IDENTITY: "box",
+        DENKMIT_PASSPHRASE: "agents-secret",
+        DENKMIT_ACCESS: "namespace-per-writer",
+        DENKMIT_LISTEN: "/ip4/127.0.0.1/tcp/0",
+        DENKMIT_MDNS: "off",
+        DENKMIT_AGENTS: "claude-code,codex",
+    });
+    try {
+        await waitForSocket(join(dir, "denkmitd.sock"));
+        await waitForSocket(join(dir, "denkmitd-codex.sock"));
+        const device = await client("device", dir);
+        const claude = await client("claude", dir, "claude-code");
+        const codex = await client("codex", dir, "codex");
+        type S = Status & { agent: string | null; device: { cid: string }; identity: { cid: string; name: string } };
+        const status = async (c: Client) => firstText(await c.callTool({ name: "memory_status", arguments: {} })) as S;
+        const [sd, sc, sx] = [await status(device), await status(claude), await status(codex)];
+        assert(
+            sd.agent === null && sc.agent === "claude-code" && sx.agent === "codex",
+            "sessions must report their agent",
+        );
+        assert(new Set([sd.identity.cid, sc.identity.cid, sx.identity.cid]).size === 3, "three distinct identities");
+        assert(sc.device.cid === sd.identity.cid && sx.device.cid === sd.identity.cid, "agents report their device");
+        assert(sx.identity.name === "box-codex", "agent identity name is <device>-<agent>");
+
+        const fact = `${sx.access.ownNamespace}fact`;
+        await codex.callTool({ name: "memory_set", arguments: { key: fact, value: { by: "codex" } } });
+        const prov = firstText(await claude.callTool({ name: "memory_provenance", arguments: { key: fact } })) as {
+            writer: string;
+            byThisAgent: boolean;
+        };
+        assert(
+            prov.writer === sx.identity.cid && !prov.byThisAgent,
+            "the fact is attributed to codex, not claude-code",
+        );
+        const intrude = await claude.callTool({ name: "memory_set", arguments: { key: `${fact}2`, value: 1 } });
+        assert((intrude as { isError?: boolean }).isError, "claude-code must not write into codex's namespace");
+
+        const secret = `${sc.access.ownNamespace}for-codex`;
+        await claude.callTool({
+            name: "memory_set",
+            arguments: { key: secret, value: { token: "x" }, encryptFor: [sx.identity.cid], includeSelf: false },
+        });
+        type Read = { readable?: boolean; value: { token?: string } | null };
+        const read = async (c: Client) =>
+            firstText(await c.callTool({ name: "memory_get", arguments: { key: secret } })) as Read;
+        assert((await read(codex)).value?.token === "x", "codex decrypts what was sealed to codex");
+        assert(!(await read(device)).readable, "the device identity is not a recipient");
+        assert(!(await read(claude)).readable, "includeSelf: false keeps the writing agent out");
+
+        const ghost = spawn(process.execPath, [join(here, "index.js")], {
+            env: { PATH: process.env.PATH ?? "", DENKMIT_DATADIR: dir, DENKMIT_AGENT: "ghost" },
+            stdio: ["pipe", "ignore", "ignore"],
+        });
+        assert((await exitCode(ghost)) === 1, "an unknown agent must fail instead of falling back");
+        for (const c of [device, claude, codex]) await c.close();
+        console.log("agent identities: separate keys, namespaces, provenance and decryption per agent");
+    } finally {
+        if (daemon.exitCode === null) {
+            daemon.kill("SIGTERM");
+            await exitCode(daemon).catch(() => daemon.kill("SIGKILL"));
+        }
+        rmSync(dir, { recursive: true, force: true });
     }
 }
 
@@ -206,6 +378,8 @@ try {
     assert(seen.found, "b must read a's write immediately (same node)");
     const outside = await a.callTool({ name: "memory_set", arguments: { key: "shared/x", value: 1 } });
     assert((outside as { isError?: boolean }).isError, "namespace-per-writer must refuse writes outside the namespace");
+    const outsideError = (firstText(outside) as { error: { code: string } }).error;
+    assert(outsideError.code === "ACCESS_DENIED", `outside the namespace: expected ACCESS_DENIED, got ${outsideError.code}`);
     await a.close();
     const still = firstText(await b.callTool({ name: "memory_get", arguments: { key } })) as { found: boolean };
     assert(still.found, "closing one client must not affect another");
@@ -239,6 +413,8 @@ try {
     console.log("DENKMIT_DAEMON=require fails without a daemon");
 
     await twoMachines();
+    await overWebSockets();
+    await agentIdentities();
     console.log("MCP DAEMON SMOKE TEST PASSED");
 } finally {
     if (daemon.exitCode === null) daemon.kill("SIGKILL");
