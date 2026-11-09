@@ -305,6 +305,17 @@ everything ever sealed to it. Seal to the narrowest identity that needs it.
    `pol`/`nbf`/`exp`) would need a DenkMitDB resource profile and brings no
    ecosystem we need today; revisit if interop with a UCAN system becomes a
    requirement.
+6. **Richer restrictions.** Certs restrict by key prefix, operation and time
+   window. If restrictions beyond that are needed (e.g. on values), express them
+   in the **UCAN 1.0 policy language** (`pol`: predicates over IPLD with jq-style
+   selectors, `==`/`<`/`like`/`all`/`any`/`and`/`or`/`not`, comparisons of
+   different types are false rather than errors) instead of inventing one: it is
+   designed for exactly this, fits dag-cbor, and moves the format toward UCAN.
+   Candidate once UCAN 1.0 is final (rc.1 as of November 2026). It is not a
+   replacement for the manifest's consensus rules: those need values computed
+   from the entry (e.g. `agents/` + writer), which UCAN policy arguments cannot
+   express; they stay in DenkMit Logic, with CEL as the candidate next language
+   (ROADMAP.md "Policy languages").
 
 ## 14. Correspondence with Meadowcap
 
