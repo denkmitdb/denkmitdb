@@ -201,7 +201,7 @@ fails rather than signing as someone else.
 Choosing a socket selects an identity; it does not authenticate the agent —
 any process of the same OS user can connect to any socket. Agents that must not
 impersonate each other belong to different OS users (see
-[the delegation spec](https://github.com/denkmitdb/denkmitdb/pull/17) (§11, draft), which also covers the next
+[the delegation spec](../specs/delegation.md#11-daemon-sessions-and-local-isolation) (§11, draft), which also covers the next
 step: owner-signed delegation, so other parties see one owner behind the agent
 keys).
 

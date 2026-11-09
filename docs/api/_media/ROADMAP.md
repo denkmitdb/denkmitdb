@@ -346,8 +346,10 @@ component that only works with a central service).
   `open.zhakenov.pro:4001`.
 - ✅ **`namespace-per-writer`, `entryOperation`, custom policies** — equal parties,
   expressible delete rules.
-- **Next: a real two-machine test** (seed + laptop, Claude Code and Codex), then
-  **P2P discovery by database address** (libp2p DHT provider records: the address
+- ✅ **Real multi-machine test** (November 2026): a public seed, a second server,
+  a home machine behind NAT and a laptop behind a corporate firewall (over
+  WebSockets on 443), with Claude Code, Codex and Claude Desktop agents.
+- **Next: P2P discovery by database address** (libp2p DHT provider records: the address
   is the rendezvous key — a P2P space per database) and **NAT traversal through
   libp2p relays** (circuit relay v2 + DCUtR; any public peer can relay).
 - **Step 6 above (HTTP head rendezvous) is withdrawn:** an HTTP endpoint is a

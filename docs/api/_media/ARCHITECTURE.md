@@ -191,7 +191,7 @@ rebuilds its own honest tree from the verified index.
   Because the rules use only deterministic inputs and live in the signed manifest,
   every replica reaches the same decision (KNOWN_ISSUES.md D1, #25). Policies are
   immutable; delegation of write rights is specified in a draft
-  (`specs/delegation.md`, not yet merged).
+  ([specs/delegation.md](specs/delegation.md), draft).
 - **Reads are not access-controlled**: anyone who knows a database address and can
   reach a peer can replicate it. Confidentiality comes from encrypting values to
   recipient identities (`encryptValueFor`); the key, writer, time, recipients and

@@ -204,6 +204,7 @@ persisted materialized index are on the roadmap).
 | [API at a glance](#api-at-a-glance) and [docs/api/](_media/README-1.md) | The public API; generated reference (`pnpm docs`) |
 | [ARCHITECTURE.md](_media/ARCHITECTURE.md) | Data model, the Merkle tree, write/read paths, sync, trust model, deployment |
 | [specs/ordering.md](_media/ordering.md) | Accepted spec: sort key, last-write-wins, format versioning, entry binding |
+| [specs/delegation.md](_media/delegation.md) | Draft: owners delegate scoped, time-bounded write rights to device and agent keys |
 | [specs/succession.md](_media/succession.md) | Draft: bounded growth via local GC and signed hand-over to a successor database |
 | [KNOWN_ISSUES.md](_media/KNOWN_ISSUES.md) | Every verified defect with its fix and test, and the open design concerns |
 
