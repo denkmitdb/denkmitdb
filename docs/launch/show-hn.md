@@ -32,19 +32,26 @@ What it is: a key-value store on IPFS (Helia) where
 - the write policy is a json-logic program signed into the database at creation,
   evaluated identically by every replica on its own writes and on everything it
   syncs. Presets: creator-only, public, an identity allowlist, and
-  **prefix-per-writer** — each identity owns `agents/<its-key>/…`, so nobody can
-  overwrite or delete anyone else's facts;
+  **namespace-per-writer** — every identity, the creator included, owns exactly
+  `agents/<its-key>/…`, so nobody can overwrite or delete anyone else's facts
+  (custom rules can also tell puts from deletes);
+- values can be **encrypted** to chosen identities and still replicate as signed
+  records; peers relay ciphertext they cannot read;
 - replicas converge by announcing one head CID over libp2p pubsub and diffing
   Merkle trees, so a sync fetches what differs, not the database. Conflicts on a
   key resolve by deterministic last-write-wins.
 
-An MCP server makes it shared memory for any MCP-capable agent:
+An MCP server and a small daemon make it shared memory for any MCP-capable
+agent: one daemon per machine holds the keys and stays a peer, agents connect
+through a thin stdio client, and each agent can sign with its own identity:
 
-    claude mcp add denkmit --env DENKMIT_PASSPHRASE='…' \
-        --env DENKMIT_ACCESS=prefix-per-writer -- npx -y @denkmitdb/mcp
+    npm install -g @denkmitdb/mcp
+    DENKMIT_PASSPHRASE='…' DENKMIT_ACCESS=namespace-per-writer denkmitd
+    claude mcp add denkmit -- npx -y @denkmitdb/mcp
 
 Demo — two real MCP server processes on one machine, read back from the
-servers, not scripted (`cd mcp && pnpm demo`):
+servers, not scripted (`cd mcp && pnpm demo`; it uses `prefix-per-writer`, where
+the creator acts as a trusted coordinator):
 
 ```
 ━━━ Act 3: Bob publishes a signed finding in his own namespace ━━━
@@ -73,15 +80,17 @@ What it is **not**, honestly:
 - Single-key last-write-wins on wall-clock timestamps. No transactions, no
   compare-and-swap, no locks: don't use it to hand out exclusive tasks. A writer
   with a fast clock wins same-key conflicts for as long as its skew
-  (prefix-per-writer makes cross-writer conflicts impossible, which is most of
-  why it exists).
-- Peers need to reach each other for sync (TCP + mDNS + same-machine rendezvous
-  today); HTTP head rendezvous is next. A new reader also needs some peer that
-  still holds the blocks.
+  (namespace-per-writer makes cross-writer conflicts impossible, which is most
+  of why it exists).
+- Peers need to reach each other for sync: direct dial, mDNS on a LAN, or an
+  always-on seed today; discovery by database address over a DHT and libp2p
+  relays are next. A new reader also needs some peer that still holds the blocks.
+- Reads are not access-controlled: anyone with the database address and a
+  reachable peer can replicate it. Encrypt what must stay private.
 - Bulk replication is the slow path: ~10 ms per entry to a fresh peer at 10k
   entries on a small arm64 VPS (numbers in the README).
-- Policies are fixed at creation; adding writers later (delegation) is on the
-  roadmap.
+- Policies are fixed at creation; owner-signed delegation (so other parties see
+  "Askar", not four machine keys) is specified and next on the roadmap.
 
 Every hole found so far — including the November review that found entries
 could be replayed across databases and a tree-walk that a hostile peer could
