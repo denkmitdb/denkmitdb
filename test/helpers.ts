@@ -101,6 +101,18 @@ export async function putSignedEntry<T>(
     return { cid: signed.cid, creator: signed.creator, timestamp, key };
 }
 
+/** A signed tombstone (delete) bound to `manifest`, with a caller-chosen timestamp. */
+export async function putSignedTombstone(
+    heliaController: HeliaController,
+    key: string,
+    timestamp: number,
+    manifest: CID,
+): Promise<{ cid: CID; creator: CID; timestamp: number; key: string }> {
+    const data: EntryData<never> = { version: ENTRY_VERSION, manifest, timestamp, key, deleted: true };
+    const signed = await heliaController.addSigned(data);
+    return { cid: signed.cid, creator: signed.creator, timestamp, key };
+}
+
 /**
  * Creates a database from a hand-built manifest — custom json-logic policies
  * and/or a legacy manifest version that `createDenkmitDatabase` no longer emits —
