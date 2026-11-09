@@ -72,8 +72,8 @@ export async function runDeterministicFlows(
         const ns = await createDatabase<unknown>("wire-ns", {
             helia,
             identity,
-            access: "namespace-per-writer",
-            order: 2,
+            consensus: { access: "namespace-per-writer" },
+            subtreeLeaves: 4,
         });
         cids.nsAddress = ns.address.toString();
         const mine = `agents/${identity.cid.toString()}/`;
@@ -82,7 +82,7 @@ export async function runDeterministicFlows(
         await ns.set(`${mine}gone`, 42);
         await ns.delete(`${mine}gone`);
         for (let i = 0; i < 6; i++) await ns.set(`${mine}k${i}`, i);
-        await ns.idle();
+        await ns.waitUntilIdle();
         const head = await ns.createHead();
         cids.nsHeadRoot = head.root.toString();
         cids.nsHead = head.cid.toString();
@@ -91,22 +91,26 @@ export async function runDeterministicFlows(
         const custom = await createDatabase<unknown>("wire-custom", {
             helia,
             identity,
-            accessPolicy: {
-                version: 1,
-                name: "puts-open-deletes-creator",
-                description: "fixture",
-                logic: {
-                    or: [
-                        { "==": [{ var: "entryOperation" }, "put"] },
-                        { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
-                    ],
+            consensus: {
+                access: {
+                    policy: {
+                        version: 1,
+                        name: "puts-open-deletes-creator",
+                        description: "fixture",
+                        logic: {
+                            or: [
+                                { "==": [{ var: "entryOperation" }, "put"] },
+                                { "==": [{ var: "entryCreator" }, { var: "databaseCreator" }] },
+                            ],
+                        },
+                    },
                 },
-            },
-            validationPolicy: {
-                version: 1,
-                name: "facts-only",
-                description: "fixture",
-                logic: { startsWith: [{ var: "entryKey" }, "facts/"] } as unknown as RulesLogic,
+                validity: {
+                    version: 1,
+                    name: "facts-only",
+                    description: "fixture",
+                    logic: { startsWith: [{ var: "entryKey" }, "facts/"] } as unknown as RulesLogic,
+                },
             },
         });
         cids.customAddress = custom.address.toString();

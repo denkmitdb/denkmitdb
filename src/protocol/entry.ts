@@ -13,7 +13,10 @@ export const ENTRY_VERSION = 2;
  */
 export const LEGACY_ENTRY_VERSION = 1;
 
-/** The database binding: required in v2, absent in v1. */
+/**
+ * The database binding: required in v2, absent in v1. The field is named
+ * `manifest` on the wire; it holds the database address (the manifest's CID).
+ */
 type Binding =
     | { readonly version: typeof ENTRY_VERSION; readonly manifest: CID }
     | { readonly version: typeof LEGACY_ENTRY_VERSION; readonly manifest?: never };

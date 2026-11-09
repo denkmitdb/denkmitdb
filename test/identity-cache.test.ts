@@ -28,7 +28,7 @@ describe("Identity cache (D6)", () => {
         const db = await createDatabase<Value>("id-cache", {
             helia: node.helia,
             identity: node.identity,
-            access: "public",
+            consensus: { access: "public" },
         });
         const bController = new HeliaController(node.helia, other);
 
@@ -45,9 +45,9 @@ describe("Identity cache (D6)", () => {
         const before = dbController.identityFetchCount;
 
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(count);
+        expect(db.recordCount).toBe(count);
         // B's identity is fetched+verified exactly once for the whole head + all
         // entries, not once per entry.
         expect(dbController.identityFetchCount - before).toBe(1);

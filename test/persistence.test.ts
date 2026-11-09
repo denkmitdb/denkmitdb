@@ -29,7 +29,7 @@ describe("Local head persistence (D4)", () => {
             identity: node.identity,
         });
         await db.set("k", { value: "v" });
-        await db.idle();
+        await db.waitUntilIdle();
         const head = await db.createHead();
 
         const stored = await node.helia.datastore.get(headStoreKey(db.address));
@@ -45,7 +45,7 @@ describe("Local head persistence (D4)", () => {
         const address = db.address;
         await db.set("a", { value: "1" });
         await db.set("b", { value: "2" });
-        await db.idle();
+        await db.waitUntilIdle();
         const headBefore = await db.createHead(); // builds + persists the pointer
         await db.close();
 
@@ -55,9 +55,9 @@ describe("Local head persistence (D4)", () => {
             helia: node.helia,
             identity: node.identity,
         });
-        await reopened.idle();
+        await reopened.waitUntilIdle();
 
-        expect(reopened.size).toBe(2);
+        expect(reopened.recordCount).toBe(2);
         expect(await reopened.get("a")).toEqual({ value: "1" });
         expect(await reopened.get("b")).toEqual({ value: "2" });
         const headAfter = await reopened.createHead();
@@ -70,11 +70,11 @@ describe("Local head persistence (D4)", () => {
         const db = await createDatabase<Value>("persist-keyv", {
             helia: node.helia,
             identity: node.identity,
-            cache: myStore,
+            valueCache: myStore,
         });
         await db.set("mine", { value: "kept" });
-        await db.idle();
-        const cacheKey = (await db.provenance("mine"))!.cid.toString(); // keyed by entry CID (#30)
+        await db.waitUntilIdle();
+        const cacheKey = (await db.provenance("mine"))!.entryCid.toString(); // keyed by entry CID (#30)
         await db.close();
 
         // The caller's store survives close(); only internally owned caches are cleared.

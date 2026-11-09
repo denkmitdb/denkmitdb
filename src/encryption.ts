@@ -59,7 +59,7 @@ export function isEncryptedValue(value: unknown): value is EncryptedValue {
 }
 
 /** The identity CIDs a value claims to be encrypted to (from the per-recipient `kid`); [] if malformed. */
-export function encryptedRecipients(value: EncryptedValue): string[] {
+export function encryptedValueRecipients(value: EncryptedValue): string[] {
     if (!isEncryptedValue(value)) return [];
     return value.jwe.recipients.map((r) => r.header?.kid).filter(isString);
 }

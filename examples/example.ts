@@ -40,7 +40,7 @@ await db.set("key1", { value: "value1" });
 await db.set("key2", { value: "value2" });
 await db.set("key3", { value: "value3" });
 
-for await (const e of db.iterator()) {
+for await (const e of db.entries()) {
     console.log(e);
 }
 

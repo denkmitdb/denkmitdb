@@ -6,7 +6,7 @@
 
 # Type Alias: CreateDatabaseOptions\<T\>
 
-> **CreateDatabaseOptions**\<`T`\> = [`DatabaseOptions`](DatabaseOptions.md)\<`T`\> & `object` & (\{ `access?`: [`AccessPreset`](AccessPreset.md); `accessPolicy?`: `never`; \} \| \{ `accessPolicy`: [`PolicyDefinition`](PolicyDefinition.md); `access?`: `never`; \})
+> **CreateDatabaseOptions**\<`T`\> = [`DatabaseOptions`](DatabaseOptions.md)\<`T`\> & `object`
 
 Options for creating a database: the open options plus what the manifest fixes for good.
 
@@ -18,14 +18,22 @@ Options for creating a database: the open options plus what the manifest fixes f
 
 ## Type Declaration
 
-### order?
+### consensus?
 
-> `optional` **order?**: `number`
+> `optional` **consensus?**: `object`
 
-Pollard order, an integer in [1, 8]; default 3.
+Consensus rules. Default: access "creator-only", validity accepts every authorized entry.
 
-### validationPolicy?
+#### consensus.access?
 
-> `optional` **validationPolicy?**: [`PolicyDefinition`](PolicyDefinition.md)
+> `optional` **access?**: [`AccessRule`](AccessRule.md)
 
-Custom validation policy. Default accepts every authorized entry.
+#### consensus.validity?
+
+> `optional` **validity?**: [`PolicyDefinition`](PolicyDefinition.md)
+
+### subtreeLeaves?
+
+> `optional` **subtreeLeaves?**: `number`
+
+Leaves per Merkle subtree: a power of two in [2, 256]; default 8.

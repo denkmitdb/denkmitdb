@@ -50,27 +50,30 @@ describe("DenkmitDatabase (single node)", () => {
         // checking what the factory actually wired, not a hand-built controller.
         const { db } = await createDb("db-consensus-wiring");
         const manifest = db.manifest;
-        const installed = await fetchPolicy(manifest.validation, heliaController);
+        const installed = await fetchPolicy(manifest.consensus.validity, heliaController);
         expect(installed.name).toBe("denkmit-timestamp");
         expect(installed.logic).toBe(true);
         expect(evaluatePolicy(installed, { anything: "goes" })).toBe(true);
         await db.close();
     });
 
-    it("honours the order option on create and records it in the manifest", async () => {
+    it("honours subtreeLeaves on create and records it in the manifest", async () => {
         const db = await createDatabase<Value>("db-order", {
             helia: node.helia,
             identity: node.identity,
-            order: 2,
+            subtreeLeaves: 4,
         });
         expect(db.order).toBe(2);
-        expect(db.manifest.order).toBe(2);
+        expect(db.manifest.subtreeLeaves).toBe(4);
         expect(db.maxPollardLength).toBe(4);
         await db.close();
 
         await expect(
-            createDatabase<Value>("db-order-bad", { helia: node.helia, identity: node.identity, order: 9 }),
-        ).rejects.toThrow(/order/i);
+            createDatabase<Value>("db-order-bad", { helia: node.helia, identity: node.identity, subtreeLeaves: 6 }),
+        ).rejects.toThrow(/subtreeLeaves/);
+        await expect(
+            createDatabase<Value>("db-order-big", { helia: node.helia, identity: node.identity, subtreeLeaves: 512 }),
+        ).rejects.toThrow(/subtreeLeaves/);
     });
 
     it("returns undefined for a missing key", async () => {
@@ -88,11 +91,11 @@ describe("DenkmitDatabase (single node)", () => {
         await drain();
         expect(await db.get("key1")).toEqual({ value: "value1" });
         expect(await db.get("key2")).toEqual({ value: "value2" });
-        expect(db.size).toBe(2);
+        expect(db.recordCount).toBe(2);
 
         // Iterates in write (timestamp) order, as ordered tuples.
         const entries: Array<[string, Value]> = [];
-        for await (const entry of db.iterator()) entries.push(entry);
+        for await (const entry of db.entries()) entries.push(entry);
         expect(entries).toEqual([
             ["key1", { value: "value1" }],
             ["key2", { value: "value2" }],
@@ -134,7 +137,7 @@ describe("DenkmitDatabase (single node)", () => {
         await syncController.queue.onIdle();
 
         const entries: Array<[string, number]> = [];
-        for await (const entry of db.iterator()) entries.push(entry);
+        for await (const entry of db.entries()) entries.push(entry);
 
         expect(entries).toEqual([
             ["zero", 0],

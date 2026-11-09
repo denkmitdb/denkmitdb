@@ -59,11 +59,11 @@ describe("Two-node synchronization", () => {
 
         await dbA.set("greeting", { value: "hello from A" });
         await dbA.set("farewell", { value: "bye from A" });
-        await dbA.idle();
+        await dbA.waitUntilIdle();
 
         await dbA.sendHead();
 
-        await waitFor(() => dbB.size === 2, { message: "node B to merge the announced head" });
+        await waitFor(() => dbB.recordCount === 2, { message: "node B to merge the announced head" });
 
         expect(await dbB.get("greeting")).toEqual({ value: "hello from A" });
         expect(await dbB.get("farewell")).toEqual({ value: "bye from A" });
@@ -103,7 +103,7 @@ describe("Late-joiner head re-announcement (#21)", () => {
         // periodic task won't fire during the test, so no announcement goes out.
         await dbA.set("k1", { value: "v1" });
         await dbA.set("k2", { value: "v2" });
-        await dbA.idle();
+        await dbA.waitUntilIdle();
         await dbA.createHead(); // fix the root; a later sendHead() is a no-op
 
         // Node B is the late joiner — it opens and subscribes only now, after A's
@@ -135,12 +135,12 @@ describe("Late-joiner head re-announcement (#21)", () => {
         await dbA.sendHead();
         // Give any (non-existent) message time to arrive; the joiner must stay empty.
         await new Promise((resolve) => setTimeout(resolve, 2000));
-        expect(dbB.size).toBe(0);
+        expect(dbB.recordCount).toBe(0);
     });
 
     it("announceHead() re-announces so the late joiner converges", { timeout: 60_000 }, async () => {
         await dbA.announceHead();
-        await waitFor(() => dbB.size === 2, { message: "late joiner to converge after re-announcement" });
+        await waitFor(() => dbB.recordCount === 2, { message: "late joiner to converge after re-announcement" });
 
         expect(await dbB.get("k1")).toEqual({ value: "v1" });
         expect(await dbB.get("k2")).toEqual({ value: "v2" });
@@ -172,7 +172,7 @@ describe("Concurrent same-key convergence", () => {
         dbA = await createDatabase<Value>("conflict-test", {
             helia: nodeA.helia,
             identity: nodeA.identity,
-            access: "public",
+            consensus: { access: "public" },
         });
         dbB = await openDatabase<Value>(dbA.address, { helia: nodeB.helia, identity: nodeB.identity });
         topic = syncTopic(dbA.address);
@@ -196,14 +196,14 @@ describe("Concurrent same-key convergence", () => {
         // Concurrent conflicting writes to the same key on both replicas, before any
         // head exchange.
         await Promise.all([dbA.set("contested", { value: "from A" }), dbB.set("contested", { value: "from B" })]);
-        await Promise.all([dbA.idle(), dbB.idle()]);
+        await Promise.all([dbA.waitUntilIdle(), dbB.waitUntilIdle()]);
 
         // Cross-announce (both directions), then wait for the roots to agree.
         await dbA.announceHead();
         await dbB.announceHead();
         await waitFor(
             async () => {
-                await Promise.all([dbA.idle(), dbB.idle()]);
+                await Promise.all([dbA.waitUntilIdle(), dbB.waitUntilIdle()]);
                 const [headA, headB] = await Promise.all([dbA.createHead(), dbB.createHead()]);
                 return headA.root.equals(headB.root);
             },
@@ -217,7 +217,7 @@ describe("Concurrent same-key convergence", () => {
         expect(winnerA).toEqual(winnerB);
 
         // Exactly one live record for the key on each replica.
-        expect(dbA.size).toBe(1);
-        expect(dbB.size).toBe(1);
+        expect(dbA.recordCount).toBe(1);
+        expect(dbB.recordCount).toBe(1);
     });
 });

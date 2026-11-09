@@ -5,16 +5,17 @@ import type { HeliaController } from "./storage/helia.js";
 import type { Manifest } from "./types.js";
 
 function toManifest(signed: Signed<ManifestPayload>): Manifest {
+    // Wire -> API: `order` is log2 of the leaves per subtree; the flat `access` and
+    // `consensus` (validity) keys form the consensus rules.
     const { version, timestamp, name, type, order, consensus, access, meta } = signed.data;
     return {
         version,
         timestamp,
         name,
         type,
-        order,
-        access,
-        validation: consensus,
-        ...(meta !== undefined ? { meta } : {}),
+        subtreeLeaves: 2 ** order,
+        consensus: { access, validity: consensus },
+        ...(meta !== undefined ? { metadata: meta } : {}),
         cid: signed.cid,
         creator: signed.creator,
     };

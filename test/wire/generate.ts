@@ -23,20 +23,20 @@ const controller = new writers.HeliaController(helia, identity);
 const db = await createDatabase<unknown>("wire-captured", {
     helia,
     identity,
-    access: "namespace-per-writer",
+    consensus: { access: "namespace-per-writer" },
 });
 const mine = `agents/${identity.cid.toString()}/`;
 await db.set(`${mine}keep`, { kept: true, n: 7 });
 await db.set(`${mine}drop`, "soon deleted");
 await db.delete(`${mine}drop`);
-await db.idle();
+await db.waitUntilIdle();
 const head = await db.createHead();
 const manifestV2 = db.address;
 const entryV2 = (await db.provenance(`${mine}keep`))!;
 const tombstone = (await db.provenance(`${mine}drop`))!;
 const dbValues: Record<string, unknown> = {};
-for await (const [k, v] of db.iterator()) dbValues[k] = v;
-const policy = db.manifest.access;
+for await (const [k, v] of db.entries()) dbValues[k] = v;
+const policy = db.manifest.consensus.access;
 await db.close();
 
 const v1 = await writers.createEntry("legacy/key", { legacy: true }, controller); // no manifest → v1
@@ -74,9 +74,9 @@ const captured: CapturedBlocks = {
     },
     blocks,
     refs: {
-        entryV2: entryV2.cid.toString(),
+        entryV2: entryV2.entryCid.toString(),
         entryV1: v1.cid.toString(),
-        tombstone: tombstone.cid.toString(),
+        tombstone: tombstone.entryCid.toString(),
         manifestV2: manifestV2.toString(),
         manifestV1: manifestV1.cid.toString(),
         policy: policy.toString(),

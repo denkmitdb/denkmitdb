@@ -69,7 +69,7 @@ async function runEmbedded(): Promise<void> {
     await server.connect(new StdioServerTransport());
     console.error(
         `[denkmit-mcp] ready (embedded) — db ${db.address.toString()} · identity ${config.identityName} ` +
-            `(${identity.cid.toString()}) · ${db.size} records`,
+            `(${identity.cid.toString()}) · ${db.recordCount} records`,
     );
 
     const shutdown = async () => {

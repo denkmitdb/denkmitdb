@@ -49,7 +49,7 @@ describe("Pre-publish hardening", () => {
 
         const writer = await createDatabase<Value>("hard-keyv", { helia: node.helia, identity: node.identity });
         await writer.set("shared", { value: "from writer" });
-        await writer.idle();
+        await writer.waitUntilIdle();
         const head = await writer.createHead();
 
         // A second instance over the same helia, caller-supplied Keyv, empty index:
@@ -57,10 +57,10 @@ describe("Pre-publish hardening", () => {
         const reader = await openDatabase<Value>(writer.address, {
             helia: node.helia,
             identity: node.identity,
-            cache: keyv,
+            valueCache: keyv,
         });
         await reader.syncNewHead(head.cid.bytes);
-        await reader.idle();
+        await reader.waitUntilIdle();
 
         expect(await reader.get("shared")).toEqual({ value: "from writer" });
         // The caller's unrelated key survived the load-triggered invalidation.
@@ -73,11 +73,11 @@ describe("Pre-publish hardening", () => {
     it("provenance() answers from the index and get() tolerates an unfetchable entry", async () => {
         const db = await createDatabase<Value>("hard-missing", { helia: node.helia, identity: node.identity });
         await db.set("k", { value: "v" });
-        await db.idle();
+        await db.waitUntilIdle();
 
         const record = await db.provenance("k");
         expect(record).toBeDefined();
-        expect(record!.creator.equals(node.identity.cid)).toBe(true);
+        expect(record!.writer.equals(node.identity.cid)).toBe(true);
         expect(record!.deleted).toBe(false);
 
         // Simulate an unfetchable block (never replicated / GC'd elsewhere): a
@@ -92,7 +92,7 @@ describe("Pre-publish hardening", () => {
             throw new ReferenceError("Entry not found");
         };
         // The cache is keyed by entry CID (KNOWN_ISSUES.md #30).
-        await (db as unknown as { cache: Keyv<Value> }).cache.delete(record!.cid.toString());
+        await (db as unknown as { cache: Keyv<Value> }).cache.delete(record!.entryCid.toString());
 
         try {
             await expect(db.get("k")).resolves.toBeUndefined(); // absent, not a throw
@@ -100,7 +100,7 @@ describe("Pre-publish hardening", () => {
 
             // iterator() skips the unfetchable key instead of aborting.
             const seen: string[] = [];
-            for await (const [key] of db.iterator()) seen.push(key);
+            for await (const [key] of db.entries()) seen.push(key);
             expect(seen).not.toContain("k");
         } finally {
             controller.getSigned = realGetSigned;
@@ -115,7 +115,7 @@ describe("Pre-publish hardening", () => {
         await db.set("b", { value: "2" });
         await db.set("c", { value: "3" });
         await db.delete("b");
-        await db.idle();
+        await db.waitUntilIdle();
 
         const keys: string[] = [];
         for await (const key of db.keys()) keys.push(key);

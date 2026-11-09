@@ -12,19 +12,19 @@ A database's signed manifest. Its CID is the database address.
 
 ## Properties
 
-### access
-
-> `readonly` **access**: `CID`
-
-CID of the access (authorization) policy.
-
-***
-
 ### cid
 
 > `readonly` **cid**: `CID`
 
 The database address.
+
+***
+
+### consensus
+
+> `readonly` **consensus**: [`Consensus`](Consensus.md)\<`CID`\>
+
+CIDs of the consensus rules (wire keys: `access`, and `consensus` for validity).
 
 ***
 
@@ -42,11 +42,11 @@ Identity CID of the database creator.
 
 ***
 
-### order
+### subtreeLeaves
 
-> `readonly` **order**: `number`
+> `readonly` **subtreeLeaves**: `number`
 
-Pollard order: each Merkle subtree holds 2^order leaves.
+Leaves per Merkle subtree (a power of two; `order` = log2 on the wire).
 
 ***
 
@@ -62,20 +62,12 @@ Pollard order: each Merkle subtree holds 2^order leaves.
 
 ***
 
-### validation
-
-> `readonly` **validation**: `CID`
-
-CID of the validation policy (`consensus` on the wire).
-
-***
-
 ### version
 
 > `readonly` **version**: `number`
 
 ***
 
-### meta?
+### metadata?
 
-> `readonly` `optional` **meta?**: [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `unknown`\>
+> `readonly` `optional` **metadata?**: [`Record`](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)\<`string`, `unknown`\>

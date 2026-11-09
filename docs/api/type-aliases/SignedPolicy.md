@@ -2,11 +2,11 @@
 
 ***
 
-[@denkmitdb/denkmitdb](../globals.md) / Policy
+[@denkmitdb/denkmitdb](../globals.md) / SignedPolicy
 
-# Type Alias: Policy
+# Type Alias: SignedPolicy
 
-> **Policy** = [`PolicyDefinition`](PolicyDefinition.md) & `object`
+> **SignedPolicy** = [`PolicyDefinition`](PolicyDefinition.md) & `object`
 
 A signed policy, as referenced by a manifest.
 

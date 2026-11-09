@@ -30,7 +30,7 @@ const PUBLIC_EXPORTS = [
     "createIdentity",
     "decryptValue",
     "encryptValueFor",
-    "encryptedRecipients",
+    "encryptedValueRecipients",
     "fetchIdentity",
     "hasIdentity",
     "isEncryptedValue",
@@ -56,11 +56,17 @@ declare const helia: HeliaNode;
 declare const identity: SigningIdentity;
 declare const db: Database<{ n: number }>;
 
-const created: Promise<Database<{ n: number }>> = createDatabase<{ n: number }>("x", { helia, identity, access: "public" });
+const created: Promise<Database<{ n: number }>> = createDatabase<{ n: number }>("x", {
+    helia,
+    identity,
+    consensus: { access: "public", validity: { version: 1, name: "v", description: "d", logic: true } },
+});
 const opened: Promise<Database<unknown>> = openDatabase("bafy", { helia, identity });
 const provenance: Promise<Provenance | undefined> = db.provenance("k");
 const asPublic: Identity = identity;
-const accessName: string = db.policies.access.name;
+const accessName: string = db.consensus.access.name;
+const validityCid: string = db.manifest.consensus.validity.toString();
+const writer: Promise<string | undefined> = db.provenance("k").then((p) => p?.writer.toString());
 const isEnc: boolean = isEncryptedValue(null);
 const policy: PolicyDefinition = { version: 1, name: "p", description: "d", logic: true };
 
@@ -68,12 +74,13 @@ const policy: PolicyDefinition = { version: 1, name: "p", description: "d", logi
 void db.layers;
 // @ts-expect-error merging is internal
 void db.merge;
-// @ts-expect-error a preset and a custom access policy are exclusive
-const both: CreateDatabaseOptions<unknown> = { helia, identity, access: "public", accessPolicy: policy };
+const custom: CreateDatabaseOptions<unknown> = { helia, identity, consensus: { access: { policy } } };
+// @ts-expect-error access options moved under consensus
+const removed: CreateDatabaseOptions<unknown> = { helia, identity, access: "public" };
 // @ts-expect-error a fetched identity cannot sign
 void (asPublic as Identity).sign;
 
-export { created, opened, provenance, accessName, isEnc, both };
+export { created, opened, provenance, accessName, validityCid, writer, isEnc, custom, removed };
 `;
 
 try {

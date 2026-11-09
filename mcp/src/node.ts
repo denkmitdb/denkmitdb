@@ -8,7 +8,7 @@ import {
     openIdentity,
 } from "@denkmitdb/denkmitdb";
 import type {
-    AccessPreset,
+    AccessRule,
     Database,
     HeliaNode,
     SigningIdentity,
@@ -52,7 +52,7 @@ export type MemoryNodeConfig = {
     /** Database name when creating. */
     databaseName: string;
     /** Access preset for a created database (ignored when opening by address). */
-    access: AccessPreset;
+    access: AccessRule;
     /** Largest value memory_set accepts, in UTF-8 bytes of its JSON encoding. */
     maxValueBytes: number;
     /** Multiaddrs to dial for sync (mdns also discovers local peers automatically). */
@@ -63,8 +63,8 @@ export type MemoryNodeConfig = {
     announce: string[];
     /**
      * JSON file with custom policies for a created database:
-     * `{ "accessPolicy"?: PolicyDefinition, "validationPolicy"?: PolicyDefinition }` (docs/policies.md).
-     * An accessPolicy here replaces DENKMIT_ACCESS.
+     * `{ "access"?: PolicyDefinition, "validity"?: PolicyDefinition }` — the consensus rules
+     * (docs/policies.md). An `access` policy here replaces DENKMIT_ACCESS.
      */
     policyFile?: string;
     /** Local-network peer discovery via mDNS (`DENKMIT_MDNS=off` disables it, e.g. on a server). */
@@ -180,7 +180,7 @@ export function maxValueBytesFromEnv(env: NodeJS.ProcessEnv): number {
  * @param env - The process environment.
  * @returns The access preset.
  */
-export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
+export function accessFromEnv(env: NodeJS.ProcessEnv): AccessRule {
     if (env.DENKMIT_PUBLIC_WRITE !== undefined) {
         throw new Error("DENKMIT_PUBLIC_WRITE was removed: use DENKMIT_ACCESS=public");
     }
@@ -207,16 +207,19 @@ export function accessFromEnv(env: NodeJS.ProcessEnv): AccessPreset {
  * Reads custom policies for a database this node creates. The library checks
  * each policy's shape before signing it into the manifest.
  *
- * @param path - JSON file with optional `accessPolicy` / `validationPolicy`.
+ * @param path - JSON file with optional `access` / `validity` policies.
  * @returns The policies found in the file.
  */
-async function readPolicyFile(path: string): Promise<{ accessPolicy?: PolicyDefinition; validationPolicy?: PolicyDefinition }> {
+async function readPolicyFile(path: string): Promise<{ access?: PolicyDefinition; validity?: PolicyDefinition }> {
     const parsed = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
-    const unknownKeys = Object.keys(parsed).filter((k) => k !== "accessPolicy" && k !== "validationPolicy");
+    if ("accessPolicy" in parsed || "validationPolicy" in parsed) {
+        throw new Error("DENKMIT_POLICY_FILE: the keys are now `access` and `validity` (was accessPolicy / validationPolicy)");
+    }
+    const unknownKeys = Object.keys(parsed).filter((k) => k !== "access" && k !== "validity");
     if (unknownKeys.length > 0) {
         throw new Error(`DENKMIT_POLICY_FILE: unexpected keys ${unknownKeys.join(", ")}`);
     }
-    return parsed as { accessPolicy?: PolicyDefinition; validationPolicy?: PolicyDefinition };
+    return parsed as { access?: PolicyDefinition; validity?: PolicyDefinition };
 }
 
 /**
@@ -333,8 +336,10 @@ export async function startMemoryNode(config: MemoryNodeConfig): Promise<MemoryN
         db = await createDatabase<MemoryValue>(config.databaseName, {
             helia,
             identity,
-            ...(custom.accessPolicy ? { accessPolicy: custom.accessPolicy } : { access: config.access }),
-            ...(custom.validationPolicy ? { validationPolicy: custom.validationPolicy } : {}),
+            consensus: {
+                access: custom.access ? { policy: custom.access } : config.access,
+                ...(custom.validity ? { validity: custom.validity } : {}),
+            },
         });
         await writeFile(addressFile, db.address.toString());
         created = true;

@@ -36,19 +36,19 @@ describe("Delete (tombstones)", () => {
         });
         await db.set("keep", { value: "stays" });
         await db.set("gone", { value: "temporary" });
-        await db.idle();
-        expect(db.size).toBe(2);
+        await db.waitUntilIdle();
+        expect(db.recordCount).toBe(2);
 
         await db.delete("gone");
-        await db.idle();
+        await db.waitUntilIdle();
 
         expect(await db.get("gone")).toBeUndefined();
         const entries: Array<[string, Value]> = [];
-        for await (const e of db.iterator()) entries.push(e);
+        for await (const e of db.entries()) entries.push(e);
         expect(entries).toEqual([["keep", { value: "stays" }]]);
 
         // `size` counts Merkle records (including the tombstone), matching head.size.
-        expect(db.size).toBe(2);
+        expect(db.recordCount).toBe(2);
         await db.close();
     });
 
@@ -59,13 +59,13 @@ describe("Delete (tombstones)", () => {
         });
         await db.set("k", { value: "v1" });
         await db.delete("k");
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("k")).toBeUndefined();
 
         await db.set("k", { value: "v2" });
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("k")).toEqual({ value: "v2" });
-        expect(db.size).toBe(1); // put superseded the tombstone record
+        expect(db.recordCount).toBe(1); // put superseded the tombstone record
         await db.close();
     });
 
@@ -81,7 +81,7 @@ describe("Delete (tombstones)", () => {
             });
             await dbA.set("doomed", { value: "x" });
             await dbA.set("kept", { value: "y" });
-            await dbA.idle();
+            await dbA.waitUntilIdle();
 
             const dbB = await openDatabase<Value>(dbA.address, {
                 helia: nodeB.helia,
@@ -101,11 +101,11 @@ describe("Delete (tombstones)", () => {
             );
 
             await dbA.announceHead();
-            await waitFor(() => dbB.size === 2, { message: "peer to receive initial state" });
+            await waitFor(() => dbB.recordCount === 2, { message: "peer to receive initial state" });
             expect(await dbB.get("doomed")).toEqual({ value: "x" });
 
             await dbA.delete("doomed");
-            await dbA.idle();
+            await dbA.waitUntilIdle();
             await dbA.announceHead();
 
             await waitFor(async () => (await dbB.get("doomed")) === undefined, {
@@ -131,7 +131,7 @@ describe("Delete (tombstones)", () => {
             identity: node.identity,
         });
         await db.set("target", { value: "protected" });
-        await db.idle();
+        await db.waitUntilIdle();
 
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         await expect(dbAsB.delete("target")).rejects.toThrow(/access denied/i);
@@ -144,7 +144,7 @@ describe("Delete (tombstones)", () => {
             { cid: tomb.cid, creator: tomb.creator, sort: [tomb.timestamp], key: "target" },
         ]);
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
 
         expect(await db.get("target")).toEqual({ value: "protected" });
         await db.close();
@@ -159,7 +159,7 @@ describe("Delete (tombstones)", () => {
         await db.set("a", { value: "1" });
         await db.set("b", { value: "2" });
         await db.delete("a");
-        await db.idle();
+        await db.waitUntilIdle();
         await db.createHead(); // persist the pointer
         await db.close();
 
@@ -167,7 +167,7 @@ describe("Delete (tombstones)", () => {
             helia: node.helia,
             identity: node.identity,
         });
-        await reopened.idle();
+        await reopened.waitUntilIdle();
 
         expect(await reopened.get("a")).toBeUndefined();
         expect(await reopened.get("b")).toEqual({ value: "2" });

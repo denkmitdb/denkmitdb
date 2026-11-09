@@ -21,11 +21,11 @@ export type ManifestPayload = {
     readonly timestamp: number;
     readonly name: string;
     readonly type: string;
-    /** Pollard order: each Merkle subtree holds 2^order leaves. */
+    /** log2 of the leaves per Merkle subtree (API: `subtreeLeaves`). */
     readonly order: number;
-    /** CID of the validation policy. The wire name predates the term. */
+    /** CID of the validity rule (API: `consensus.validity`). */
     readonly consensus: CID;
-    /** CID of the access (authorization) policy. */
+    /** CID of the access rule (API: `consensus.access`). */
     readonly access: CID;
     readonly meta?: Record<string, unknown>;
 };

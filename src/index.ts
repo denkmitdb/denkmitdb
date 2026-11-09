@@ -16,7 +16,7 @@ import type { CreateDatabaseOptions, Database, DatabaseOptions } from "./types.j
  * other peers open.
  *
  * @param name - The database name (recorded in the manifest; not unique).
- * @param options - Node, identity, access preset or custom policies, order.
+ * @param options - Node, identity, consensus rules, subtree size.
  * @typeParam T - The type of values stored in the database.
  * @throws Error - If the options are invalid (unknown preset, bad order, malformed policy).
  */
@@ -26,7 +26,7 @@ export function createDatabase<T>(name: string, options: CreateDatabaseOptions<T
 
 /**
  * Opens a database by address: fetches and verifies its manifest and policies,
- * restores the locally persisted head, and starts syncing. Access and validation
+ * restores the locally persisted head, and starts syncing. The consensus rules
  * always come from the signed manifest, never from local options.
  *
  * @param address - The database address (manifest CID), as a CID or string.
@@ -38,13 +38,14 @@ export function openDatabase<T>(address: CID | string, options: DatabaseOptions<
 }
 
 export { createIdentity, fetchIdentity, hasIdentity, openIdentity } from "./identity.js";
-export { decryptValue, encryptedRecipients, encryptValueFor, isEncryptedValue } from "./encryption.js";
+export { decryptValue, encryptedValueRecipients, encryptValueFor, isEncryptedValue } from "./encryption.js";
 
 export type { EncryptedValue, EncryptionContext } from "./encryption.js";
 export type { IdentityAlgorithm } from "./protocol/identity.js";
 export type { PolicyDefinition } from "./protocol/policy.js";
 export type {
-    AccessPreset,
+    AccessRule,
+    Consensus,
     CreateDatabaseOptions,
     Database,
     DatabaseOptions,
@@ -52,8 +53,9 @@ export type {
     Identity,
     Manifest,
     NodeLibp2p,
-    Policy,
     Provenance,
+    SignedPolicy,
     SigningIdentity,
+    ValueCache,
     WriteOptions,
 } from "./types.js";

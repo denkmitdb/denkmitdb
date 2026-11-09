@@ -15,7 +15,7 @@
 DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://github.com/ipfs/helia)), using a Merkle tree as the consistency controller. Every record is a signed, content-addressed block; replicas converge by broadcasting a single root CID over libp2p pubsub and diffing Merkle trees to fetch only what they are missing.
 
 > ⚠️ **Status: experimental, approaching v2.** Databases are **creator-only by
-> default** (only the creating identity may write; the `access` option selects
+> default** (only the creating identity may write; `consensus.access` selects
 > `public`, `prefix-per-writer` or an identity allowlist — see
 > [docs/policies.md](_media/policies.md)), every merged entry is signature-verified before
 > indexing, records can be deleted via signed tombstones, and a database reopens
@@ -154,7 +154,7 @@ After installation, you can start using DenkMitDB by following these steps:
     await db.set("key1", { value: "value1" });
     await db.set("key2", { value: "value2" });
 
-    for await (const e of db.iterator()) {
+    for await (const e of db.entries()) {
         console.log(e);
     }
     ```
@@ -174,7 +174,7 @@ After installation, you can start using DenkMitDB by following these steps:
     await db.set(key, await encryptValueFor([identity, bob], { apiKey: "…" }, context));
 
     // on bob's node — check the context against the record's actual writer:
-    const writer = (await db.provenance(key))!.creator.toString();
+    const writer = (await db.provenance(key))!.writer.toString();
     const secret = await decryptValue(bobIdentity, await db.get(key), { database: db.address.toString(), key, writer });
     ```
     `decryptValue` returns undefined for non-recipients and for envelopes re-posted
@@ -193,12 +193,12 @@ The package exports only this; everything else is internal.
 
 | | |
 |---|---|
-| `createDatabase(name, options)` | New database. `options`: `helia`, `identity`, and either `access` (a preset: `"creator-only"` default, `"public"`, `"prefix-per-writer"`, `"namespace-per-writer"`, `{ allowlist }`) or `accessPolicy` (custom json-logic); optional `validationPolicy`, `order`, `cache`. |
-| `openDatabase(address, options)` | Open by address (CID or string); policies always come from the signed manifest. |
-| `Database<T>` | `get`, `set`, `delete`, `provenance`, `keys`, `iterator`, `idle`, `announceHead`, `close`; `address`, `identity`, `manifest`, `policies`, `size`. Writes take `{ identity }` to sign as another local identity. |
+| `createDatabase(name, options)` | New database. `options`: `helia`, `identity`; optional `consensus: { access, validity }` — `access` is a preset (`"creator-only"` default, `"public"`, `"prefix-per-writer"`, `"namespace-per-writer"`), `{ allowlist }` or `{ policy }` (custom json-logic), `validity` a json-logic policy; optional `subtreeLeaves` (default 8), `valueCache`. |
+| `openDatabase(address, options)` | Open by address (CID or string); the consensus rules always come from the signed manifest. |
+| `Database<T>` | `get`, `set`, `delete`, `provenance` (→ `entryCid`, `writer`, `timestamp`, `deleted`), `keys`, `entries`, `waitUntilIdle`, `announceHead`, `close`; `address`, `identity`, `manifest`, `consensus`, `recordCount`. Writes take `{ identity }` to sign as another local identity. |
 | `createIdentity` / `openIdentity` / `hasIdentity` | Local signing identities (`SigningIdentity`), private key encrypted with a passphrase. |
 | `fetchIdentity(cid, helia)` | Someone else's public `Identity`: verify, encrypt to. |
-| `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedRecipients` | Values sealed to recipients. |
+| `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedValueRecipients` | Values sealed to recipients. |
 
 ## 📚 Documentation
 
@@ -213,7 +213,7 @@ The package exports only this; everything else is internal.
 | [CODEX_REVIEW.md](_media/CODEX_REVIEW.md) | Independent adversarial review of the Phase 0 safety net (July 2026) |
 | [PHASE_PRIORITIES.md](_media/PHASE_PRIORITIES.md) | Independent prioritization review of the remaining Phase 4 work (July 2026) |
 | [mcp/](_media/README.md) | MCP server: DenkMitDB as shared, signed agent memory for Claude Code/Codex/any MCP client |
-| [docs/policies.md](_media/policies.md) | Policy cookbook: access presets, policy inputs, determinism rules |
+| [docs/policies.md](_media/policies.md) | Consensus rules: access presets, validity rules, policy inputs, determinism |
 | [docs/api/](_media/README-1.md) | Generated API reference (typedoc; `pnpm docs` regenerates only this folder) |
 
 ## 🛠️ Development

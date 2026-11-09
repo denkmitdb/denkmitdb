@@ -39,17 +39,17 @@ describe("Access control", () => {
         return createDatabase<Value>(name, {
             helia: node.helia,
             identity: node.identity,
-            access: isPublic ? "public" : "creator-only",
+            consensus: { access: isPublic ? "public" : "creator-only" },
         });
     }
 
     it("installs a real (non-empty) access policy in the manifest and lets the creator write", async () => {
         const db = await createDb("acc-default");
         const manifest = db.manifest;
-        expect(manifest.access.equals(await emptyCID())).toBe(false);
+        expect(manifest.consensus.access.equals(await emptyCID())).toBe(false);
 
         await db.set("k", { value: "v" });
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("k")).toEqual({ value: "v" });
         await db.close();
     });
@@ -59,7 +59,7 @@ describe("Access control", () => {
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         await expect(dbAsB.set("k", { value: "v" })).rejects.toThrow(/access denied/i);
-        expect(dbAsB.size).toBe(0);
+        expect(dbAsB.recordCount).toBe(0);
 
         await dbAsB.close();
         await db.close();
@@ -77,9 +77,9 @@ describe("Access control", () => {
         ]);
 
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(0);
+        expect(db.recordCount).toBe(0);
         expect(await db.get("intruder")).toBeUndefined();
         await db.close();
     });
@@ -89,7 +89,7 @@ describe("Access control", () => {
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
         await dbAsB.set("k", { value: "from B" });
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         expect(await dbAsB.get("k")).toEqual({ value: "from B" });
 
         await dbAsB.close();
@@ -103,7 +103,7 @@ describe("Access control", () => {
         const dbAsB = await openDatabase<Value>(db.address, {
             helia: node.helia,
             identity: other,
-            access: "public",
+            consensus: { access: "public" },
         } as Parameters<typeof openDatabase<Value>>[1]);
 
         await expect(dbAsB.set("k", { value: "v" })).rejects.toThrow(/access denied/i);
@@ -131,7 +131,7 @@ describe("Access presets", () => {
         const db = await createDatabase<Value>("acc-prefix", {
             helia: node.helia,
             identity: node.identity,
-            access: "prefix-per-writer",
+            consensus: { access: "prefix-per-writer" },
         });
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         const mine = `agents/${other.cid.toString()}/`;
@@ -157,7 +157,7 @@ describe("Access presets", () => {
             { cid: inside.cid, creator: inside.creator, sort: [inside.timestamp], key: inside.key },
         ]);
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("free/merged")).toBeUndefined();
         expect(await db.get(`${mine}merged`)).toEqual({ value: "ok" });
 
@@ -169,7 +169,7 @@ describe("Access presets", () => {
         const db = await createDatabase<Value>("acc-allow", {
             helia: node.helia,
             identity: node.identity,
-            access: { allowlist: [node.identity.cid.toString(), other.cid.toString()] },
+            consensus: { access: { allowlist: [node.identity.cid.toString(), other.cid.toString()] } },
         });
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         await dbAsB.set("b-key", { value: "allowed" });
@@ -184,7 +184,7 @@ describe("Access presets", () => {
             { cid: forged.cid, creator: forged.creator, sort: [forged.timestamp], key: forged.key },
         ]);
         await db.syncNewHead(head.cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("c-merge")).toBeUndefined();
 
         await dbAsC.close();
@@ -197,7 +197,7 @@ describe("Access presets", () => {
             createDatabase<Value>("acc-allow-bad", {
                 helia: node.helia,
                 identity: node.identity,
-                access: { allowlist: ["not-a-cid"] },
+                consensus: { access: { allowlist: ["not-a-cid"] } },
             }),
         ).rejects.toThrow(/allowlist/i);
     });
@@ -207,7 +207,7 @@ describe("Access presets", () => {
         const db = await createDatabase<Value>("acc-strict", {
             helia: node.helia,
             identity: node.identity,
-            access: "namespace-per-writer",
+            consensus: { access: "namespace-per-writer" },
         });
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
         const creatorNs = `agents/${node.identity.cid.toString()}/`;
@@ -222,7 +222,7 @@ describe("Access presets", () => {
         await expect(dbAsB.set(`${creatorNs}decision`, { value: "x" })).rejects.toThrow(/access denied/i);
 
         // Merge path: a creator-signed tombstone for B's key is not indexed.
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         const creatorController = new HeliaController(node.helia, node.identity);
         const tomb = await putSignedTombstone(creatorController, `${otherNs}finding`, Date.now() + 10, db.address);
         await dbAsB.syncNewHead(
@@ -232,7 +232,7 @@ describe("Access presets", () => {
                 ])
             ).cid.bytes,
         );
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         expect(await dbAsB.get(`${otherNs}finding`)).toEqual({ value: "b" });
 
         await dbAsB.close();
@@ -257,33 +257,33 @@ describe("Writing as another identity (WriteOptions.identity)", () => {
         const db = await createDatabase<Value>("signer-ns", {
             helia: node.helia,
             identity: node.identity,
-            access: "namespace-per-writer",
+            consensus: { access: "namespace-per-writer" },
         });
         const agentNs = `agents/${agent.cid.toString()}/`;
         const deviceNs = `agents/${node.identity.cid.toString()}/`;
 
         await db.set(`${agentNs}fact`, { value: "from the agent" }, { identity: agent });
         await db.set(`${deviceNs}fact`, { value: "from the device" }); // default signer unchanged
-        expect((await db.provenance(`${agentNs}fact`))!.creator.equals(agent.cid)).toBe(true);
-        expect((await db.provenance(`${deviceNs}fact`))!.creator.equals(node.identity.cid)).toBe(true);
+        expect((await db.provenance(`${agentNs}fact`))!.writer.equals(agent.cid)).toBe(true);
+        expect((await db.provenance(`${deviceNs}fact`))!.writer.equals(node.identity.cid)).toBe(true);
 
         // Authorization is evaluated for the signing identity, not the database's own.
         await expect(db.set(`${deviceNs}x`, { value: "x" }, { identity: agent })).rejects.toThrow(/access denied/i);
         await expect(db.set(`${agentNs}x`, { value: "x" })).rejects.toThrow(/access denied/i);
         await db.delete(`${agentNs}fact`, { identity: agent });
         expect(await db.get(`${agentNs}fact`)).toBeUndefined();
-        expect((await db.provenance(`${agentNs}fact`))!.creator.equals(agent.cid)).toBe(true);
+        expect((await db.provenance(`${agentNs}fact`))!.writer.equals(agent.cid)).toBe(true);
 
         // The agent's entries replicate like any other (merge path on a second replica).
         await db.set(`${agentNs}again`, { value: "replicated" }, { identity: agent });
-        await db.idle();
+        await db.waitUntilIdle();
         const replica = await openDatabase<Value>(db.address, {
             helia: node.helia,
             identity: node.identity,
             syncController: await createSyncController("signer-ns-replica", new HeliaController(node.helia, node.identity)),
         });
         await replica.syncNewHead((await db.createHead()).cid.bytes);
-        await replica.idle();
+        await replica.waitUntilIdle();
         expect(await replica.get(`${agentNs}again`)).toEqual({ value: "replicated" });
         await replica.close();
         await db.close();
@@ -322,7 +322,7 @@ describe("Custom policies and entryOperation", () => {
         const db = await createDatabase<Value>("custom-deletes", {
             helia: node.helia,
             identity: node.identity,
-            accessPolicy: onlyCreatorDeletes,
+            consensus: { access: { policy: onlyCreatorDeletes } },
         });
         const dbAsB = await openDatabase<Value>(db.address, { helia: node.helia, identity: other });
 
@@ -332,9 +332,9 @@ describe("Custom policies and entryOperation", () => {
         await db.delete("creator-note"); // the creator may delete
 
         // Merge path: B's signed tombstone is rejected by the creator's replica.
-        await dbAsB.idle();
+        await dbAsB.waitUntilIdle();
         await db.syncNewHead((await dbAsB.createHead()).cid.bytes);
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("note")).toEqual({ value: "from b" });
         const tomb = await putSignedTombstone(otherController, "note", Date.now() + 10, db.address);
         await db.syncNewHead(
@@ -344,7 +344,7 @@ describe("Custom policies and entryOperation", () => {
                 ])
             ).cid.bytes,
         );
-        await db.idle();
+        await db.waitUntilIdle();
         expect(await db.get("note")).toEqual({ value: "from b" });
 
         const manifest = db.manifest;
@@ -359,16 +359,18 @@ describe("Custom policies and entryOperation", () => {
         const db = await createDatabase<Value>("custom-validation", {
             helia: node.helia,
             identity: node.identity,
-            validationPolicy: {
-                version: 1,
-                name: "facts-only-no-deletes",
-                description: "Only facts/… keys; nothing is ever deleted",
-                logic: {
-                    and: [
-                        { startsWith: [{ var: "entryKey" }, "facts/"] },
-                        { "==": [{ var: "entryOperation" }, "put"] },
-                    ],
-                } as unknown as RulesLogic,
+            consensus: {
+                validity: {
+                    version: 1,
+                    name: "facts-only-no-deletes",
+                    description: "Only facts/… keys; nothing is ever deleted",
+                    logic: {
+                        and: [
+                            { startsWith: [{ var: "entryKey" }, "facts/"] },
+                            { "==": [{ var: "entryOperation" }, "put"] },
+                        ],
+                    } as unknown as RulesLogic,
+                },
             },
         });
         await db.set("facts/a", { value: "1" });
@@ -378,17 +380,26 @@ describe("Custom policies and entryOperation", () => {
         await db.close();
     });
 
-    it("refuses malformed custom policies and a preset combined with a custom access policy", async () => {
+    it("refuses malformed custom policies, allowlist + policy, and removed options", async () => {
         const base = { helia: node.helia, identity: node.identity };
         await expect(
-            createDatabase<Value>("custom-bad", { ...base, accessPolicy: { logic: true } as unknown as PolicyDefinition }),
+            createDatabase<Value>("custom-bad", {
+                ...base,
+                consensus: { access: { policy: { logic: true } as unknown as PolicyDefinition } },
+            }),
         ).rejects.toThrow(/policy/i);
         await expect(
             createDatabase<Value>("custom-both", {
                 ...base,
-                access: "public",
-                accessPolicy: onlyCreatorDeletes,
+                consensus: { access: { allowlist: [node.identity.cid.toString()], policy: onlyCreatorDeletes } },
             } as unknown as Parameters<typeof createDatabase<Value>>[1]),
-        ).rejects.toThrow(/access/i);
+        ).rejects.toThrow(/allowlist.*policy/i);
+        // Removed options are refused, not ignored: ignoring one would sign a
+        // different, permanent manifest than intended.
+        for (const removed of [{ access: "public" }, { accessPolicy: onlyCreatorDeletes }, { publicWrite: true }, { order: 2 }]) {
+            await expect(
+                createDatabase<Value>("removed", { ...base, ...removed } as unknown as Parameters<typeof createDatabase<Value>>[1]),
+            ).rejects.toThrow(/was removed/);
+        }
     });
 });

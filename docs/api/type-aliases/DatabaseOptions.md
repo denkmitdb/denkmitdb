@@ -30,9 +30,8 @@ Options for opening a database.
 
 ***
 
-### cache?
+### valueCache?
 
-> `optional` **cache?**: `Keyv`\<`T`\>
+> `optional` **valueCache?**: [`ValueCache`](../interfaces/ValueCache.md)\<`T`\>
 
-Value cache keyed by entry CID. Entry values never change, so one cache may
-be shared between databases. Default: a private in-memory Keyv.
+Default: a private in-memory cache, cleared on close (a supplied one never is).

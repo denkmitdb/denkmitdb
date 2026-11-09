@@ -19,17 +19,27 @@ signed-record internals are no longer reachable. Wire formats are unchanged
 | `createDenkmitDatabase(name, options)` | `createDatabase(name, options)` → `Database<T>` |
 | `openDenkmitDatabase(cid, options)` | `openDatabase(address, options)` — address as CID or string |
 | `DenkmitDatabaseInterface<T>` | `Database<T>` (no `layers`, `merge`, `load`, `compare`, `heliaController`, …) |
-| `DenkmitDatabaseOptions<T>` | `DatabaseOptions<T>` (open) / `CreateDatabaseOptions<T>` (create: `access` XOR `accessPolicy`) |
-| `publicWrite: true` | `access: "public"` (MCP: `DENKMIT_PUBLIC_WRITE` refuses to start; use `DENKMIT_ACCESS=public`) |
-| `keyValueStorage` option | `cache` |
-| `await db.getManifest()` | `db.manifest`; `manifest.consensus` → `manifest.validation` |
-| policy controllers via `db.heliaController` | `db.policies.access` / `db.policies.validation` |
+| `DenkmitDatabaseOptions<T>` | `DatabaseOptions<T>` (open) / `CreateDatabaseOptions<T>` (create) |
+| `access`, `accessPolicy`, `validationPolicy` options | `consensus: { access, validity }`; `access` is a preset, `{ allowlist }` or `{ policy }` (type `AccessRule`, was `AccessPreset`) |
+| `publicWrite: true` | `consensus: { access: "public" }` (MCP: `DENKMIT_PUBLIC_WRITE` refuses to start; use `DENKMIT_ACCESS=public`) |
+| `order: 3` | `subtreeLeaves: 8` (leaves per Merkle subtree; the manifest still stores `order`) |
+| `keyValueStorage` option | `valueCache` (any `ValueCache`; a Keyv fits) |
+| `await db.getManifest()` | `db.manifest`; `manifest.consensus` / `manifest.access` → `manifest.consensus.validity` / `.access`; `manifest.meta` → `metadata`; `manifest.order` → `subtreeLeaves` |
+| policy controllers via `db.heliaController` | `db.consensus.access` / `db.consensus.validity` (`SignedPolicy`, frozen) |
+| `db.size` / `db.iterator()` / `db.idle()` | `db.recordCount` / `db.entries()` / `db.waitUntilIdle()` |
+| `provenance(key)` → `{ cid, creator, … }` | `{ entryCid, writer, timestamp, deleted }` |
+| `encryptedRecipients` | `encryptedValueRecipients` |
+| MCP `DENKMIT_POLICY_FILE` `{ accessPolicy, validationPolicy }` | `{ access, validity }` (old keys refuse to start) |
 | `IdentityInterface` | `Identity` (public: verify, encrypt) / `SigningIdentity` (+ sign, decrypt) |
 | `fetchIdentity(cid, new HeliaStorage(helia))` | `fetchIdentity(cid, helia)` |
 | `identity.decrypt()` → `false` on failure | → `undefined` |
-| `PolicyData` | `PolicyDefinition` |
+| `PolicyData` / `PolicyInterface` | `PolicyDefinition` / `SignedPolicy` |
 | `DenkmitHeliaInterface` | `HeliaNode` |
 | `createEntry`, `createPollard`, `HeliaController`, `SortedItemsStore`, … | internal |
+
+Removed options passed from plain JavaScript (`access`, `accessPolicy`,
+`validationPolicy`, `publicWrite`, `order`, `cache`, `keyValueStorage`) throw
+instead of being ignored: ignoring one would sign a different, permanent manifest.
 
 ### Agent identities (delegation, phase 1)
 

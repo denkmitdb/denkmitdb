@@ -23,14 +23,16 @@ import { HeliaController } from "./storage/helia.js";
 import { SortedItemsStore } from "./storage/sortedItems.js";
 import { createSyncController, SyncController } from "./sync.js";
 import type {
-    AccessPreset,
+    AccessRule,
+    Consensus,
     CreateDatabaseOptions,
     Database,
     DatabaseOptions,
     Manifest,
-    Policy,
+    SignedPolicy,
     Provenance,
     SigningIdentity,
+    ValueCache,
     WriteOptions,
 } from "./types.js";
 
@@ -44,10 +46,9 @@ type InternalOptions = { syncController?: SyncController };
 type DatabaseInit<T> = {
     manifest: Manifest;
     heliaController: HeliaController;
-    cache?: Keyv<T>;
+    valueCache?: ValueCache<T>;
     syncController: SyncController;
-    validationPolicy: Policy;
-    accessPolicy: Policy;
+    consensus: Consensus<SignedPolicy>;
 };
 
 /**
@@ -133,40 +134,32 @@ export async function createDatabase<T>(
     name: string,
     options: CreateDatabaseOptions<T> & InternalOptions,
 ): Promise<DenkmitDatabase<T>> {
+    refuseRemovedOptions(options);
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
 
-    // Validation policy: accept every authorized entry unless the caller supplies
-    // its own rule (custom policies are checked before they are signed in for good).
-    const validationRule: PolicyDefinition = options.validationPolicy ?? {
+    // Validity rule: accept every authorized entry unless the caller supplies its
+    // own (custom rules are checked before they are signed in for good). The default
+    // policy's name and description are part of its signed bytes — keep them.
+    const validityRule: PolicyDefinition = options.consensus?.validity ?? {
         version: 1,
         name: "denkmit-timestamp",
         description: "Consensus for denkmit database timestamp",
         logic: true,
     };
-    assertPolicyDefinition(validationRule, "validationPolicy");
-    const validationPolicy = await createPolicy(validationRule, heliaController);
+    assertPolicyDefinition(validityRule, "consensus.validity");
+    const validityPolicy = await createPolicy(validityRule, heliaController);
 
-    // Access (authorization) policy — separate from consensus (validation). Default
-    // is creator-only; presets compile to json-logic over deterministic inputs only
-    // (signed entry creator, key and operation, manifest creator), so every replica
+    // Access rule: a preset compiled to json-logic over deterministic inputs only
+    // (signed entry writer, key and operation, manifest creator), so every replica
     // reaches the same decision (KNOWN_ISSUES.md D1, specs/ordering.md,
-    // docs/policies.md). A custom accessPolicy replaces the preset entirely.
-    let accessRule: PolicyDefinition;
-    if (options.accessPolicy !== undefined) {
-        if (options.access !== undefined) {
-            throw new Error("accessPolicy replaces the access preset: pass either accessPolicy or access");
-        }
-        assertPolicyDefinition(options.accessPolicy, "accessPolicy");
-        accessRule = options.accessPolicy;
-    } else {
-        accessRule = accessPolicyRule(resolveAccess(options.access));
-    }
-    const accessPolicy = await createPolicy(accessRule, heliaController);
+    // docs/policies.md), or a custom policy. Default: creator-only.
+    const accessPolicy = await createPolicy(compileAccess(options.consensus?.access), heliaController);
 
-    const order = options.order ?? 3;
+    const subtreeLeaves = options.subtreeLeaves ?? 8;
+    const order = Math.log2(subtreeLeaves);
     if (!Number.isInteger(order) || order < 1 || order > 8) {
-        throw new Error("order must be an integer in [1, 8]");
+        throw new Error("subtreeLeaves must be a power of two in [2, 256]");
     }
 
     const manifestInput: ManifestPayload = {
@@ -174,7 +167,7 @@ export async function createDatabase<T>(
         name,
         type: KEY_VALUE_DATABASE_TYPE,
         order,
-        consensus: validationPolicy.cid,
+        consensus: validityPolicy.cid,
         access: accessPolicy.cid,
         timestamp: Date.now(),
     };
@@ -185,15 +178,35 @@ export async function createDatabase<T>(
     const mdb: DatabaseInit<T> = {
         manifest,
         heliaController,
-        cache: options.cache,
+        valueCache: options.valueCache,
         syncController,
-        validationPolicy,
-        accessPolicy,
+        consensus: { access: accessPolicy, validity: validityPolicy },
     };
     const dmdb = new DenkmitDatabase<T>(mdb);
     await dmdb.setupSync();
 
     return dmdb;
+}
+
+/**
+ * Options renamed or moved before 4.0.0. Passing one from plain JavaScript would
+ * otherwise be ignored silently — and for the consensus rules that would sign a
+ * different, permanent manifest than intended.
+ */
+const REMOVED_OPTIONS: Record<string, string> = {
+    access: "consensus.access",
+    accessPolicy: "consensus.access: { policy }",
+    validationPolicy: "consensus.validity",
+    publicWrite: 'consensus.access: "public"',
+    order: "subtreeLeaves (2 ** order)",
+    cache: "valueCache",
+    keyValueStorage: "valueCache",
+};
+
+function refuseRemovedOptions(options: object): void {
+    for (const [old, now] of Object.entries(REMOVED_OPTIONS)) {
+        if (old in options) throw new Error(`Option \`${old}\` was removed: use ${now}`);
+    }
 }
 
 /**
@@ -208,24 +221,26 @@ export async function openDatabase<T>(
     address: CID | string,
     options: DatabaseOptions<T> & InternalOptions,
 ): Promise<DenkmitDatabase<T>> {
+    refuseRemovedOptions(options);
     const cid = typeof address === "string" ? CID.parse(address) : address;
     const identity = options.identity;
     const heliaController = new HeliaController(options.helia, identity);
     const manifest = await fetchManifest(cid, heliaController);
     const syncController = options.syncController ?? (await createSyncController(syncTopic(manifest.cid), heliaController));
-    const validationPolicy = await fetchPolicy(manifest.validation, heliaController);
-    // The access policy is part of the database identity — always read it from the
-    // signed manifest, never from local options (a local override would let replicas
-    // disagree on who may write, breaking convergence — KNOWN_ISSUES.md #19).
-    const accessPolicy = await fetchPolicy(manifest.access, heliaController);
+    // The consensus rules are part of the database identity — always read them from
+    // the signed manifest, never from local options (a local override would let
+    // replicas disagree on who may write, breaking convergence — KNOWN_ISSUES.md #19).
+    const consensus = {
+        access: await fetchPolicy(manifest.consensus.access, heliaController),
+        validity: await fetchPolicy(manifest.consensus.validity, heliaController),
+    };
 
     const mdb: DatabaseInit<T> = {
         manifest,
         heliaController,
-        cache: options.cache,
+        valueCache: options.valueCache,
         syncController,
-        validationPolicy,
-        accessPolicy,
+        consensus,
     };
 
     const dmdb = new DenkmitDatabase<T>(mdb);
@@ -244,6 +259,23 @@ export async function openDatabase<T>(
     return dmdb;
 }
 
+/** An access rule other than a custom policy. */
+type AccessPreset = Exclude<AccessRule, { policy: PolicyDefinition }>;
+
+/**
+ * Compiles the access rule of a new database to the policy signed into its manifest.
+ *
+ * @param rule - A preset, an allowlist or a custom policy; default "creator-only".
+ */
+function compileAccess(rule: AccessRule | undefined): PolicyDefinition {
+    if (typeof rule === "object" && rule !== null && "policy" in rule) {
+        if ("allowlist" in rule) throw new Error("consensus.access is either { allowlist } or { policy }, not both");
+        assertPolicyDefinition(rule.policy, "consensus.access.policy");
+        return rule.policy;
+    }
+    return accessPolicyRule(resolveAccess(rule));
+}
+
 /**
  * Validates the access preset for a new database (default "creator-only"). Allowlist entries
  * must be identity CIDs and are normalized to the string form `entryCreator`
@@ -257,13 +289,13 @@ function resolveAccess(access: AccessPreset | undefined): AccessPreset {
     const preset: AccessPreset = access ?? "creator-only";
     if (typeof preset === "object") {
         if (!Array.isArray(preset.allowlist) || preset.allowlist.length === 0) {
-            throw new Error("access.allowlist must list at least one identity CID");
+            throw new Error("consensus.access.allowlist must list at least one identity CID");
         }
         const normalized = preset.allowlist.map((entry) => {
             try {
                 return CID.parse(entry).toString();
             } catch {
-                throw new Error(`access.allowlist entry is not an identity CID: ${entry}`);
+                throw new Error(`consensus.access.allowlist entry is not an identity CID: ${entry}`);
             }
         });
         return { allowlist: [...new Set(normalized)] };
@@ -343,7 +375,7 @@ export class DenkmitDatabase<T> implements Database<T> {
      * databases (KNOWN_ISSUES.md #30). Superseded values are deleted when a newer
      * record wins.
      */
-    readonly cache: Keyv<T>;
+    readonly cache: ValueCache<T>;
     private sortedItemsStore: SortedItemsStore;
     /** Signing controllers for identities other than the database's own (WriteOptions). */
     private readonly signers = new Map<string, HeliaController>();
@@ -352,8 +384,7 @@ export class DenkmitDatabase<T> implements Database<T> {
     // Start key of the queued-but-not-yet-running tree rebuild, if any — the
     // coalescing state for createTaskUpdateLayers.
     private pendingRebuildFrom?: number;
-    private validationPolicy: Policy;
-    private accessPolicy: Policy;
+    readonly consensus: Consensus<SignedPolicy>;
     // Whether this instance created its cache (vs. caller-supplied). Only an
     // owned store may be cleared on close (KNOWN_ISSUES.md D4).
     private readonly ownsCache: boolean;
@@ -362,14 +393,13 @@ export class DenkmitDatabase<T> implements Database<T> {
     constructor(mdb: DatabaseInit<T>) {
         this.manifest = mdb.manifest;
         this.layers = [];
-        this.ownsCache = mdb.cache === undefined;
-        this.cache = mdb.cache ?? new Keyv<T>();
+        this.ownsCache = mdb.valueCache === undefined;
+        this.cache = mdb.valueCache ?? new Keyv<T>();
         this.sortedItemsStore = new SortedItemsStore();
-        this.maxPollardLength = 2 ** mdb.manifest.order;
+        this.maxPollardLength = mdb.manifest.subtreeLeaves;
         this.heliaController = mdb.heliaController;
         this.syncController = mdb.syncController;
-        this.validationPolicy = mdb.validationPolicy;
-        this.accessPolicy = mdb.accessPolicy;
+        this.consensus = mdb.consensus;
         this.log = this.heliaController.helia.logger.forComponent("denkmitdb:denkmitdb");
     }
 
@@ -379,7 +409,7 @@ export class DenkmitDatabase<T> implements Database<T> {
      * database creator — so every replica reaches the same decision.
      */
     private async isAuthorized(entryCreator: CID, entryKey: string, entryOperation: EntryOperation): Promise<boolean> {
-        return evaluatePolicy(this.accessPolicy, {
+        return evaluatePolicy(this.consensus.access, {
             entryCreator: entryCreator.toString(),
             databaseCreator: this.manifest.creator.toString(),
             entryKey,
@@ -394,7 +424,7 @@ export class DenkmitDatabase<T> implements Database<T> {
      * for the same entry (specs/ordering.md §4, KNOWN_ISSUES.md #25).
      */
     private async isValid(entry: { timestamp: number; creator: CID; key: string; deleted?: boolean }): Promise<boolean> {
-        return evaluatePolicy(this.validationPolicy, {
+        return evaluatePolicy(this.consensus.validity, {
             databaseCreator: this.manifest.creator.toString(),
             entryTimestamp: entry.timestamp,
             entryCreator: entry.creator.toString(),
@@ -423,7 +453,7 @@ export class DenkmitDatabase<T> implements Database<T> {
      * @returns The pollard order.
      */
     get order(): number {
-        return this.manifest.order;
+        return Math.log2(this.manifest.subtreeLeaves);
     }
 
     /**
@@ -527,7 +557,7 @@ export class DenkmitDatabase<T> implements Database<T> {
         } catch {
             // The index references the entry but the block is missing or invalid
             // (not replicated yet, GC'd, unreachable peer). An unfetchable value
-            // reads as absent rather than throwing — and, in iterator(), rather
+            // reads as absent rather than throwing — and, in entries(), rather
             // than aborting the whole iteration.
             this.log("get(%s): entry %s unfetchable", key, item.cid.toString());
             return;
@@ -553,7 +583,7 @@ export class DenkmitDatabase<T> implements Database<T> {
         // — and a missing block cannot make provenance throw.
         const item = await this.sortedItemsStore.getByKey(key);
         if (!item) return undefined;
-        return { cid: item.cid, creator: item.creator, timestamp: item.timestamp, deleted: item.deleted === true };
+        return { entryCid: item.cid, writer: item.creator, timestamp: item.timestamp, deleted: item.deleted === true };
     }
 
     /**
@@ -561,7 +591,7 @@ export class DenkmitDatabase<T> implements Database<T> {
      * The key-value pairs are retrieved from the sortedItemsStore and filtered based on the availability of the value.
      * @returns An async generator that yields key-value pairs.
      */
-    async *iterator(): AsyncGenerator<[key: string, value: T]> {
+    async *entries(): AsyncGenerator<[key: string, value: T]> {
         for await (const { key } of this.sortedItemsStore.iterator()) {
             const value = await this.get(key);
             if (value !== undefined) yield [key, value];
@@ -571,7 +601,7 @@ export class DenkmitDatabase<T> implements Database<T> {
     /**
      * Iterates live keys in write-time order without fetching values: tombstoned
      * keys are skipped, everything else comes straight from the index. Listings
-     * and prefix filters should use this instead of `iterator()`, which fetches
+     * and prefix filters should use this instead of `entries()`, which fetches
      * (and caches) every value it passes.
      */
     async *keys(): AsyncGenerator<string> {
@@ -614,9 +644,6 @@ export class DenkmitDatabase<T> implements Database<T> {
         }
     }
 
-    get policies(): { readonly access: Policy; readonly validation: Policy } {
-        return { access: this.accessPolicy, validation: this.validationPolicy };
-    }
 
     /**
      * Gets the address of the denkmitdb.
@@ -637,7 +664,7 @@ export class DenkmitDatabase<T> implements Database<T> {
     }
 
     async createOnlyNewHead(): Promise<Head | undefined> {
-        if (this.size === 0) return undefined;
+        if (this.recordCount === 0) return undefined;
         const root = await this.getCID();
 
         if (this.head && this.head.root.equals(root)) return undefined;
@@ -648,7 +675,7 @@ export class DenkmitDatabase<T> implements Database<T> {
             root,
             timestamp: Date.now(),
             layers: this.layers.length,
-            size: this.size,
+            size: this.recordCount,
         };
 
         this.head = await createHead(headInput, this.heliaController);
@@ -670,7 +697,7 @@ export class DenkmitDatabase<T> implements Database<T> {
         return await fetchHead(cid, this.heliaController);
     }
 
-    get size(): number {
+    get recordCount(): number {
         return this.sortedItemsStore.size;
     }
 
@@ -1098,7 +1125,7 @@ export class DenkmitDatabase<T> implements Database<T> {
             }
 
             try {
-                if (this.size === 0) {
+                if (this.recordCount === 0) {
                     await this.load(head);
                 } else {
                     await this.merge(head);
@@ -1134,7 +1161,7 @@ export class DenkmitDatabase<T> implements Database<T> {
      * Writes are indexed synchronously, but the Merkle tree is rebuilt on the sync
      * queue; await this to observe a settled tree/head after `set` or a merge.
      */
-    async idle(): Promise<void> {
+    async waitUntilIdle(): Promise<void> {
         await this.syncController.onIdle();
     }
 

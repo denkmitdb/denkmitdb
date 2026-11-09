@@ -32,7 +32,7 @@ The database name (recorded in the manifest; not unique).
 
 [`CreateDatabaseOptions`](../type-aliases/CreateDatabaseOptions.md)\<`T`\>
 
-Node, identity, access preset or custom policies, order.
+Node, identity, consensus rules, subtree size.
 
 ## Returns
 

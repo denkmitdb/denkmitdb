@@ -26,6 +26,14 @@ The database address: the CID of its signed manifest.
 
 ***
 
+### consensus
+
+> `readonly` **consensus**: [`Consensus`](../type-aliases/Consensus.md)\<[`SignedPolicy`](../type-aliases/SignedPolicy.md)\>
+
+The signed consensus rules the manifest binds; every replica evaluates the same ones.
+
+***
+
 ### identity
 
 > `readonly` **identity**: [`SigningIdentity`](SigningIdentity.md)
@@ -40,27 +48,11 @@ The identity that signs this replica's writes by default.
 
 ***
 
-### policies
+### recordCount
 
-> `readonly` **policies**: `object`
+> `readonly` **recordCount**: `number`
 
-The policies the manifest binds; every replica evaluates the same ones.
-
-#### access
-
-> `readonly` **access**: [`Policy`](../type-aliases/Policy.md)
-
-#### validation
-
-> `readonly` **validation**: [`Policy`](../type-aliases/Policy.md)
-
-***
-
-### size
-
-> `readonly` **size**: `number`
-
-Number of records, tombstones included.
+Number of records (one per key ever written), tombstones included.
 
 ## Methods
 
@@ -95,7 +87,7 @@ Stops sync, finishes pending work and persists the head.
 
 Deletes `key` by writing a signed tombstone. The tombstone takes part in the
 same last-write-wins order as puts: while it wins, the key is hidden from
-`get`/`keys`/`iterator`; a newer `set` resurrects it.
+`get`/`keys`/`entries`; a newer `set` resurrects it.
 
 #### Parameters
 
@@ -110,6 +102,18 @@ same last-write-wins order as puts: while it wins, the key is hidden from
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+***
+
+### entries()
+
+> **entries**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<\[`key`: `string`, `value`: `T`\]\>
+
+Live key-value pairs in write-time order.
+
+#### Returns
+
+[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<\[`key`: `string`, `value`: `T`\]\>
 
 ***
 
@@ -128,31 +132,6 @@ The current value of `key`, or undefined if it was never written or is deleted.
 #### Returns
 
 [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`T` \| `undefined`\>
-
-***
-
-### idle()
-
-> **idle**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
-
-Resolves once this replica's queued work (tree rebuilds, merges) has
-drained. Local only: it says nothing about convergence with peers.
-
-#### Returns
-
-[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
-
-***
-
-### iterator()
-
-> **iterator**(): [`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<\[`key`: `string`, `value`: `T`\]\>
-
-Live key-value pairs in write-time order.
-
-#### Returns
-
-[`AsyncGenerator`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/AsyncGenerator)\<\[`key`: `string`, `value`: `T`\]\>
 
 ***
 
@@ -190,7 +169,7 @@ Provenance of the current record for `key` (tombstones too), or undefined if nev
 
 > **set**(`key`, `value`, `options?`): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
 
-Signs and stores a value for `key`; rejects if the policies refuse the write.
+Signs and stores a value for `key`; rejects if the consensus rules refuse the write.
 
 #### Parameters
 
@@ -205,6 +184,19 @@ Signs and stores a value for `key`; rejects if the policies refuse the write.
 ##### options?
 
 [`WriteOptions`](../type-aliases/WriteOptions.md)
+
+#### Returns
+
+[`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+***
+
+### waitUntilIdle()
+
+> **waitUntilIdle**(): [`Promise`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Global_Objects/Promise)\<`void`\>
+
+Resolves once this replica's queued work (tree rebuilds, merges) has
+drained. Local only: it says nothing about convergence with peers.
 
 #### Returns
 

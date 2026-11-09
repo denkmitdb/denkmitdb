@@ -14,10 +14,12 @@ may change in any release.
 - [Database](interfaces/Database.md)
 - [Identity](interfaces/Identity.md)
 - [SigningIdentity](interfaces/SigningIdentity.md)
+- [ValueCache](interfaces/ValueCache.md)
 
 ## Type Aliases
 
-- [AccessPreset](type-aliases/AccessPreset.md)
+- [AccessRule](type-aliases/AccessRule.md)
+- [Consensus](type-aliases/Consensus.md)
 - [CreateDatabaseOptions](type-aliases/CreateDatabaseOptions.md)
 - [DatabaseOptions](type-aliases/DatabaseOptions.md)
 - [EncryptedValue](type-aliases/EncryptedValue.md)
@@ -26,9 +28,9 @@ may change in any release.
 - [IdentityAlgorithm](type-aliases/IdentityAlgorithm.md)
 - [Manifest](type-aliases/Manifest.md)
 - [NodeLibp2p](type-aliases/NodeLibp2p.md)
-- [Policy](type-aliases/Policy.md)
 - [PolicyDefinition](type-aliases/PolicyDefinition.md)
 - [Provenance](type-aliases/Provenance.md)
+- [SignedPolicy](type-aliases/SignedPolicy.md)
 - [WriteOptions](type-aliases/WriteOptions.md)
 
 ## Functions
@@ -36,7 +38,7 @@ may change in any release.
 - [createDatabase](functions/createDatabase.md)
 - [createIdentity](functions/createIdentity.md)
 - [decryptValue](functions/decryptValue.md)
-- [encryptedRecipients](functions/encryptedRecipients.md)
+- [encryptedValueRecipients](functions/encryptedValueRecipients.md)
 - [encryptValueFor](functions/encryptValueFor.md)
 - [fetchIdentity](functions/fetchIdentity.md)
 - [hasIdentity](functions/hasIdentity.md)

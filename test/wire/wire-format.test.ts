@@ -84,12 +84,12 @@ describe("wire format v4", () => {
         const m2 = await fetchManifest(cid(captured.refs.manifestV2), controller);
         expect(m2.version).toBe(2);
         expect(m2.name).toBe(captured.expect.manifestV2Name);
-        expect(m2.access.toString()).toBe(captured.refs.policy);
+        expect(m2.consensus.access.toString()).toBe(captured.refs.policy);
 
         const m1 = await fetchManifest(cid(captured.refs.manifestV1), controller);
         expect(m1.version).toBe(1);
         expect(m1.name).toBe("wire-legacy");
-        expect(m1.order).toBe(3);
+        expect(m1.subtreeLeaves).toBe(8);
 
         const policy = await fetchPolicy(cid(captured.refs.policy), controller);
         expect(policy.name).toBe("denkmit-access-namespace-per-writer");
@@ -109,7 +109,7 @@ describe("wire format v4", () => {
         try {
             await db.load(await fetchHead(cid(captured.refs.head), controller));
             const values: Record<string, unknown> = {};
-            for await (const [k, v] of db.iterator()) values[k] = v;
+            for await (const [k, v] of db.entries()) values[k] = v;
             expect(values).toEqual(captured.expect.dbValues);
             expect(await db.get(captured.expect.tombstoneKey)).toBeUndefined();
         } finally {

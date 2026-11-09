@@ -3,7 +3,7 @@ import { CID } from "multiformats/cid";
 import type { PolicyDefinition } from "./protocol/policy.js";
 import type { Signed } from "./protocol/signed.js";
 import type { HeliaController } from "./storage/helia.js";
-import type { Policy } from "./types.js";
+import type { SignedPolicy } from "./types.js";
 
 /** Deterministic inputs a policy is evaluated over (docs/policies.md). */
 export type PolicyInput = Record<string, number | string>;
@@ -48,7 +48,7 @@ function deepFreeze<T>(value: T): T {
  * peers while the signed policy CID stays the same), and freezing must not touch
  * the caller's own definition object.
  */
-function toPolicy(signed: Signed<PolicyDefinition>): Policy {
+function toPolicy(signed: Signed<PolicyDefinition>): SignedPolicy {
     const { version, name, description, logic } = signed.data;
     return Object.freeze({
         version,
@@ -61,12 +61,12 @@ function toPolicy(signed: Signed<PolicyDefinition>): Policy {
 }
 
 /** Signs and stores a policy. */
-export async function createPolicy(definition: PolicyDefinition, controller: HeliaController): Promise<Policy> {
+export async function createPolicy(definition: PolicyDefinition, controller: HeliaController): Promise<SignedPolicy> {
     return toPolicy(await controller.addSigned(definition));
 }
 
 /** Fetches and verifies a policy. */
-export async function fetchPolicy(cid: CID, controller: HeliaController): Promise<Policy> {
+export async function fetchPolicy(cid: CID, controller: HeliaController): Promise<SignedPolicy> {
     const result = await controller.getSigned<PolicyDefinition>(cid);
     if (!result) throw new Error("Policy not found");
     return toPolicy(result);

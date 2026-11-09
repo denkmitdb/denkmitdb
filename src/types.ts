@@ -7,7 +7,6 @@ import type { Identify } from "@libp2p/identify";
 import type { Libp2p } from "@libp2p/interface";
 import type { Helia } from "@helia/interface";
 import type * as jose from "jose";
-import type Keyv from "keyv";
 import type { CID } from "multiformats/cid";
 import type { IdentityAlgorithm } from "./protocol/identity.js";
 import type { PolicyDefinition } from "./protocol/policy.js";
@@ -58,11 +57,23 @@ export interface SigningIdentity extends Identity {
 }
 
 /** A signed policy, as referenced by a manifest. */
-export type Policy = PolicyDefinition & {
+export type SignedPolicy = PolicyDefinition & {
     /** CID of the signed policy block. */
     readonly cid: CID;
     /** Identity CID of the signer (the database creator). */
     readonly creator: CID;
+};
+
+/**
+ * Consensus rules: what every replica enforces identically, so replicas that see
+ * the same signed entries reach the same state. Both rules are deterministic
+ * json-logic, signed into the manifest for good (docs/policies.md).
+ */
+export type Consensus<P> = {
+    /** Who may write (and delete) which keys. */
+    readonly access: P;
+    /** Which authorized, signed entries are valid. */
+    readonly validity: P;
 };
 
 /** A database's signed manifest. Its CID is the database address. */
@@ -75,21 +86,20 @@ export type Manifest = {
     readonly timestamp: number;
     readonly name: string;
     readonly type: string;
-    /** Pollard order: each Merkle subtree holds 2^order leaves. */
-    readonly order: number;
-    /** CID of the access (authorization) policy. */
-    readonly access: CID;
-    /** CID of the validation policy (`consensus` on the wire). */
-    readonly validation: CID;
-    readonly meta?: Record<string, unknown>;
+    /** Leaves per Merkle subtree (a power of two; `order` = log2 on the wire). */
+    readonly subtreeLeaves: number;
+    /** CIDs of the consensus rules (wire keys: `access`, and `consensus` for validity). */
+    readonly consensus: Consensus<CID>;
+    readonly metadata?: Record<string, unknown>;
 };
 
 /** Who wrote the current record for a key, and when. */
 export type Provenance = {
     /** CID of the signed entry. */
-    readonly cid: CID;
-    /** Identity CID of the writer. */
-    readonly creator: CID;
+    readonly entryCid: CID;
+    /** Identity CID of the entry's writer (signer). */
+    readonly writer: CID;
+    /** Write time claimed by the writer (ms since the epoch). */
     readonly timestamp: number;
     /** True when the current record is a tombstone. */
     readonly deleted: boolean;
@@ -98,8 +108,8 @@ export type Provenance = {
 /**
  * Options for a write. `identity` signs the entry instead of the identity the
  * database was opened with — e.g. one of several agent identities a daemon holds
- * (specs/delegation.md, phase 1). Access and validation policies are evaluated for
- * the identity that signs.
+ * (specs/delegation.md, phase 1). The consensus rules are evaluated for the
+ * identity that signs.
  */
 export type WriteOptions = {
     identity?: SigningIdentity;
@@ -115,19 +125,19 @@ export interface Database<T> {
     /** The identity that signs this replica's writes by default. */
     readonly identity: SigningIdentity;
     readonly manifest: Manifest;
-    /** The policies the manifest binds; every replica evaluates the same ones. */
-    readonly policies: { readonly access: Policy; readonly validation: Policy };
-    /** Number of records, tombstones included. */
-    readonly size: number;
+    /** The signed consensus rules the manifest binds; every replica evaluates the same ones. */
+    readonly consensus: Consensus<SignedPolicy>;
+    /** Number of records (one per key ever written), tombstones included. */
+    readonly recordCount: number;
 
     /** The current value of `key`, or undefined if it was never written or is deleted. */
     get(key: string): Promise<T | undefined>;
-    /** Signs and stores a value for `key`; rejects if the policies refuse the write. */
+    /** Signs and stores a value for `key`; rejects if the consensus rules refuse the write. */
     set(key: string, value: T, options?: WriteOptions): Promise<void>;
     /**
      * Deletes `key` by writing a signed tombstone. The tombstone takes part in the
      * same last-write-wins order as puts: while it wins, the key is hidden from
-     * `get`/`keys`/`iterator`; a newer `set` resurrects it.
+     * `get`/`keys`/`entries`; a newer `set` resurrects it.
      */
     delete(key: string, options?: WriteOptions): Promise<void>;
     /** Provenance of the current record for `key` (tombstones too), or undefined if never written. */
@@ -135,12 +145,12 @@ export interface Database<T> {
     /** Live keys in write-time order, without loading values. */
     keys(): AsyncGenerator<string>;
     /** Live key-value pairs in write-time order. */
-    iterator(): AsyncGenerator<[key: string, value: T]>;
+    entries(): AsyncGenerator<[key: string, value: T]>;
     /**
      * Resolves once this replica's queued work (tree rebuilds, merges) has
      * drained. Local only: it says nothing about convergence with peers.
      */
-    idle(): Promise<void>;
+    waitUntilIdle(): Promise<void>;
     /**
      * Re-announces the current head to peers even when it has not changed, so
      * peers that connected after the last change can converge.
@@ -151,8 +161,8 @@ export interface Database<T> {
 }
 
 /**
- * Access preset for a new database (create only — open always reads the policy
- * from the signed manifest). Compiles to a json-logic access policy:
+ * The access rule of a new database (create only — open always reads it from the
+ * signed manifest). A preset compiles to a json-logic policy:
  * - "creator-only" (default): only the creating identity writes.
  * - "public": any identity writes (provenance still attributes every record).
  * - "prefix-per-writer": the creator writes anywhere; any other identity writes
@@ -160,42 +170,45 @@ export interface Database<T> {
  * - "namespace-per-writer": every identity, the creator included, writes and
  *   deletes only under `agents/<its-identity-cid>/…` — no privileged party.
  * - `{ allowlist }`: exactly the listed identity CIDs write.
+ * - `{ policy }`: a custom json-logic access policy.
  *
  * See docs/policies.md.
  */
-export type AccessPreset =
+export type AccessRule =
     | "creator-only"
     | "public"
     | "prefix-per-writer"
     | "namespace-per-writer"
-    | { allowlist: string[] };
+    | { allowlist: string[] }
+    | { policy: PolicyDefinition };
+
+/**
+ * A value cache keyed by entry CID. A Keyv instance fits; so does any store with
+ * these methods. Entry values never change, so one cache may be shared between
+ * databases.
+ */
+export interface ValueCache<T> {
+    get(key: string): Promise<T | undefined>;
+    set(key: string, value: T): Promise<unknown>;
+    delete(key: string): Promise<unknown>;
+    clear(): Promise<void>;
+}
 
 /** Options for opening a database. */
 export type DatabaseOptions<T> = {
     helia: HeliaNode;
     identity: SigningIdentity;
-    /**
-     * Value cache keyed by entry CID. Entry values never change, so one cache may
-     * be shared between databases. Default: a private in-memory Keyv.
-     */
-    cache?: Keyv<T>;
+    /** Default: a private in-memory cache, cleared on close (a supplied one never is). */
+    valueCache?: ValueCache<T>;
 };
 
 /** Options for creating a database: the open options plus what the manifest fixes for good. */
 export type CreateDatabaseOptions<T> = DatabaseOptions<T> & {
-    /** Pollard order, an integer in [1, 8]; default 3. */
-    order?: number;
-    /** Custom validation policy. Default accepts every authorized entry. */
-    validationPolicy?: PolicyDefinition;
-} & (
-        | {
-              /** An access preset; default "creator-only". */
-              access?: AccessPreset;
-              accessPolicy?: never;
-          }
-        | {
-              access?: never;
-              /** A custom json-logic access policy instead of a preset. */
-              accessPolicy: PolicyDefinition;
-          }
-    );
+    /** Leaves per Merkle subtree: a power of two in [2, 256]; default 8. */
+    subtreeLeaves?: number;
+    /** Consensus rules. Default: access "creator-only", validity accepts every authorized entry. */
+    consensus?: {
+        access?: AccessRule;
+        validity?: PolicyDefinition;
+    };
+};

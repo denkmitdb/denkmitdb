@@ -61,7 +61,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
         await db.syncNewHead(foreignHead.cid.bytes);
         await drain();
 
-        expect(db.size).toBe(0);
+        expect(db.recordCount).toBe(0);
         await db.close();
     });
 
@@ -81,7 +81,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
         await drain();
 
         const keys: string[] = [];
-        for await (const [key] of db.iterator()) keys.push(key);
+        for await (const [key] of db.entries()) keys.push(key);
 
         expect(keys).not.toContain("forged");
         expect(keys).toContain("legit");
@@ -108,7 +108,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
         await drain();
 
         expect(await db.get("k")).toEqual({ value: "v2" });
-        expect(db.size).toBe(1); // exactly one live record for the key
+        expect(db.recordCount).toBe(1); // exactly one live record for the key
         await db.close();
     });
 
@@ -130,7 +130,7 @@ describe("Adversarial replication (Phase 2 acceptance pins)", () => {
         await drain();
 
         expect(await db.get("k")).toEqual({ value: "new" });
-        expect(db.size).toBe(1);
+        expect(db.recordCount).toBe(1);
         await db.close();
     });
 });

@@ -35,9 +35,9 @@ describe("Multi-layer trees", () => {
         for (let i = 0; i < count; i++) {
             await db.set(`key-${i}`, { n: i });
         }
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(count);
+        expect(db.recordCount).toBe(count);
         expect(db.layers.length).toBeGreaterThanOrEqual(3);
 
         // Every layer above the leaves holds one pollard per 2**order below it.
@@ -75,15 +75,15 @@ describe("Multi-layer trees", () => {
         const db = await createDatabase<Value>("scale-order-2", {
             helia: node.helia,
             identity: node.identity,
-            order: 2,
+            subtreeLeaves: 4,
         });
 
         for (let i = 0; i < 80; i++) {
             await db.set(`key-${i}`, { n: i });
         }
-        await db.idle();
+        await db.waitUntilIdle();
 
-        expect(db.size).toBe(80);
+        expect(db.recordCount).toBe(80);
         const layers = db.layers;
         expect(layers.length).toBe(4);
         expect(layers[layers.length - 1].length).toBe(1);
@@ -144,16 +144,16 @@ describe("Two-node synchronization of a multi-layer tree", () => {
         for (let i = 0; i < count; i++) {
             await dbA.set(`key-${i}`, { n: i });
         }
-        await dbA.idle();
+        await dbA.waitUntilIdle();
         expect(dbA.layers.length).toBeGreaterThanOrEqual(3);
 
         await dbA.sendHead();
 
-        await waitFor(() => dbB.size === count, {
+        await waitFor(() => dbB.recordCount === count, {
             timeout: 120_000,
             message: `node B to merge all ${count} entries`,
         });
-        await dbB.idle();
+        await dbB.waitUntilIdle();
 
         const headA = await dbA.createHead();
         const headB = await dbB.createHead();

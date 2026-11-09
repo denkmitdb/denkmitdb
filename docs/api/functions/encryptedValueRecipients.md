@@ -2,11 +2,11 @@
 
 ***
 
-[@denkmitdb/denkmitdb](../globals.md) / encryptedRecipients
+[@denkmitdb/denkmitdb](../globals.md) / encryptedValueRecipients
 
-# Function: encryptedRecipients()
+# Function: encryptedValueRecipients()
 
-> **encryptedRecipients**(`value`): `string`[]
+> **encryptedValueRecipients**(`value`): `string`[]
 
 The identity CIDs a value claims to be encrypted to (from the per-recipient `kid`); [] if malformed.
 

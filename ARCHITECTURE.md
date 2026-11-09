@@ -47,11 +47,11 @@ building blocks:
 |---|---|---|---|
 | **Identity** | `src/identity.ts` | name, key type, algorithm (default ES384), public key (JWK, base64) | Self-certifying signer identity. Stored as a self-signed JWS (embedded JWK); its CID is the identity's address. The private key lives only in the local datastore, encrypted with a passphrase (PBES2). |
 | **Entry** | `src/entry.ts` | version, database address (v2), timestamp (`Date.now()` ms), key, value or tombstone flag | One write. Immutable; an update to a key is a brand-new entry. |
-| **Pollard** | `src/pollard/pollard.ts` | version, order, leaves + hash layers | A fixed-capacity Merkle subtree with `2^order` leaves (order is fixed in the manifest at creation: an integer in [1, 8], default 3 → 8 leaves). Stored **unsigned**. The database's full tree is built from many pollards stacked in layers. |
+| **Pollard** | `src/pollard/pollard.ts` | version, order, leaves + hash layers | A **Merkle subtree** ("pollard" in the code) of fixed capacity: `subtreeLeaves` leaves, fixed in the manifest at creation (a power of two in [2, 256], default 8; stored as `order` = log2). Stored **unsigned**. The database's full tree is built from many pollards stacked in layers. |
 | **Leaf** | `src/pollard/leaf.ts` | type + payload | Tree node payload. Types: `Empty`, `Hash`, `Pollard` (link to child pollard), `Entry`, `Identity`, `SortedEntry` (entry CID + sort key + db key + creator). |
 | **Head** | `src/head.ts` | manifest CID, tree root CID, timestamp, layer count, size | A snapshot pointer: "my database state is the tree rooted at X". This is the only thing peers broadcast. |
-| **Manifest** | `src/manifest.ts` | name, type, pollard order, validation policy CID (wire key `consensus`), access policy CID, creation timestamp | The database descriptor. **Its CID is the database address.** Immutable — changing any field creates a different database. |
-| **Policy** | `src/policy.ts` | name, description, [json-logic](https://jsonlogic.com/) rule | A write-validation predicate evaluated locally against entry metadata (timestamps, creators) on every `set` and every merged remote entry. |
+| **Manifest** | `src/manifest.ts` | name, type, subtree order (API `subtreeLeaves` = 2^order), the consensus rules — access policy CID (`access`) and validity policy CID (wire key `consensus`) — creation timestamp | The database descriptor. **Its CID is the database address.** Immutable — changing any field creates a different database. |
+| **Policy** | `src/policy.ts` | name, description, [json-logic](https://jsonlogic.com/) rule | One of the two consensus rules (access, validity): a deterministic predicate every replica evaluates against signed entry metadata on every `set` and every merged remote entry (docs/policies.md). |
 
 ### In-memory state (not persisted)
 
@@ -73,9 +73,9 @@ fetches only the manifest and consensus rule — the index and layers stay empty
 a peer announces a head (then `load()` rebuilds index + layers; the value cache
 fills lazily on `get()`). See KNOWN_ISSUES.md D4.
 
-## The Merkle tree ("pollard forest")
+## The Merkle tree (a forest of subtrees, "pollards")
 
-Entries are sorted by timestamp and packed into layer-0 pollards, 2^order at a time.
+Entries are sorted by timestamp and packed into layer-0 pollards (Merkle subtrees), `subtreeLeaves` at a time.
 Layer 1 packs the CIDs of layer-0 pollards, and so on, until one pollard remains:
 
 ```mermaid
@@ -109,7 +109,7 @@ equality so the diff can't hide a difference.
 ## Write path (`db.set`)
 
 1. Check the access policy for the local identity; create and sign an `Entry` block bound to this database's address (`manifest`, entry v2); add + pin it in the blockstore.
-2. Run the validation rule against `{databaseCreator, entryTimestamp, entryCreator}` — deterministic inputs only, the same ones every replica sees on merge; reject the write unless it returns literal `true`.
+2. Run the validity rule against `{databaseCreator, entryTimestamp, entryCreator}` — deterministic inputs only, the same ones every replica sees on merge; reject the write unless it returns literal `true`.
 3. Insert `(timestamp → key, entryCID, creator)` into `SortedItemsStore` and the value into the Keyv cache under the entry CID.
 4. Enqueue a `updateLayers(timestamp)` task on the single-concurrency sync queue (tree building is asynchronous — readers see the entry immediately, the tree catches up).
 
@@ -197,7 +197,7 @@ src/
 ├── encryption.ts         # values sealed to recipients (General JWE)
 ├── manifest.ts           # database descriptor (the address)
 ├── head.ts               # replication snapshot pointer
-├── policy.ts             # json-logic evaluation of validation/access policies
+├── policy.ts             # json-logic evaluation of the consensus rules (access, validity)
 ├── sync.ts               # pubsub subscription + serialized task queue
 ├── protocol/             # wire formats: versioned signed payloads, shape checks, leaf tags
 ├── pollard/              # Merkle subtree + leaf codecs
