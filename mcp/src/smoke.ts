@@ -87,6 +87,35 @@ try {
     };
     assert(!notStored.found, "a refused oversized value must not be stored");
 
+    // Encrypted values: encryptFor [] seals the value to this agent only; it reads back decrypted.
+    const sealed = firstText(
+        await client.callTool({
+            name: "memory_set",
+            arguments: { key: "notes/private", value: { pin: "1234" }, encryptFor: [] },
+        }),
+    ) as { encrypted: boolean; recipients: string[] };
+    assert(sealed.encrypted && sealed.recipients.length === 1, "encryptFor [] should seal to this agent only");
+    const opened = firstText(await client.callTool({ name: "memory_get", arguments: { key: "notes/private" } })) as {
+        encrypted: boolean;
+        readable: boolean;
+        value: { pin: string };
+    };
+    assert(opened.encrypted && opened.readable && opened.value.pin === "1234", "a self-encrypted value must read back");
+
+    // The size cap applies after encryption: ~50 KB passes in plain text, not once sealed (~68 KB).
+    const big = "y".repeat(50 * 1024);
+    const plainBig = await client.callTool({ name: "memory_set", arguments: { key: "notes/big", value: big } });
+    assert(!(plainBig as { isError?: boolean }).isError, "a 50 KB plain value is under the cap");
+    const sealedBig = await client.callTool({
+        name: "memory_set",
+        arguments: { key: "notes/big-sealed", value: big, encryptFor: [] },
+    });
+    assert((sealedBig as { isError?: boolean }).isError, "the cap must apply to the encrypted envelope");
+    const notSealed = firstText(await client.callTool({ name: "memory_get", arguments: { key: "notes/big-sealed" } })) as {
+        found: boolean;
+    };
+    assert(!notSealed.found, "a refused encrypted value must not be stored");
+
     const prov = firstText(
         await client.callTool({ name: "memory_provenance", arguments: { key: "task/1" } }),
     ) as { found: boolean; writer: string; byThisAgent: boolean; deleted: boolean };

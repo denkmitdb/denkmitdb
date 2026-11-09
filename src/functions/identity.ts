@@ -140,7 +140,11 @@ class Identity implements IdentityInterface {
      * @returns A promise that resolves to the plaintext of the decrypted data if decryption is successful, or false otherwise.
      */
     async decrypt(jwe: jose.FlattenedJWE): Promise<Uint8Array | boolean> {
-        const { kid } = jose.decodeProtectedHeader(jwe);
+        // The recipient's kid lives in the protected header for single-recipient
+        // JWEs, and in the per-recipient (unprotected) header for one recipient's
+        // slice of a multi-recipient JWE (see encryptValueFor). It only selects the
+        // key: authenticity comes from AES-GCM over the shared protected header.
+        const kid = jose.decodeProtectedHeader(jwe).kid ?? jwe.header?.kid;
         if (!kid) throw new Error("Key ID not found in JWE header");
         if (kid !== this.cid.toString()) throw new Error("Key ID does not match identity ID");
 
@@ -152,7 +156,12 @@ class Identity implements IdentityInterface {
             const privateJwk = await jose.exportJWK(this.keys.privateKey);
             privateJwk.alg = "ECDH-ES+A256KW";
             const decryptionKey = (await jose.importJWK(privateJwk, "ECDH-ES+A256KW")) as CryptoKey;
-            const result = await jose.flattenedDecrypt(jwe, decryptionKey);
+            // Pin the suite this library produces: never let an attacker-chosen
+            // header select a different (e.g. weaker) algorithm.
+            const result = await jose.flattenedDecrypt(jwe, decryptionKey, {
+                keyManagementAlgorithms: ["ECDH-ES+A256KW"],
+                contentEncryptionAlgorithms: ["A256GCM"],
+            });
             return result.plaintext;
         } catch {
             return false;

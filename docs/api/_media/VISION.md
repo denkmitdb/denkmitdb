@@ -242,7 +242,7 @@ actually consume a policy engine.
 6. Policy input hardening (+`entryKey`, drop node-local fields) — then
    namespace ACLs land as a preset policy, with the policy cookbook.
 7. HTTP head-rendezvous.
-8. Encrypted values.
+8. ~~Encrypted values~~ — shipped November 2026 (`encryptValueFor` / `decryptValue`, multi-recipient; MCP `encryptFor`).
 
 Each step after (3) is independently shippable.
 

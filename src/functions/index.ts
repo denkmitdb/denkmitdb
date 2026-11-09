@@ -10,3 +10,4 @@ export * from "./sync.js";
 export * from "./utils/helia.js";
 export * from "./utils/sortedItems.js";
 export * from "./policy.js";
+export * from "./encryption.js";

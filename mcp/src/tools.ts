@@ -6,7 +6,16 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { fetchPolicy } from "@denkmitdb/denkmitdb";
+import {
+    decryptValue,
+    encryptedRecipients,
+    encryptValueFor,
+    fetchIdentity,
+    fetchPolicy,
+    isEncryptedValue,
+} from "@denkmitdb/denkmitdb";
+import type { HeliaStorage } from "@denkmitdb/denkmitdb";
+import { CID } from "multiformats/cid";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
 
 /**
@@ -34,6 +43,34 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
         },
     );
 
+    /**
+     * What a reader sees of a stored value: plain values as they are; encrypted
+     * envelopes decrypted when this agent is a recipient, otherwise withheld with
+     * the list of recipients (the ciphertext itself is never returned).
+     */
+    const readable = async (
+        value: unknown,
+        key: string,
+        writer: string | undefined,
+    ): Promise<{ value: unknown; encrypted?: true; readable?: boolean; recipients?: string[]; note?: string }> => {
+        if (!isEncryptedValue(value)) return { value };
+        const recipients = encryptedRecipients(value);
+        // Open only in the context it was sealed for: this database, this key, this writer.
+        const plain = writer
+            ? await decryptValue<unknown>(identity, value, { database: db.address.toString(), key, writer })
+            : undefined;
+        const listed = recipients.includes(identity.cid.toString());
+        return {
+            value: plain === undefined ? null : plain,
+            encrypted: true,
+            readable: plain !== undefined,
+            recipients,
+            ...(plain === undefined && listed
+                ? { note: "listed as a recipient, but the envelope does not open here: re-posted from elsewhere or tampered" }
+                : {}),
+        };
+    };
+
     const okJson = (data: unknown) => ({
         content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
     });
@@ -47,13 +84,28 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 "agent's identity and replicates to peer replicas. Overwrites any previous value for " +
                 "the key (last-write-wins). The database's access policy decides which keys this agent " +
                 "may write (see memory_status); a refused write returns an error and stores nothing. " +
-                `Values are limited to ${config.maxValueBytes} bytes of JSON.`,
+                `Values are limited to ${config.maxValueBytes} bytes of JSON (after encryption, if encrypted). ` +
+                "Pass encryptFor (identity CIDs, possibly empty) to store the value encrypted: only the " +
+                "listed identities and, by default, this agent can read it; everyone still sees the key, " +
+                "the writer and the recipients.",
             inputSchema: {
                 key: z.string().min(1).describe("Key to store under, e.g. 'notes/deploy' or 'task/42/status'"),
                 value: z.unknown().describe("JSON value to store (object, array, string, number, boolean, or null)"),
+                encryptFor: z
+                    .array(z.string().min(1))
+                    .max(64)
+                    .optional()
+                    .describe(
+                        "Encrypt the value to these identity CIDs (e.g. from memory_status or memory_provenance " +
+                            "of another agent). [] encrypts to this agent only.",
+                    ),
+                includeSelf: z
+                    .boolean()
+                    .optional()
+                    .describe("With encryptFor: also encrypt to this agent so it can read the value back (default true)"),
             },
         },
-        async ({ key, value }) => {
+        async ({ key, value, encryptFor, includeSelf }) => {
             // Size cap (KNOWN_ISSUES.md #32): every value is signed, stored, pinned and
             // replicated to every peer, so one oversized write costs the whole fleet.
             const bytes = Buffer.byteLength(JSON.stringify(value ?? null), "utf8");
@@ -63,10 +115,43 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                         "Store a summary or a reference instead.",
                 );
             }
-            await db.set(key, value ?? null);
+            let stored: unknown = value ?? null;
+            let recipients: string[] | undefined;
+            if (encryptFor !== undefined) {
+                const others = await Promise.all(
+                    encryptFor.map(async (cid) => {
+                        try {
+                            return await fetchIdentity(CID.parse(cid), db.heliaController as unknown as HeliaStorage);
+                        } catch (error) {
+                            throw new Error(`Cannot encrypt to ${cid}: identity not found or invalid`, {
+                                cause: error,
+                            });
+                        }
+                    }),
+                );
+                const targets = includeSelf === false ? others : [identity, ...others];
+                if (targets.length === 0) throw new Error("encryptFor is empty and includeSelf is false: nobody could read it");
+                const envelope = await encryptValueFor(targets, stored, {
+                    database: db.address.toString(),
+                    key,
+                    writer: identity.cid.toString(),
+                });
+                recipients = encryptedRecipients(envelope);
+                stored = envelope;
+                // The cap bounds what every peer stores and replicates, so it applies to
+                // the envelope too: base64url plus one wrapped key per recipient grow it.
+                const storedBytes = Buffer.byteLength(JSON.stringify(envelope), "utf8");
+                if (storedBytes > config.maxValueBytes) {
+                    throw new Error(
+                        `Encrypted value is ${storedBytes} bytes; the limit is ${config.maxValueBytes} ` +
+                            "(DENKMIT_MAX_VALUE_BYTES, applies after encryption). Store less or use fewer recipients.",
+                    );
+                }
+            }
+            await db.set(key, stored);
             await db.idle();
             await db.announceHead();
-            return okJson({ ok: true, key });
+            return okJson({ ok: true, key, ...(recipients ? { encrypted: true, recipients } : {}) });
         },
     );
 
@@ -89,7 +174,7 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
             return okJson({
                 key,
                 found: true,
-                value,
+                ...(await readable(value, key, writer)),
                 writer,
                 byThisAgent: writer === identity.cid.toString(),
             });
@@ -141,7 +226,12 @@ export function createMemoryServer(node: MemoryNode, config: MemoryNodeConfig): 
                 const value = await db.get(key);
                 if (value === undefined) continue; // unfetchable value — skip, don't fail the listing
                 const writer = (await db.provenance(key))?.creator.toString();
-                entries.push({ key, value, writer, byThisAgent: writer === identity.cid.toString() });
+                entries.push({
+                    key,
+                    ...(await readable(value, key, writer)),
+                    writer,
+                    byThisAgent: writer === identity.cid.toString(),
+                });
             }
             return okJson({ count: entries.length, truncated, entries });
         },

@@ -146,6 +146,31 @@ async function twoMachines(): Promise<void> {
             writer: string;
         };
         assert(prov.writer === peerStatus.identity.cid, "the seed must attribute the fact to the peer's identity");
+
+        // Encrypted values across machines: one sealed to the peer only, one to the seed only.
+        const forPeer = `${seedStatus.access.ownNamespace}for-laptop`;
+        const forSeed = `${seedStatus.access.ownNamespace}seed-only`;
+        await onSeed.callTool({
+            name: "memory_set",
+            arguments: { key: forPeer, value: { token: "laptop" }, encryptFor: [peerStatus.identity.cid], includeSelf: false },
+        });
+        await onSeed.callTool({ name: "memory_set", arguments: { key: forSeed, value: { token: "seed" }, encryptFor: [] } });
+        await waitFor("the encrypted facts on the peer", onPeer, forSeed);
+        await waitFor("the encrypted facts on the peer", onPeer, forPeer);
+        type Read = { encrypted?: boolean; readable?: boolean; value: { token?: string } | null; recipients?: string[] };
+        const read = async (c: Client, key: string) =>
+            firstText(await c.callTool({ name: "memory_get", arguments: { key } })) as Read;
+        const peerReadsOwn = await read(onPeer, forPeer);
+        assert(peerReadsOwn.readable && peerReadsOwn.value?.token === "laptop", "the recipient must decrypt its value");
+        const peerReadsSeeds = await read(onPeer, forSeed);
+        assert(
+            peerReadsSeeds.encrypted && !peerReadsSeeds.readable && peerReadsSeeds.value === null,
+            "a non-recipient must see the record but not its content",
+        );
+        assert(peerReadsSeeds.recipients?.[0] === seedStatus.identity.cid, "recipients must be listed");
+        const seedReadsPeers = await read(onSeed, forPeer);
+        assert(!seedReadsPeers.readable, "includeSelf: false must keep the writer out too");
+        console.log("encrypted values: recipients read them, everyone else sees only key, writer and recipients");
         await onSeed.close();
         await onPeer.close();
         console.log("two daemons (separate machines, mDNS off) replicate both ways via DENKMIT_PEERS");

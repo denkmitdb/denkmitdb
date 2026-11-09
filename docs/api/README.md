@@ -40,6 +40,7 @@ DenkMitDB is a distributed key-value database built on IPFS ([Helia](https://git
 -   **Signed writes**: every entry is a JWS tied to a self-certifying identity (its CID).
 -   **Access control**: a deterministic [json-logic](https://jsonlogic.com/) policy in the manifest — creator-only by default, world-writable by explicit opt-in — enforced on local writes and merged entries alike.
 -   **Delete**: signed tombstones in the same last-write-wins order as puts; a newer write resurrects the key.
+-   **Private values**: encrypt a value to one or more recipient identities (`encryptValueFor` / `decryptValue`) — peers replicate signed ciphertext they cannot read.
 -   **Restart durability**: the last head is persisted and re-validated on open, so a node recovers its own state without a live peer.
 
 See [ARCHITECTURE.md](_media/ARCHITECTURE.md) for how the pieces fit together.
@@ -163,7 +164,24 @@ After installation, you can start using DenkMitDB by following these steps:
     const value1 = await db.get("key1");
     console.log("Value 1: ", value1);
     ```
-6. **Close Database**
+6. **Private values** (optional) — encrypt to recipients; peers replicate what they cannot read:
+    ```typescript
+    import { decryptValue, encryptValueFor, fetchIdentity, HeliaStorage } from "@denkmitdb/denkmitdb";
+
+    const bob = await fetchIdentity(bobIdentityCid, new HeliaStorage(helia)); // public key only
+    const key = "agents/<me>/for-bob";
+    const context = { database: db.address.toString(), key, writer: identity.cid.toString() };
+    await db.set(key, await encryptValueFor([identity, bob], { apiKey: "…" }, context));
+
+    // on bob's node — check the context against the record's actual writer:
+    const writer = (await db.provenance(key))!.creator.toString();
+    const secret = await decryptValue(bobIdentity, await db.get(key), { database: db.address.toString(), key, writer });
+    ```
+    `decryptValue` returns undefined for non-recipients and for envelopes re-posted
+    under another key, writer or database. Everyone still sees the key, the writer,
+    the time and the recipients' identity CIDs.
+
+7. **Close Database**
     ```typescript
     await db.close();
     await helia.stop(); // also stops the embedded libp2p
