@@ -8,64 +8,56 @@
 
 [![CI](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml)
 
-**Signed fact exchange between agents and organizations that don't trust each
-other — peer to peer, no server.** DenkMitDB is a replicated key-value store on
-IPFS ([Helia](https://github.com/ipfs/helia)) and libp2p: every record is a
-signed, content-addressed block bound to its database, every replica checks the
-signature and the database's signed write policy before indexing anything, and
-every value can be traced to the key that wrote it. An MCP server and a small
-daemon make it shared memory for Claude Code, Codex and any other MCP client.
+**Shared, signed memory for AI agents — peer to peer, no central server.**
 
-> ⚠️ **Status: experimental.** The formats are versioned (entries, manifests,
-> heads, pollards) and checked on every replica, but the protocol may still
-> change. Open items: [KNOWN_ISSUES.md](KNOWN_ISSUES.md); direction:
-> [VISION.md](VISION.md) and [ROADMAP.md](ROADMAP.md).
+DenkMitDB lets Claude Code, Codex, Claude Desktop and other MCP clients exchange
+notes, findings and decisions — across your own machines or with someone else's
+agents. Each machine runs a small background process, `denkmitd`, that keeps a
+local copy and syncs with its peers. Every write is signed, so anyone can check
+which identity published it, and the database's rules keep each participant's
+records under that participant's control. Signatures establish authorship, not
+truth.
 
-## 🎁 Support: Donate
+**Start here:**
+[🚀 Connect your agents](docs/quickstart.md) (10 minutes, no internals) ·
+[📦 Use the TypeScript library](#-use-it-as-a-library) ·
+[🔍 How it works](ARCHITECTURE.md)
 
-> This project is **free**, **open source** and I try to provide excellent **free support**. Why donate? I work on this project several hours in my spare time and try to keep it up to date and working. **THANK YOU!**
-
-<!-- all-shields/sponsors-badges:START -->
-
-[![Donate Bitcoin](https://img.shields.io/badge/BTC-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-E38B29.svg?style=flat-square&logo=bitcoin)]()
-
-<!-- all-shields/sponsors-badges:END -->
+> ⚠️ **Experimental.** The formats are versioned and checked on every replica,
+> but the protocol may still change. Open items: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
 
 ## 🚀 Quick start: shared memory for agents
 
 ```
  Claude Code ─stdio─┐
- Codex ──────stdio──┼─► denkmit-mcp (thin client) ─unix socket─► denkmitd ◄──libp2p──► other peers
- Claude Desktop ────┘                                            (one per machine)
+ Codex ──────stdio──┼─► denkmit-mcp ─local socket─► denkmitd ◄──peer to peer──► other machines
+ Claude Desktop ────┘                               (one per machine)
 ```
 
-1. **Run the daemon** on each machine — one long-lived peer that holds the keys,
-   replicates while no agent is open, and serves the agents of that machine:
+```bash
+npm install -g @denkmitdb/mcp
+printf 'Passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
+export DENKMIT_PASSPHRASE
+DENKMIT_ACCESS=namespace-per-writer denkmitd          # keeps running: leave this terminal open
+```
 
-    ```bash
-    npm install -g @denkmitdb/mcp
-    DENKMIT_PASSPHRASE='a long secret' DENKMIT_ACCESS=namespace-per-writer denkmitd
-    ```
+In a second terminal:
 
-    The first daemon creates a database and logs its address; on other machines
-    set `DENKMIT_DB=<address>` and `DENKMIT_PEERS=<a peer's multiaddr>`. A machine
-    with a public address and an open port (default `4001`) is a natural *seed* —
-    an always-on peer with no special authority.
+```bash
+claude mcp add denkmit --env DENKMIT_DAEMON=require -- denkmit-mcp
+```
 
-2. **Connect agents** (no passphrase needed — the daemon holds the key):
+Then ask your agent: *"Check your shared memory status, save a note in your own
+area, and read it back."* A second agent — on this machine or another one — reads
+it with *"List everything in shared memory and who wrote it."*
 
-    ```bash
-    claude mcp add denkmit -- npx -y @denkmitdb/mcp
-    ```
+The [quick start guide](docs/quickstart.md) walks through it step by step: what
+you should see, Codex and Claude Desktop, adding a second machine or a friend's
+agents, what others can see, and troubleshooting. Reference for the daemon and
+its settings: [mcp/README.md](mcp/README.md).
 
-3. Agents get `memory_set` / `memory_get` / `memory_list` / `memory_delete` /
-   `memory_provenance` / `memory_status`. Under `namespace-per-writer` each
-   identity writes only under its own `agents/<identity-cid>/…`, values can be
-   encrypted to chosen identities (`encryptFor`), and with
-   `DENKMIT_AGENTS=claude-code,codex` each agent signs with its own key.
-
-Full setup — systemd unit, seeds, configuration, per-agent identities:
-[mcp/README.md](mcp/README.md). Two-agent walkthrough: `cd mcp && pnpm demo`.
+> Plain notes are readable by everyone who has the memory — the rules limit who
+> *writes*. Encrypt what must stay private.
 
 ## 💡 Features
 
@@ -192,19 +184,29 @@ persisted materialized index are on the roadmap).
 
 ## 📚 Documentation
 
+**Using it with agents**
+
 | Document | Contents |
 |---|---|
-| [mcp/README.md](mcp/README.md) | MCP server and daemon: setup, seeds, configuration, per-agent identities, private values |
-| [docs/policies.md](docs/policies.md) | Consensus rules: access presets, validity rules, inputs (`entryCreator`, `entryKey`, `entryOperation`, …), determinism |
+| [docs/quickstart.md](docs/quickstart.md) | Ten minutes from install to agents sharing notes |
+| [mcp/README.md](mcp/README.md) | The MCP server and daemon: tools, settings, seeds, per-agent identities, private values, running as a service |
+| [docs/policies.md](docs/policies.md) | Consensus rules: who may write what (presets), which entries are valid, custom rules |
+
+**Building on it**
+
+| Document | Contents |
+|---|---|
+| [API at a glance](#api-at-a-glance) and [docs/api/](docs/api/README.md) | The public API; generated reference (`pnpm docs`) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Data model, the Merkle tree, write/read paths, sync, trust model, deployment |
-| [specs/ordering.md](specs/ordering.md) | Accepted spec: composite sort key, last-write-wins, format versioning, entry binding |
+| [specs/ordering.md](specs/ordering.md) | Accepted spec: sort key, last-write-wins, format versioning, entry binding |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Every verified defect with its fix and test, and the open design concerns |
-| [VISION.md](VISION.md) | Strategy: the focus on signed fact exchange between untrusting parties |
-| [ROADMAP.md](ROADMAP.md) | What is done and what comes next |
+
+**The project**
+
+| Document | Contents |
+|---|---|
+| [VISION.md](VISION.md) · [ROADMAP.md](ROADMAP.md) | Focus and direction; what is done and what comes next |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
-| [docs/launch/show-hn.md](docs/launch/show-hn.md) | Launch post draft |
-| [docs/api/](docs/api/README.md) | Generated API reference (typedoc; `pnpm docs` regenerates only this folder) |
-| [CODEX_REVIEW.md](CODEX_REVIEW.md), [PHASE_PRIORITIES.md](PHASE_PRIORITIES.md) | Historical independent reviews (July 2026) |
 
 ## 🛠️ Development
 
@@ -228,6 +230,16 @@ the TypeScript 6 API side by side (see `package.json`).
 Contributions are welcome — please open an issue first for anything substantial.
 Every fix in [KNOWN_ISSUES.md](KNOWN_ISSUES.md) comes with a regression test that
 fails on the code before the fix; please keep that discipline.
+
+## 🎁 Support: Donate
+
+> This project is **free**, **open source** and I try to provide excellent **free support**. Why donate? I work on this project several hours in my spare time and try to keep it up to date and working. **THANK YOU!**
+
+<!-- all-shields/sponsors-badges:START -->
+
+[![Donate Bitcoin](https://img.shields.io/badge/BTC-1MGfAyH2K9Y6RJXmxbr52nwWeG59Xz2Aje-E38B29.svg?style=flat-square&logo=bitcoin)]()
+
+<!-- all-shields/sponsors-badges:END -->
 
 ## 💫 License
 

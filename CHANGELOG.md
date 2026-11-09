@@ -106,8 +106,9 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
 - **`namespace-per-writer` preset:** every identity, the creator included, writes
   and deletes only under `agents/<its-identity-cid>/` — no privileged party.
 - **`entryOperation`** (`"put"` | `"delete"`) is a policy input, so delete rules
-  are expressible; `createDenkmitDatabase` accepts custom `accessPolicy` /
-  `validationPolicy` (MCP: `DENKMIT_POLICY_FILE`). A policy that throws denies.
+  are expressible; `createDatabase` accepts custom rules,
+  `consensus: { access: { policy }, validity }` (MCP: `DENKMIT_POLICY_FILE`). A
+  policy that throws denies.
 - `pnpm smoke:daemon` (in CI): daemon + thin clients, restart persistence, and two
   daemons replicating over `DENKMIT_PEERS` with mDNS off.
 
@@ -139,12 +140,11 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
 
 ### Access presets & policy hardening
 
-- **`access` option on `createDenkmitDatabase`:** `"creator-only"` (default),
+- **Access presets** (`consensus.access` of `createDatabase`): `"creator-only"` (default),
   `"public"`, `"prefix-per-writer"` (the creator writes anywhere; every other
   identity writes and deletes only under `agents/<its-identity-cid>/`), or
   `{ allowlist: [cid, …] }` (validated and normalized at create time).
-  `publicWrite: true` stays as a deprecated alias; conflicting combinations throw.
-- **`entryKey`** is a policy input for both access and validation policies, and
+- **`entryKey`** is a policy input for both the access and the validity rule, and
   policies may use the deterministic `startsWith(value, prefix)` operation.
 - **MCP:** `DENKMIT_ACCESS` selects the preset (`allowlist:<cid>,…` too; unknown
   values refuse to start); `memory_status` reports the access policy and the

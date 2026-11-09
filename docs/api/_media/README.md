@@ -7,6 +7,14 @@ key-value memory where every write is signed, replicates to every peer holding a
 replica, resolves conflicts deterministically (last-write-wins), and can be traced
 back to who wrote it and when.
 
+**New here? Follow the [quick start](../docs/quickstart.md)** — ten minutes from
+install to two agents sharing notes, no internals needed. This page is the
+reference.
+
+> **Readable by every replica.** Anyone who knows the database address and can
+> reach a peer can copy its contents; write rules limit who *writes*, not who
+> reads. Encrypt what must stay private (see [Private values](#private-values)).
+
 ## Tools
 
 | Tool | Purpose |
@@ -36,7 +44,7 @@ back to who wrote it and when.
   daemon's identity (the owner is the trust boundary, not the agent session).
   The socket is owner-only (`0600`), so no token is needed, and nothing but libp2p
   listens on the network.
-- **Embedded (zero setup).** With no daemon running, `denkmit-mcp` boots its own
+- **Embedded mode (one agent session).** With no daemon running, `denkmit-mcp` boots its own
   node for the lifetime of the MCP session, as in earlier versions. Fine for one
   agent on one machine; the node disappears when the agent closes.
 
@@ -48,52 +56,69 @@ runs embedded.
 
 Published as [`@denkmitdb/mcp`](https://www.npmjs.com/package/@denkmitdb/mcp).
 
+Requires Node.js 22+ on macOS or Linux.
+
 ### 1. Run the daemon
 
 ```bash
 npm install -g @denkmitdb/mcp                       # provides denkmitd and denkmit-mcp
-mkdir -p ~/.config/denkmit ~/.config/systemd/user
-cp "$(npm root -g)/@denkmitdb/mcp/systemd/denkmitd.env.example" ~/.config/denkmit/denkmitd.env
-chmod 600 ~/.config/denkmit/denkmitd.env            # then edit: passphrase, access, …
-cp "$(npm root -g)/@denkmitdb/mcp/systemd/denkmitd.service" ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable --now denkmitd
-loginctl enable-linger "$USER"                      # keep running without a login session
-journalctl --user -u denkmitd -f                    # shows the database address and dialable addresses
+printf 'Passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
+export DENKMIT_PASSPHRASE
+DENKMIT_ACCESS=namespace-per-writer denkmitd
 ```
 
-(Or simply `DENKMIT_PASSPHRASE=… denkmitd` in a terminal.)
+It logs the database address (`created memory database bafy…`), the addresses
+other peers can dial (`peers can dial: /ip4/…/p2p/12D3…`) and the socket local
+agents use. **Choose the access rule on the first start** — it is signed into the
+database for good; without `DENKMIT_ACCESS` the database is `creator-only`, and
+no other machine can write to it.
 
 ### 2. Connect agents
 
 Agents need no passphrase in daemon mode — the daemon holds the key.
+`DENKMIT_DAEMON=require` makes a client fail when the daemon is down instead of
+starting a private embedded node.
 
 ```bash
-claude mcp add denkmit -- npx -y @denkmitdb/mcp
+claude mcp add denkmit --env DENKMIT_DAEMON=require -- denkmit-mcp
 ```
 
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.denkmit]
-command = "npx"
-args = ["-y", "@denkmitdb/mcp"]
+command = "denkmit-mcp"
+env = { DENKMIT_DAEMON = "require" }
 ```
+
+Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`
+on macOS) — use absolute paths from `command -v node denkmit-mcp`, since desktop
+apps may not see your shell's `PATH`:
+
+```json
+{ "mcpServers": { "denkmit": { "command": "/full/path/to/node", "args": ["/full/path/to/denkmit-mcp"], "env": { "DENKMIT_DAEMON": "require" } } } }
+```
+
+Without a global install: `npx -y --package=@denkmitdb/mcp denkmit-mcp` (the
+package has two commands, so npx needs to be told which one).
 
 Embedded mode instead (no daemon): pass `DENKMIT_IDENTITY` and
 `DENKMIT_PASSPHRASE` in the agent's MCP config, e.g.
-`claude mcp add denkmit --env DENKMIT_IDENTITY=claude --env DENKMIT_PASSPHRASE='…' -- npx -y @denkmitdb/mcp`.
+`claude mcp add denkmit --env DENKMIT_DAEMON=off --env DENKMIT_IDENTITY=claude --env DENKMIT_PASSPHRASE='…' -- denkmit-mcp`
+(`DENKMIT_DAEMON=off`, or a running daemon takes precedence).
 
 ### 3. Share one memory across machines
 
-Every machine runs its own daemon with its **own identity**. One of them creates the
-database; the others open it by address and dial at least one peer that has it:
+Every machine runs its own daemon with its **own identity** (its own
+passphrase). One of them creates the database (step 1); the others open it by
+its **database address** and dial at least one **peer address** that has it —
+two different things, both printed in the first daemon's log:
 
 ```bash
-# machine A (creates the database; its address is in the log and in memory_status)
-DENKMIT_ACCESS=namespace-per-writer
-
 # machine B
-DENKMIT_DB=<database address from A>
-DENKMIT_PEERS=/ip4/<A's address>/tcp/4001
+DENKMIT_DB='bafyrei…'                                # database address from A
+DENKMIT_PEERS='/ip4/192.168.1.20/tcp/4001/p2p/12D3Koo…'  # one of A's "peers can dial" addresses
+export DENKMIT_DB DENKMIT_PEERS
+denkmitd
 ```
 
 **A seed is just a peer that is always on.** Run a daemon on any machine with a
@@ -132,13 +157,12 @@ passphrase) and serves each on its own socket, `denkmitd-<agent>.sock`. An agent
 picks its identity with `DENKMIT_AGENT`:
 
 ```bash
-claude mcp add denkmit --env DENKMIT_AGENT=claude-code -- npx -y @denkmitdb/mcp
+claude mcp add denkmit --env DENKMIT_AGENT=claude-code -- denkmit-mcp
 ```
 
 ```toml
 [mcp_servers.denkmit]
-command = "npx"
-args = ["-y", "@denkmitdb/mcp"]
+command = "denkmit-mcp"
 env = { DENKMIT_AGENT = "codex" }
 ```
 
@@ -208,7 +232,29 @@ the daemon's environment, and the thin client only uses `DENKMIT_DAEMON`,
 | `DENKMIT_MDNS` | on | `off` disables local-network discovery (e.g. on a server) |
 
 State (blocks, identity key, head pointer) persists in the data directory, so a
-node's memory survives restarts even with no peers online.
+node's memory survives restarts even with no peers online. Back it up: it holds
+the signing key.
+
+## Run the daemon as a service
+
+On Linux with systemd, as your own user (no root needed). Stop a daemon you
+started in a terminal first (Ctrl+C) — only one may serve the socket.
+
+```bash
+mkdir -p ~/.config/denkmit ~/.config/systemd/user
+cp "$(npm root -g)/@denkmitdb/mcp/systemd/denkmitd.env.example" ~/.config/denkmit/denkmitd.env
+chmod 600 ~/.config/denkmit/denkmitd.env
+"${EDITOR:-nano}" ~/.config/denkmit/denkmitd.env   # set DENKMIT_PASSPHRASE (the same one as before) and the rest
+cp "$(npm root -g)/@denkmitdb/mcp/systemd/denkmitd.service" ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now denkmitd
+loginctl enable-linger "$USER"                      # keep running without a login session
+journalctl --user -u denkmitd -f                    # the database address and dialable addresses
+```
+
+The unit starts `/usr/bin/env denkmitd`. If Node comes from nvm or another
+private prefix, systemd won't find it: set `ExecStart=` to the absolute paths
+from `command -v node denkmitd`, e.g.
+`ExecStart=/home/you/.nvm/versions/node/v24.11.0/bin/node /home/you/.nvm/versions/node/v24.11.0/bin/denkmitd`.
 
 ## Development
 

@@ -1,6 +1,6 @@
 # Launch post draft (Show HN)
 
-> **Status: draft — not posted.** Release 4.0.0 to npm (both packages) before
+> **Status: draft — not posted.** Publish `@denkmitdb/denkmitdb` 4.0.0 and `@denkmitdb/mcp` 0.3.0 to npm before
 > submitting: the post describes the access presets and the entry binding, which
 > are not in 3.0.0. Re-run `cd mcp && pnpm build && pnpm demo` on the day and
 > paste the fresh transcript.
@@ -47,7 +47,7 @@ through a thin stdio client, and each agent can sign with its own identity:
 
     npm install -g @denkmitdb/mcp
     DENKMIT_PASSPHRASE='…' DENKMIT_ACCESS=namespace-per-writer denkmitd
-    claude mcp add denkmit -- npx -y @denkmitdb/mcp
+    claude mcp add denkmit --env DENKMIT_DAEMON=require -- denkmit-mcp   # in a second terminal
 
 Demo — two real MCP server processes on one machine, read back from the
 servers, not scripted (`cd mcp && pnpm demo`; it uses `prefix-per-writer`, where
