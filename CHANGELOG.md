@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [4.0.0] — 2026-11-09
+
+Published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
+version: the entry and manifest formats change** (entries are bound to their
+database — see "Security & correctness" below). Databases created by 3.0.0 stay
+readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
+so upgrade every writer before using a new database.
 
 ### Demo, launch draft, focus
 
