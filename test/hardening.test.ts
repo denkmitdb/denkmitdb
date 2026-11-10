@@ -1,7 +1,7 @@
 import Keyv from "keyv";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createDatabase, createIdentity, openDatabase } from "../src/internal";
-import { SigningIdentity } from "../src/internal";
+import { createDatabase, createIdentity, isDenkmitError, openDatabase } from "../src/internal";
+import type { PolicyRule, SigningIdentity } from "../src/internal";
 import { createTestNode, TestNode } from "./helpers";
 
 type Value = { value: string };
@@ -40,6 +40,39 @@ describe("Pre-publish hardening", () => {
         expect(pinsAfter.sort()).toEqual(pinsBefore.sort());
 
         await dbAsB.close();
+        await db.close();
+    });
+
+    it("a set()/delete() rejected by the validity rule persists and pins nothing (KNOWN_ISSUES #36)", async () => {
+        const db = await createDatabase<Value>("hard-no-pin-validity", {
+            helia: node.helia,
+            identity: node.identity,
+            consensus: {
+                validity: {
+                    version: 1,
+                    name: "facts-only-no-deletes",
+                    description: "Only facts/… keys; nothing is ever deleted",
+                    logic: {
+                        and: [{ startsWith: [{ var: "entryKey" }, "facts/"] }, { "===": [{ var: "entryOperation" }, "put"] }],
+                    } as unknown as PolicyRule,
+                },
+            },
+        });
+        await db.set("facts/kept", { value: "v" });
+        await db.waitUntilIdle();
+
+        const pinsBefore: string[] = [];
+        for await (const pin of node.helia.pins.ls()) pinsBefore.push(pin.cid.toString());
+
+        await expect(db.set("notes/x", { value: "v" })).rejects.toSatisfy((e) => isDenkmitError(e, "VALIDITY_REJECTED"));
+        await expect(db.delete("facts/kept")).rejects.toSatisfy((e) => isDenkmitError(e, "VALIDITY_REJECTED"));
+
+        const pinsAfter: string[] = [];
+        for await (const pin of node.helia.pins.ls()) pinsAfter.push(pin.cid.toString());
+        // The rejected write/tombstone must not have signed+stored+pinned a block.
+        expect(pinsAfter.sort()).toEqual(pinsBefore.sort());
+        expect(await db.get("facts/kept")).toEqual({ value: "v" });
+
         await db.close();
     });
 

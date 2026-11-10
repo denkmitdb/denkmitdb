@@ -16,6 +16,7 @@ import {
     isEncryptedValue,
 } from "@denkmitdb/denkmitdb";
 import type { MemoryNode, MemoryNodeConfig } from "./node.js";
+import { readAttributed } from "./read.js";
 import type { SigningIdentity } from "@denkmitdb/denkmitdb";
 
 /** The identity an MCP session acts as. */
@@ -223,16 +224,16 @@ export function createMemoryServer(
             annotations: { readOnlyHint: true },
         },
         guarded(async ({ key }) => {
-            const value = await db.get(key);
-            if (value === undefined) return okJson({ key, found: false, value: null });
-            const record = await db.provenance(key);
-            const writer = record?.writer.toString();
+            // Value and writer from the same entry (KNOWN_ISSUES.md #35).
+            const read = await readAttributed(db, key);
+            if (!read) return okJson({ key, found: false, value: null });
+            const writer = read.record.writer.toString();
             return okJson({
                 key,
                 found: true,
-                ...(await readable(value, key, writer)),
+                ...(await readable(read.value, key, writer)),
                 writer,
-                writtenAt: record ? new Date(record.timestamp).toISOString() : undefined,
+                writtenAt: new Date(read.record.timestamp).toISOString(),
                 byThisAgent: writer === identity.cid.toString(),
             });
         }),
@@ -282,15 +283,15 @@ export function createMemoryServer(
                     truncated = true;
                     break;
                 }
-                const value = await db.get(key);
-                if (value === undefined) continue; // unfetchable value — skip, don't fail the listing
-                const record = await db.provenance(key);
-                const writer = record?.writer.toString();
+                // Value and writer from the same entry (KNOWN_ISSUES.md #35).
+                const read = await readAttributed(db, key);
+                if (!read) continue; // deleted meanwhile, or unfetchable — skip, don't fail the listing
+                const writer = read.record.writer.toString();
                 entries.push({
                     key,
-                    ...(await readable(value, key, writer)),
+                    ...(await readable(read.value, key, writer)),
                     writer,
-                    writtenAt: record ? new Date(record.timestamp).toISOString() : undefined,
+                    writtenAt: new Date(read.record.timestamp).toISOString(),
                     byThisAgent: writer === identity.cid.toString(),
                 });
             }

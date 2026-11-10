@@ -64,6 +64,15 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
 
 ### Fixed
 
+- **A value is always shown with its own writer**
+  ([#40](https://github.com/denkmitdb/denkmitdb/issues/40)). `memory_get` and
+  `memory_list` read the value and its provenance one after the other, so a
+  replacement arriving in between labeled the old value with the new writer and
+  write time. They now read both from the same entry.
+- **A write refused by the validity rule leaves nothing behind**
+  ([#41](https://github.com/denkmitdb/denkmitdb/issues/41)). The rule was evaluated
+  after the entry had been signed, stored and pinned; it now runs first, like the
+  access rule.
 - **`memory_get` / `memory_list` return `writtenAt`, the signed write time**
   ([#34](https://github.com/denkmitdb/denkmitdb/issues/34)). Without it agents put
   their own timestamps into values — and an LLM agent has no reliable clock (one
