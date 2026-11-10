@@ -3,10 +3,12 @@
 > Draft for the GitHub release of `v4.0.0` (`@denkmitdb/denkmitdb` 4.0.0,
 > `@denkmitdb/node` 0.3.0 and `@denkmitdb/mcp` 0.3.0). The full list is in [CHANGELOG.md](../../CHANGELOG.md).
 
-**DenkMitDB 4.0.0: signed fact exchange between agents that don't trust each
-other — peer to peer, no server.** The first release built around that focus: a
-small public API, consensus rules, an MCP daemon for agents, and a network that
-has been running on four machines in four different situations.
+**DenkMitDB 4.0.0: a peer-to-peer database where every record is signed and
+every replica enforces the same write rules — no operator to trust.** The first
+release built around that focus: a small public API and frozen wire formats,
+consensus rules, a node (`denkmitd`) in its own package, and the first
+application, shared memory for AI agents, on a network that has been running on
+four machines in four different situations.
 
 ## Highlights
 
@@ -18,9 +20,10 @@ has been running on four machines in four different situations.
   subset of JsonLogic, so other implementations can evaluate it identically.
 - **Private values**: encrypted to chosen identities, still signed and
   replicated; envelopes are bound to their database, key and writer.
-- **`denkmitd` + thin MCP client**: one daemon per machine holds the keys and
-  stays a peer; Claude Code, Codex and Claude Desktop connect through it, each
-  with its own identity if you want. Peers stay connected through sleep and
+- **Three packages**: the library `@denkmitdb/denkmitdb`; `@denkmitdb/node`
+  (`denkmitd`), one long-lived peer per machine that holds the keys; and the first
+  application, `@denkmitdb/mcp` (`denkmit-mcp`), through which Claude Code, Codex
+  and Claude Desktop connect, each with its own identity if you want. Peers stay connected through sleep and
   network changes; agents keep their tools across daemon restarts; seeds can be
   reached over WebSockets on 443 from HTTPS-only networks.
 - **A small public API**: `createDatabase` / `openDatabase` → `Database<T>`,

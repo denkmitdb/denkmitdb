@@ -8,56 +8,37 @@
 
 [![CI](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml/badge.svg)](https://github.com/denkmitdb/denkmitdb/actions/workflows/ci.yml)
 
-**Shared, signed memory for AI agents — peer to peer, no central server.**
+**A peer-to-peer database where every record is signed and every replica
+enforces the same write rules — no operator to trust.**
 
-DenkMitDB lets Claude Code, Codex, Claude Desktop and other MCP clients exchange
-notes, findings and decisions — across your own machines or with someone else's
-agents. Each machine runs a small background process, `denkmitd`, that keeps a
-local copy and syncs with its peers. Every write is signed, so anyone can check
-which identity published it, and the database's rules keep each participant's
-records under that participant's control. Signatures establish authorship, not
-truth.
+DenkMitDB is a replicated key-value database for parties that share state but
+not a server: services, devices, organizations, AI agents. Every entry is signed
+by a self-certifying identity and bound to its database. Every replica checks the
+signature and the database's own write rules — small programs signed into the
+database's address — before it keeps anything. Replicas sync peer to peer over
+libp2p (Helia/IPFS). An always-on peer helps others find each other; it can
+withhold or observe, but it cannot forge, alter or reorder. Signatures establish
+authorship, not truth.
+
+**First application: shared memory for AI agents.** A DenkMitDB node, `denkmitd`,
+and a thin MCP client, `denkmit-mcp`, let Claude Code, Codex, Claude Desktop and
+other MCP clients exchange signed notes, findings and decisions — across your
+own machines or with someone else's agents.
+
+| Package | What it is |
+|---|---|
+| [`@denkmitdb/denkmitdb`](#-use-it-as-a-library) | The platform: the database library and its wire formats |
+| [`@denkmitdb/node`](node/README.md) | `denkmitd`, a long-lived peer: keys, the database, replication, a local API over Unix sockets |
+| [`@denkmitdb/mcp`](mcp/README.md) | The agent application: `denkmit-mcp` for MCP clients |
 
 **Start here:**
-[🚀 Connect your agents](docs/quickstart.md) (10 minutes, no internals) ·
-[📦 Use the TypeScript library](#-use-it-as-a-library) ·
-[🔍 How it works](ARCHITECTURE.md)
+[📦 Use the library](#-use-it-as-a-library) ·
+[🤖 Connect your agents](docs/quickstart.md) (10 minutes, no internals) ·
+[🔍 How it works](ARCHITECTURE.md) ·
+[🧭 How it compares](#-how-it-compares)
 
 > ⚠️ **Experimental.** The formats are versioned and checked on every replica,
 > but the protocol may still change. Open items: [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
-
-## 🚀 Quick start: shared memory for agents
-
-```
- Claude Code ─stdio─┐
- Codex ──────stdio──┼─► denkmit-mcp ─local socket─► denkmitd ◄──peer to peer──► other machines
- Claude Desktop ────┘                               (one per machine)
-```
-
-```bash
-npm install -g @denkmitdb/node @denkmitdb/mcp
-printf 'Passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
-export DENKMIT_PASSPHRASE
-DENKMIT_ACCESS=namespace-per-writer denkmitd          # keeps running: leave this terminal open
-```
-
-In a second terminal:
-
-```bash
-claude mcp add denkmit --env DENKMIT_DAEMON=require -- denkmit-mcp
-```
-
-Then ask your agent: *"Check your shared memory status, save a note in your own
-area, and read it back."* A second agent — on this machine or another one — reads
-it with *"List everything in shared memory and who wrote it."*
-
-The [quick start guide](docs/quickstart.md) walks through it step by step: what
-you should see, Codex and Claude Desktop, adding a second machine or a friend's
-agents, what others can see, and troubleshooting. Reference for the daemon and
-its settings: [mcp/README.md](mcp/README.md).
-
-> Plain notes are readable by everyone who has the memory — the rules limit who
-> *writes*. Encrypt what must stay private.
 
 ## 💡 Features
 
@@ -68,25 +49,26 @@ its settings: [mcp/README.md](mcp/README.md).
 -   **Deterministic conflicts**: last-write-wins on `(timestamp, entry CID)`; signed tombstones for deletes.
 -   **Private values**: a value encrypted to one or more identities replicates like any record, but only the recipients can read it; envelopes are bound to their database, key and writer.
 -   **Restart durability**: the last head is persisted and re-validated on open, so a node recovers its own state without a live peer.
--   **Agent tooling**: an MCP server, a per-machine daemon, and separate identities per agent.
+-   **A node and applications**: `denkmitd` keeps a machine a peer with no application open; the first application, `denkmit-mcp`, gives AI agents shared memory, with a separate identity per agent.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together.
 
 ## 🤔 Why
 
-Agents run by different owners increasingly need to share facts — findings,
-decisions, task state — and nothing in a typical memory stack answers *"who
-claimed this, and can I check it without trusting whoever runs the database?"*
+Parties that share facts — findings, decisions, configuration, task state — keep
+running into the same question: *"who claimed this, and can I check it without
+trusting whoever runs the database?"* Usually someone has to run the database,
+and everyone else has to trust them.
 
 DenkMitDB's answer is structural. Every record is signed and bound to its
 database; every replica checks the signature, the binding and the database's
-signed write policy **before** indexing anything; and provenance is a query
+signed write rules **before** indexing anything; and provenance is a query
 (`provenance(key)`). With `namespace-per-writer` every party — the creator
 included — owns exactly its own namespace, so nobody can overwrite or delete
 anyone else's facts. None of it needs a server.
 
-It is deliberately narrow: for one owner's agents, SQLite or Postgres is simpler;
-for collaborative documents, use Yjs or Automerge. A signature proves which key
+It is deliberately narrow: for one owner, SQLite or Postgres is simpler; for
+collaborative documents, use Yjs or Automerge. A signature proves which key
 wrote a fact — not that the fact is true, and not which person or company holds
 the key. See [VISION.md](VISION.md).
 
@@ -166,6 +148,69 @@ The package exports only this; everything else is internal.
 | `encryptValueFor` / `decryptValue` / `isEncryptedValue` / `encryptedValueRecipients` | Values sealed to recipients, bound to a required context `{ database, key, writer }`. |
 | `DenkmitError` / `isDenkmitError(e, code)` | Every intended failure has a stable `code` (`ACCESS_DENIED`, `VALIDITY_REJECTED`, `INVALID_ARGUMENT`, `NOT_FOUND`, `ALREADY_EXISTS`, `UNAVAILABLE`, `INVALID_SIGNATURE`, `MALFORMED`, `UNSUPPORTED_VERSION`, `KEY_UNAVAILABLE`, `INVALID_PASSPHRASE`, `INTERNAL`); match on the code, not the message. |
 
+## 🤖 First application: shared memory for AI agents
+
+The node and the MCP client turn a database into shared memory for agents
+from different vendors, on different machines and networks.
+
+```
+ Claude Code ─stdio─┐
+ Codex ──────stdio──┼─► denkmit-mcp ─local socket─► denkmitd ◄──peer to peer──► other machines
+ Claude Desktop ────┘                               (one per machine)
+```
+
+```bash
+npm install -g @denkmitdb/node @denkmitdb/mcp
+printf 'Passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
+export DENKMIT_PASSPHRASE
+DENKMIT_ACCESS=namespace-per-writer denkmitd          # keeps running: leave this terminal open
+```
+
+In a second terminal:
+
+```bash
+claude mcp add denkmit --env DENKMIT_DAEMON=require -- denkmit-mcp
+```
+
+Then ask your agent: *"Check your shared memory status, save a note in your own
+area, and read it back."* A second agent — on this machine or another one — reads
+it with *"List everything in shared memory and who wrote it."*
+
+The [quick start guide](docs/quickstart.md) walks through it step by step: what
+you should see, Codex and Claude Desktop, adding a second machine or a friend's
+agents, what others can see, and troubleshooting. Reference: the node and its
+settings in [node/README.md](node/README.md), the agent tools in
+[mcp/README.md](mcp/README.md).
+
+> Plain notes are readable by everyone who has the memory — the rules limit who
+> *writes*. Encrypt what must stay private.
+
+## 🧭 How it compares
+
+Signing records is not unique, and neither is peer-to-peer replication. What
+DenkMitDB combines: every record carries its writer's signature and can be
+checked again by any later replica; the write rules are a small program signed
+into the database's address and enforced by every copy; no operator is
+required; and the first application packages it for AI agents.
+
+Closest relatives — several have stronger designs in some respect:
+
+| Project | What it is | Difference from DenkMitDB |
+|---|---|---|
+| [OrbitDB](https://github.com/orbitdb/orbitdb) | Databases on IPFS from signed logs; an access controller decides each entry | Same stack and lineage; rules come from an access controller rather than a versioned, language-neutral rule program |
+| [Willow](https://willowprotocol.org) / Meadowcap | Protocol of authorised entries with capability-based access (data model spec final) | Capabilities can be delegated; ours are fixed at creation until delegation ships |
+| [p2panda](https://p2panda.org) | Rust building blocks for local-first apps: signed append-only logs, sync, access control | A toolkit rather than one database with a manifest |
+| [Keyhive](https://www.inkandswitch.com/keyhive/) | Ink & Switch's access control and encryption for Automerge | Research stage; rich CRDT merges where we have last-writer-wins |
+| [Jazz](https://jazz.tools) | Signed collaborative values with group permissions | Syncs through servers |
+| [x0x](https://github.com/saorsa-labs/x0x) and [Constellate](https://github.com/nkoteskey/Constellate) | Agent-oriented replicated stores over gossip, with per-store write policies (owner, allowlist, append-only, own namespace) and per-agent quotas; Constellate is an MCP server for a public commons on x0x | The closest in intent. Immutable keys and quotas are things our rules can't express yet; we haven't confirmed that their records stay checkable by any later replica |
+
+Agent-memory servers such as basic-memory, mem0, Zep or Letta solve a different
+problem: one owner's memory, with search and summaries. I found no per-entry
+signatures in them. They can sit beside DenkMitDB: the memory server for one
+person's notes, DenkMitDB for what several parties share.
+
+This list is surely incomplete — [tell us what we missed](https://github.com/denkmitdb/denkmitdb/issues).
+
 ## 📈 Performance
 
 `node scripts/bench.mjs 10000` (in-memory stores, single writer, ~40-byte values —
@@ -185,25 +230,26 @@ persisted materialized index are on the roadmap).
 
 ## 📚 Documentation
 
-**Using it with agents**
-
-| Document | Contents |
-|---|---|
-| [docs/quickstart.md](docs/quickstart.md) | Ten minutes from install to agents sharing notes |
-| [mcp/README.md](mcp/README.md) | The MCP server and daemon: tools, settings, seeds, per-agent identities, private values, running as a service |
-| [docs/policies.md](docs/policies.md) | Consensus rules: who may write what (presets), which entries are valid, custom rules |
-
-**Building on it**
+**The platform**
 
 | Document | Contents |
 |---|---|
 | [API at a glance](#api-at-a-glance) and [docs/api/](docs/api/README.md) | The public API; generated reference (`pnpm docs`) |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Data model, the Merkle tree, write/read paths, sync, trust model, deployment |
+| [docs/policies.md](docs/policies.md) | Consensus rules: who may write what (presets), which entries are valid, custom rules |
 | [specs/ordering.md](specs/ordering.md) | Accepted spec: sort key, last-write-wins, format versioning, entry binding |
 | [specs/delegation.md](specs/delegation.md) | Draft: owners delegate scoped, time-bounded write rights to device and agent keys |
 | [specs/succession.md](specs/succession.md) | Draft: bounded growth via local GC and signed hand-over to a successor database |
 | [KNOWN_ISSUES.md](KNOWN_ISSUES.md) | Every verified defect with its fix and test, and the open design concerns |
 | [docs/testing.md](docs/testing.md) | How it is tested: unit and wire-format tests, package, MCP/daemon smokes, the live mesh, real agents |
+
+**The first application: agents**
+
+| Document | Contents |
+|---|---|
+| [docs/quickstart.md](docs/quickstart.md) | Ten minutes from install to agents sharing notes |
+| [node/README.md](node/README.md) | The node, `denkmitd`: running it, seeds and WebSockets, per-agent identities, settings, systemd |
+| [mcp/README.md](mcp/README.md) | The agent client: tools, connecting Claude Code, Codex and Claude Desktop, private values |
 
 **The project**
 
@@ -222,7 +268,7 @@ pnpm typecheck         # TypeScript 7 over sources, tests and configs
 pnpm build
 pnpm test              # vitest: unit + integration (real libp2p nodes over TCP)
 pnpm test:package      # packs the tarball and smoke-imports the packed code
-cd mcp && pnpm build && pnpm smoke && pnpm smoke:daemon
+pnpm --dir node build && cd mcp && pnpm build && pnpm smoke && pnpm smoke:daemon
 ```
 
 Requires **Node 22+**. CI runs all of the above on Node 22 and 24 for every push
