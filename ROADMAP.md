@@ -32,15 +32,21 @@ Done since 3.0.0 (all in 4.0.0 / MCP 0.3.0, ready to publish):
 Next, in order:
 
 1. **npm publish** of 4.0.0 / MCP 0.3.0.
-2. **Delegation** phase 2–3: owner-signed certificates so other parties see the
+2. **Agent messaging and change feed (4.1):** a change feed in the library, a
+   daemon journal with cursors, addressed messages as signed records in the
+   sender's own area, daemon-written cards, local contacts and `codex@lab`
+   addresses, a `denkmit` CLI, and turn-boundary hooks for Claude Code and Codex
+   ("pull with a doorbell"). No format change (`specs/messaging.md`, draft;
+   [review 2026-11](docs/review-2026-11.md) §4).
+3. **Delegation** phase 2–3: owner-signed certificates so other parties see the
    owner behind device and agent keys (`specs/delegation.md`, draft). Candidate
    for the certificates' restrictions: the UCAN 1.0 policy language (predicates
    over IPLD with jq-style selectors) once 1.0 is final — see below.
-3. **Discovery and reachability, peer-to-peer only:** peer discovery by database
+4. **Discovery and reachability, peer-to-peer only:** peer discovery by database
    address over a DHT and NAT traversal through libp2p relays. (The HTTP
    head-rendezvous idea in "Post-v2" below is withdrawn as a central component.)
-4. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
-5. **Policy languages** (policy `version` = language version; decided 2026-11-09):
+5. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
+6. **Policy languages** (policy `version` = language version; decided 2026-11-09):
    - Before the first port: `specs/policy-language.md` for DenkMit Logic 1 and
      language-neutral test vectors, built from the community JSON Logic suite
      ([json-logic/compat-tables](https://github.com/json-logic/compat-tables))
