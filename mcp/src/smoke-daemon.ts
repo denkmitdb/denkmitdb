@@ -389,11 +389,16 @@ try {
     assert((await exitCode(second)) === 1, "a second daemon on the same socket must refuse to start");
     console.log("a second daemon refuses to start");
 
-    await b.close();
+    // b stays open across the restart: the thin client must reconnect and
+    // re-initialize the session by itself, so the agent keeps its tools.
     daemon.kill("SIGTERM");
     assert((await exitCode(daemon)) === 0, "daemon must shut down cleanly");
     daemon = startDaemon();
     await waitForSocket();
+    const survived = firstText(await b.callTool({ name: "memory_get", arguments: { key } })) as { found: boolean };
+    assert(survived.found, "a client open across a daemon restart must keep working (thin client reconnects)");
+    await b.close();
+    console.log("an agent's client survives a daemon restart (reconnect + session replay)");
     const c = await client("c");
     const after = firstText(await c.callTool({ name: "memory_get", arguments: { key } })) as {
         found: boolean;

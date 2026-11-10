@@ -14,32 +14,10 @@
  * `DENKMIT_DAEMON=auto` (default) picks the daemon when present, `off` forces
  * embedded, `require` fails instead of falling back. See mcp/README.md.
  */
-import { connect, type Socket } from "node:net";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { agentSocketPath, configFromEnv, socketPath, startMemoryNode } from "./node.js";
+import { relay, tryConnect } from "./relay.js";
 import { createMemoryServer } from "./tools.js";
-
-/** Connects to the daemon socket, or resolves undefined when nothing listens there. */
-function tryConnect(path: string): Promise<Socket | undefined> {
-    return new Promise((resolve) => {
-        const socket = connect(path);
-        socket.once("connect", () => resolve(socket));
-        socket.once("error", () => resolve(undefined));
-    });
-}
-
-/** Pipes this process's stdio to the daemon until either side closes. */
-function relay(socket: Socket, path: string): void {
-    console.error(`[denkmit-mcp] using the denkmitd daemon at ${path}`);
-    process.stdin.pipe(socket);
-    socket.pipe(process.stdout);
-    process.stdin.once("end", () => socket.end());
-    socket.once("close", () => process.exit(0));
-    socket.once("error", (error) => {
-        console.error(`[denkmit-mcp] daemon connection failed: ${error.message}`);
-        process.exit(1);
-    });
-}
 
 async function runEmbedded(): Promise<void> {
     const config = configFromEnv(process.env);
@@ -106,7 +84,8 @@ try {
 }
 const socket = mode === "off" ? undefined : await tryConnect(path);
 if (socket) {
-    relay(socket, path);
+    // Survives daemon restarts: reconnects and re-initializes the session (relay.ts).
+    relay(socket, path, process.stdin, process.stdout, { onEnd: () => process.exit(0) });
 } else if (mode === "require") {
     console.error(
         agent

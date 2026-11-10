@@ -64,6 +64,13 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
 
 ### Fixed
 
+- **Agents keep their memory tools across daemon restarts.** The thin client
+  (`denkmit-mcp`) exited when the daemon's socket closed, so every daemon restart
+  or update silently took the memory tools away from every running agent until
+  `/mcp` or a restart. It now reconnects, replays the session's `initialize` to
+  the new daemon session itself, and answers requests that were in flight when
+  the daemon went away with an error to retry; requests sent while it is away wait
+  up to 15 s. `smoke:daemon` keeps a client open across a restart.
 - **Peers in `DENKMIT_PEERS` stay connected.** They were dialed once at start: a
   connection lost later (a laptop that slept, a changed network, a restarted
   seed) was never restored, and a peer that was down at start was never reached,
