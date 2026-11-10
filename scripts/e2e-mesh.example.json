@@ -1,0 +1,5 @@
+[
+    { "name": "seed", "ssh": "local", "agent": "claude-code" },
+    { "name": "lab", "ssh": "lab.example.org", "agent": "codex", "nodeBin": "$HOME/.local/opt/node/bin" },
+    { "name": "home", "ssh": "you@home-machine", "agent": "desktop", "nodeBin": "$HOME/.local/opt/node/bin" }
+]
