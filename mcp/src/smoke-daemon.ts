@@ -7,6 +7,7 @@
  *
  * Run: `pnpm build && pnpm smoke:daemon`.
  */
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { connect } from "node:net";
@@ -390,13 +391,19 @@ try {
     console.log("a second daemon refuses to start");
 
     // b stays open across the restart: the thin client must reconnect and
-    // re-initialize the session by itself, so the agent keeps its tools.
+    // re-initialize the session by itself, so the agent keeps its tools, and tell
+    // the agent to refetch the tool list (a newer daemon may have changed it).
+    let toolsChanged = false;
+    b.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+        toolsChanged = true;
+    });
     daemon.kill("SIGTERM");
     assert((await exitCode(daemon)) === 0, "daemon must shut down cleanly");
     daemon = startDaemon();
     await waitForSocket();
     const survived = firstText(await b.callTool({ name: "memory_get", arguments: { key } })) as { found: boolean };
     assert(survived.found, "a client open across a daemon restart must keep working (thin client reconnects)");
+    assert(toolsChanged, "after reconnecting, the thin client must send notifications/tools/list_changed");
     await b.close();
     console.log("an agent's client survives a daemon restart (reconnect + session replay)");
     const c = await client("c");
