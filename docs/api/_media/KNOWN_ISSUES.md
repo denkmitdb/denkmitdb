@@ -1,6 +1,8 @@
 # Known Issues
 
-Status as of November 2026 (4.0.0: the review fixes #24–#32 included). Each item is tagged:
+Status as of November 2026 (4.0.0: the review fixes #24–#32 and the deployment fixes #33–#34 included).
+New problems are tracked as [GitHub issues](https://github.com/denkmitdb/denkmitdb/issues); verified defects
+also get an entry here, with the cause, the fix and the regression test. Each item is tagged:
 
 - **✅ Fixed** — resolved and covered by a test (formerly an `it.fails` pin where noted).
 - **◻️ Open** — still present; scheduled in [ROADMAP.md](ROADMAP.md).
@@ -258,8 +260,34 @@ block-size limits), and policies cannot see value size yet (VISION.md, policy
 inputs). Signed text from another agent remains potential prompt-injection content;
 attribution makes it visible, not safe.
 
+### 33. ✅ [High] The daemon dialed `DENKMIT_PEERS` only once ([issue #26](https://github.com/denkmitdb/denkmitdb/issues/26))
+A connection to a configured peer that was lost later — a laptop that slept, a
+changed network, a restarted seed — was never restored, and a peer that was down
+when the daemon started was never reached. A replica could silently fall behind: the
+MacBook node sat at 15 of 19 records with no connection although the seed was
+reachable. **Fixed (#22):** the daemon redials every configured peer without a
+connection every `DENKMIT_REDIAL_SECONDS` (default 30) and within ~2 s of a
+disconnect, logging only state changes. `smoke:daemon` restarts the seed (which does
+not know the peer) and requires the peer to reconnect by itself; the check fails on
+the old code.
+
+### 34. ✅ [Medium] Agents lost their memory tools whenever the daemon restarted ([issue #27](https://github.com/denkmitdb/denkmitdb/issues/27))
+The thin client (`denkmit-mcp`) piped stdio to the daemon socket and exited when the
+socket closed, so every daemon restart or update took the memory tools away from
+every running agent until `/mcp` or a restart — found by the first integration test
+between Claude Code sessions on different machines. **Fixed (#25):** `mcp/src/relay.ts`
+reconnects and replays the session's `initialize` / `notifications/initialized` to the
+new daemon session itself; requests in flight at the drop get a JSON-RPC error to
+retry, and requests sent while the daemon is away wait up to 15 s. `smoke:daemon`
+keeps a client open across a restart (the old client fails with `Not connected`).
+
 ## Packaging & tooling
 
+- **✅ [Fixed 4.0.0] `npx -y @denkmitdb/mcp` could not start the server**
+  ([issue #28](https://github.com/denkmitdb/denkmitdb/issues/28)) — the package has two
+  commands and none is named after it. The docs run the installed `denkmit-mcp`
+  (`npx -y --package=@denkmitdb/mcp denkmit-mcp` without a global install); the quick
+  start is rehearsed on the packed tarballs.
 - **✅ [Fixed 0.5] Broken ESM output** — NodeNext resolution with explicit `.js`
   specifiers; guarded by `scripts/package-smoke.mjs` in CI.
 - **✅ [Fixed 0.5] Stale hand-written type declarations** — removed; `types` points
@@ -284,13 +312,15 @@ rejected, public opt-in, no local override). Remaining for later: dynamic/allow-
 ACLs (post-v2), and a cheap `kid` prefilter before identity fetch (D6). The
 world-writable *default* is gone — it's now an explicit opt-in.
 
-### D2. ✅ Renamed: policies, not "consensus"
-The public API now says what the thing is: `PolicyController` (a deterministic
-json-logic rule evaluator), `createPolicy`/`fetchPolicy`, `PolicyData`/
-`PolicyInterface`, and the database wires a **validation policy** (`manifest.consensus`)
-and an **access policy** (`manifest.access`). Wire-format field names are unchanged
-(no manifest version bump needed). Nodes still never agree collectively — that
-honest scope is documented in ROADMAP ("out of scope: BFT consensus").
+### D2. ✅ "Consensus" names the consensus rules — nothing more
+In 4.0.0, `consensus` means what it means for a blockchain's consensus rules: the
+rules every replica enforces identically, `consensus.access` (who may write) and
+`consensus.validity` (which authorized entries are valid), both deterministic
+policies in DenkMit Logic 1, signed into the manifest. It does not mean a voting
+protocol: nodes never agree collectively and there is no finality — replicas
+converge by deterministic last-write-wins (ROADMAP: "out of scope: BFT consensus").
+Wire field names are unchanged: the manifest keeps `access` and `consensus` (the
+validity rule); manifest v3 can give the wire the same `{ access, validity }` shape.
 
 ### D3. ◻️ Wall-clock ordering (fast-clock trade-off, accepted for v2)
 Ordering uses wall-clock timestamps with the entry-CID tie-break (a deterministic
