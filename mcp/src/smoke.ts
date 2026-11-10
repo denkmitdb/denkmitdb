@@ -9,6 +9,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Provenance } from "@denkmitdb/denkmitdb";
+import { readAttributed } from "./read.js";
 
 const dataDir = mkdtempSync(join(tmpdir(), "denkmit-mcp-smoke-"));
 const serverPath = join(dirname(fileURLToPath(import.meta.url)), "index.js");
@@ -22,6 +24,36 @@ function firstText(result: unknown): unknown {
     const block = content?.find((c) => c.type === "text");
     assert(block?.text, "tool returned no text content");
     return JSON.parse(block.text);
+}
+
+// KNOWN_ISSUES #35: a replacement indexed between reading a value and its
+// provenance must not label the old value with the new writer. The fake source
+// swaps its record right after serving a value, as a concurrent merge would.
+{
+    const cid = (name: string) => ({ equals: (other: { name?: string }) => other.name === name, name, toString: () => name });
+    const records = [
+        { entryCid: cid("entry-1"), writer: cid("writer-old"), timestamp: 1, deleted: false, value: "old" },
+        { entryCid: cid("entry-2"), writer: cid("writer-new"), timestamp: 2, deleted: false, value: "new" },
+    ];
+    const racing = () => {
+        let current = 0;
+        return {
+            provenance: async () => records[current] as unknown as Provenance,
+            get: async () => {
+                const value = records[current].value;
+                current = 1; // the replacement lands while the value is in flight
+                return value;
+            },
+        };
+    };
+    const naive = racing();
+    const naiveValue = await naive.get();
+    const naiveWriter = (await naive.provenance()).writer.toString();
+    assert(naiveValue === "old" && naiveWriter === "writer-new", "the fake source should reproduce the race");
+
+    const read = await readAttributed(racing(), "k");
+    assert(read?.value === "new", `expected the new value, got ${String(read?.value)}`);
+    assert(read.record.writer.toString() === "writer-new", "value and writer must come from the same entry");
 }
 
 const transport = new StdioClientTransport({

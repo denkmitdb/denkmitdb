@@ -475,10 +475,14 @@ export class DenkmitDatabase<T> implements Database<T> {
             throw new DenkmitError("ACCESS_DENIED", `Access denied: this identity may not write key "${key}" in this database`);
         }
 
-        const entry = await createEntry<T>(key, value, signer, this.manifest.cid);
-        if (!(await this.isValid(entry))) {
+        // The validity rule sees only the timestamp, writer, key and operation, all
+        // known before signing: evaluate it on exactly the entry about to be signed,
+        // so a rejected write leaves no block behind either (KNOWN_ISSUES.md #36).
+        const timestamp = Date.now();
+        if (!(await this.isValid({ timestamp, creator: signer.identity.cid, key }))) {
             throw new DenkmitError("VALIDITY_REJECTED", `The validity rule rejects this entry for key "${key}"`);
         }
+        const entry = await createEntry<T>(key, value, signer, this.manifest.cid, timestamp);
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator);
         // A concurrently-known entry with a greater composite key already wins.
@@ -508,10 +512,12 @@ export class DenkmitDatabase<T> implements Database<T> {
             throw new DenkmitError("ACCESS_DENIED", `Access denied: this identity may not delete key "${key}" in this database`);
         }
 
-        const entry = await createTombstone(key, signer, this.manifest.cid);
-        if (!(await this.isValid(entry))) {
+        // Validity before signing, as in set() (KNOWN_ISSUES.md #36).
+        const timestamp = Date.now();
+        if (!(await this.isValid({ timestamp, creator: signer.identity.cid, key, deleted: true }))) {
             throw new DenkmitError("VALIDITY_REJECTED", `The validity rule rejects this entry for key "${key}"`);
         }
+        const entry = await createTombstone(key, signer, this.manifest.cid, timestamp);
 
         const result = await this.sortedItemsStore.set(entry.timestamp, key, entry.cid, entry.creator, true);
         if (!result.applied) return;

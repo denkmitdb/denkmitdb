@@ -30,17 +30,20 @@ function toEntry<T>(signed: Signed<EntryPayload<T>>): Entry<T> {
  *   into the signed payload so the entry cannot be replayed into another database
  *   (KNOWN_ISSUES.md #24). Omitting it produces a legacy v1 entry, which only
  *   legacy (v1-manifest) databases accept.
+ * @param timestamp - The write time to sign (default: now). Lets a caller evaluate
+ *   rules on the exact entry before it is signed and stored.
  */
 export async function createEntry<T>(
     key: string,
     value: T,
     controller: HeliaController,
     manifest?: CID,
+    timestamp: number = Date.now(),
 ): Promise<Entry<T>> {
     log("Creating entry with key, value:", { key, value });
     const data: PutPayload<T> = manifest
-        ? { version: ENTRY_VERSION, manifest, timestamp: Date.now(), key, value }
-        : { version: LEGACY_ENTRY_VERSION, timestamp: Date.now(), key, value };
+        ? { version: ENTRY_VERSION, manifest, timestamp, key, value }
+        : { version: LEGACY_ENTRY_VERSION, timestamp, key, value };
     return toEntry(await controller.addSigned(data));
 }
 
@@ -51,12 +54,18 @@ export async function createEntry<T>(
  * @param key - The key to delete.
  * @param controller - Signs with its identity.
  * @param manifest - The database address to bind the tombstone to (see createEntry).
+ * @param timestamp - The write time to sign (default: now; see createEntry).
  */
-export async function createTombstone(key: string, controller: HeliaController, manifest?: CID): Promise<Entry<never>> {
+export async function createTombstone(
+    key: string,
+    controller: HeliaController,
+    manifest?: CID,
+    timestamp: number = Date.now(),
+): Promise<Entry<never>> {
     log("Creating tombstone for key:", { key });
     const data: TombstonePayload = manifest
-        ? { version: ENTRY_VERSION, manifest, timestamp: Date.now(), key, deleted: true }
-        : { version: LEGACY_ENTRY_VERSION, timestamp: Date.now(), key, deleted: true };
+        ? { version: ENTRY_VERSION, manifest, timestamp, key, deleted: true }
+        : { version: LEGACY_ENTRY_VERSION, timestamp, key, deleted: true };
     return toEntry<never>(await controller.addSigned(data));
 }
 
