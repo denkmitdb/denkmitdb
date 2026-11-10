@@ -14,7 +14,7 @@
  * user can connect, so no token is needed. Nothing but libp2p listens on the
  * network.
  *
- * Run: `DENKMIT_PASSPHRASE=… denkmitd` (see mcp/README.md and mcp/systemd/).
+ * Run: `DENKMIT_PASSPHRASE=… denkmitd` (see node/README.md and node/systemd/).
  */
 import { chmod, mkdir, unlink } from "node:fs/promises";
 import { connect, createServer, type Socket } from "node:net";

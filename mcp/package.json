@@ -1,17 +1,15 @@
 {
     "name": "@denkmitdb/mcp",
     "version": "0.3.0",
-    "description": "MCP server exposing DenkMitDB as shared, signed, syncable agent memory",
+    "description": "MCP thin client for denkmitd: gives Claude Code, Codex, Claude Desktop and other MCP clients shared, signed agent memory on DenkMitDB",
     "type": "module",
     "bin": {
-        "denkmit-mcp": "dist/index.js",
-        "denkmitd": "dist/daemon.js"
+        "denkmit-mcp": "dist/index.js"
     },
     "main": "./dist/index.js",
     "files": [
         "dist",
-        "src",
-        "systemd"
+        "src"
     ],
     "engines": {
         "node": ">=22"
@@ -25,28 +23,17 @@
     },
     "author": "Askar Zhakenov <askar@zhakenov.pro>",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/denkmitdb/denkmitdb.git",
+        "directory": "mcp"
+    },
     "dependencies": {
-        "@chainsafe/libp2p-noise": "^17.0.0",
-        "@chainsafe/libp2p-yamux": "^8.0.1",
-        "@denkmitdb/denkmitdb": "workspace:^",
-        "@helia/bitswap": "^4.0.20",
-        "@helia/libp2p": "^2.1.5",
-        "@ipld/dag-cbor": "^10.0.2",
-        "@libp2p/floodsub": "^11.1.1",
-        "@libp2p/identify": "^4.1.18",
-        "@libp2p/mdns": "^12.0.36",
-        "@libp2p/tcp": "^11.0.32",
-        "@libp2p/websockets": "^10.1.25",
-        "@modelcontextprotocol/sdk": "^1.32.2",
-        "@multiformats/multiaddr": "^13.0.3",
-        "blockstore-fs": "^4.0.1",
-        "datastore-fs": "^12.0.1",
-        "helia": "^7.1.16",
-        "libp2p": "^3.5.1",
-        "multiformats": "^14.0.5",
-        "zod": "^4.6.7"
+        "@denkmitdb/node": "workspace:^",
+        "@modelcontextprotocol/sdk": "^1.32.2"
     },
     "devDependencies": {
+        "@denkmitdb/denkmitdb": "workspace:^",
         "@types/node": "^26.6.6",
         "@typescript/native": "npm:typescript@^7.0.2"
     },

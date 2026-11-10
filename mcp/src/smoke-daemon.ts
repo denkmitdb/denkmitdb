@@ -18,6 +18,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
+/** The denkmitd binary of @denkmitdb/node (this package depends on it). */
+const daemonPath = fileURLToPath(import.meta.resolve("@denkmitdb/node/daemon"));
 const dataDir = mkdtempSync(join(tmpdir(), "denkmit-daemon-"));
 const socket = join(dataDir, "denkmitd.sock");
 const daemonEnv = {
@@ -41,7 +43,7 @@ function firstText(result: unknown): unknown {
 }
 
 function startDaemon(env: NodeJS.ProcessEnv = daemonEnv): ChildProcess {
-    return spawn(process.execPath, [join(here, "daemon.js")], { env, stdio: ["ignore", "ignore", "pipe"] });
+    return spawn(process.execPath, [daemonPath], { env, stdio: ["ignore", "ignore", "pipe"] });
 }
 
 function exitCode(child: ChildProcess, timeoutMs = 30_000): Promise<number | null> {
