@@ -281,6 +281,24 @@ new daemon session itself; requests in flight at the drop get a JSON-RPC error t
 retry, and requests sent while the daemon is away wait up to 15 s. `smoke:daemon`
 keeps a client open across a restart (the old client fails with `Not connected`).
 
+## Open (review 2026-11, [docs/review-2026-11.md](docs/review-2026-11.md))
+
+### 35. ◻️ [Medium] `memory_get` / `memory_list` can label an old value with a newer writer ([issue #40](https://github.com/denkmitdb/denkmitdb/issues/40))
+Both tools read the value (`db.get`) and then the provenance (`db.provenance`) in two
+separate awaits (`mcp/src/tools.ts`, `memory_get` and `memory_list`). A replacement
+indexed in between — a local write or a merged remote entry — makes the tool return the
+old value with the new writer and `writtenAt`. **Fix planned:** resolve the winning
+entry once and fetch the value by its entry CID; regression test interleaves a
+replacement between the two reads.
+
+### 36. ◻️ [Low] A write rejected by the validity rule leaves a signed, pinned block ([issue #41](https://github.com/denkmitdb/denkmitdb/issues/41))
+`set` and `delete` check the access rule before signing, but the validity rule only
+after `createEntry` / `createTombstone` has signed, stored and pinned the block
+(`src/database.ts`). Every `VALIDITY_REJECTED` write leaves an unreferenced block
+locally; it is never announced or replicated. **Fix planned:** evaluate validity on the
+would-be payload before storing, or unpin on rejection; regression test asserts an
+unchanged pin set.
+
 ## Packaging & tooling
 
 - **✅ [Fixed 4.0.0] `npx -y @denkmitdb/mcp` could not start the server**

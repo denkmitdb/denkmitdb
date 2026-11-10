@@ -197,6 +197,7 @@ Ask an agent there:
 | The other machine sees nothing | Both show the same memory address in `memory_status`? Is the first machine reachable at the peer address (firewall, port 4001)? Give it a minute. |
 | A value is rejected as too large | The default limit is 64 KiB per note (`DENKMIT_MAX_VALUE_BYTES`). |
 | Your network allows only HTTPS (a corporate firewall; dialing port 4001 times out) | Dial the seed's WebSockets address on 443 instead: `DENKMIT_PEERS=/dns4/<seed>/tcp/443/tls/ws/p2p/12D3Koo…` (the seed needs a TLS proxy — see [mcp/README.md](../mcp/README.md#3-share-one-memory-across-machines)). |
+| After a daemon upgrade, Codex doesn't see a new tool or field | Codex (0.166) doesn't act on the server's `tools/list_changed` yet (its `mcp_tool_list_changed` feature is off): start a new Codex session. Claude Code refreshes by itself. |
 | Port 4001 is already in use | Another daemon is running, or set `DENKMIT_LISTEN=/ip4/0.0.0.0/tcp/4002`. |
 
 ## Next
