@@ -1,7 +1,7 @@
 # denkmitd as a systemd *user* service — one long-lived DenkMitDB peer per user.
 #
 # Install:
-#   npm install -g @denkmitdb/mcp            # provides the `denkmitd` binary
+#   npm install -g @denkmitdb/node           # provides the `denkmitd` binary
 #   mkdir -p ~/.config/denkmit ~/.config/systemd/user
 #   cp denkmitd.env.example ~/.config/denkmit/denkmitd.env && chmod 600 ~/.config/denkmit/denkmitd.env
 #   cp denkmitd.service ~/.config/systemd/user/

@@ -15,11 +15,12 @@ You don't need to know how it works inside. If you're curious later, see the
 
 ## 1. Start the memory on your machine
 
-Install the package and start the background process, `denkmitd`. It holds this
-machine's key, keeps the memory, and syncs with other machines.
+Install the two packages and start the background process, `denkmitd` (the
+DenkMitDB node). It holds this machine's key, keeps the memory, and syncs with
+other machines; `denkmit-mcp` connects your agents to it.
 
 ```bash
-npm install -g @denkmitdb/mcp
+npm install -g @denkmitdb/node @denkmitdb/mcp
 
 printf 'Choose a passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
 export DENKMIT_PASSPHRASE
@@ -49,7 +50,7 @@ Two lines matter later, when you add another machine:
 
 Leave this terminal open — the memory runs as long as it does. Press Ctrl+C to
 stop it; your notes stay on disk. (To keep it running in the background and after
-reboots, see [Run it as a service](../mcp/README.md#run-the-daemon-as-a-service).)
+reboots, see [Run it as a service](../node/README.md#run-the-daemon-as-a-service).)
 
 ## 2. Connect your agents
 
@@ -135,11 +136,11 @@ More prompts that work well:
 
 ## 4. Add another machine — or a friend's agents
 
-On the other machine, install the package (step 1) and start the daemon with
+On the other machine, install the packages (step 1) and start the daemon with
 **its own passphrase**, pointing it at your memory and at your machine:
 
 ```bash
-npm install -g @denkmitdb/mcp
+npm install -g @denkmitdb/node @denkmitdb/mcp
 printf 'Choose a passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
 export DENKMIT_PASSPHRASE
 
@@ -168,7 +169,7 @@ Ask an agent there:
 - Across the internet: the first machine needs a public address and TCP port
   `4001` open in its firewall. A small always-on server works well as the meeting
   point for everyone (a "seed" — see
-  [Share one memory across machines](../mcp/README.md#3-share-one-memory-across-machines)).
+  [Share one database across machines](../node/README.md#share-one-database-across-machines)).
 - Machines behind home routers can't yet find each other automatically; let them
   both connect to a seed.
 
@@ -196,7 +197,7 @@ Ask an agent there:
 | `Access denied: this identity may not write key …` | Write in your own area: the agent's `memory_status` shows it under `access.ownNamespace`. |
 | The other machine sees nothing | Both show the same memory address in `memory_status`? Is the first machine reachable at the peer address (firewall, port 4001)? Give it a minute. |
 | A value is rejected as too large | The default limit is 64 KiB per note (`DENKMIT_MAX_VALUE_BYTES`). |
-| Your network allows only HTTPS (a corporate firewall; dialing port 4001 times out) | Dial the seed's WebSockets address on 443 instead: `DENKMIT_PEERS=/dns4/<seed>/tcp/443/tls/ws/p2p/12D3Koo…` (the seed needs a TLS proxy — see [mcp/README.md](../mcp/README.md#3-share-one-memory-across-machines)). |
+| Your network allows only HTTPS (a corporate firewall; dialing port 4001 times out) | Dial the seed's WebSockets address on 443 instead: `DENKMIT_PEERS=/dns4/<seed>/tcp/443/tls/ws/p2p/12D3Koo…` (the seed needs a TLS proxy — see [node/README.md](../node/README.md#share-one-database-across-machines)). |
 | After a daemon upgrade, Codex doesn't see a new tool or field | Codex (0.166) doesn't act on the server's `tools/list_changed` yet (its `mcp_tool_list_changed` feature is off): start a new Codex session. Claude Code refreshes by itself. |
 | Port 4001 is already in use | Another daemon is running, or set `DENKMIT_LISTEN=/ip4/0.0.0.0/tcp/4002`. |
 

@@ -1,7 +1,7 @@
 # Release notes draft: v4.0.0
 
-> Draft for the GitHub release of `v4.0.0` (`@denkmitdb/denkmitdb` 4.0.0 and
-> `@denkmitdb/mcp` 0.3.0). The full list is in [CHANGELOG.md](../../CHANGELOG.md).
+> Draft for the GitHub release of `v4.0.0` (`@denkmitdb/denkmitdb` 4.0.0,
+> `@denkmitdb/node` 0.3.0 and `@denkmitdb/mcp` 0.3.0). The full list is in [CHANGELOG.md](../../CHANGELOG.md).
 
 **DenkMitDB 4.0.0: signed fact exchange between agents that don't trust each
 other — peer to peer, no server.** The first release built around that focus: a

@@ -307,9 +307,9 @@ the old code).
 
 - **✅ [Fixed 4.0.0] `npx -y @denkmitdb/mcp` could not start the server**
   ([issue #28](https://github.com/denkmitdb/denkmitdb/issues/28)) — the package has two
-  commands and none is named after it. The docs run the installed `denkmit-mcp`
-  (`npx -y --package=@denkmitdb/mcp denkmit-mcp` without a global install); the quick
-  start is rehearsed on the packed tarballs.
+  commands and none is named after it. Since the split into `@denkmitdb/node`
+  (`denkmitd`) and `@denkmitdb/mcp` (`denkmit-mcp` only), `npx -y @denkmitdb/mcp`
+  starts the client directly; the quick start is rehearsed on the packed tarballs.
 - **✅ [Fixed 0.5] Broken ESM output** — NodeNext resolution with explicit `.js`
   specifiers; guarded by `scripts/package-smoke.mjs` in CI.
 - **✅ [Fixed 0.5] Stale hand-written type declarations** — removed; `types` points

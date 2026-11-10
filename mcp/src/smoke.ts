@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Provenance } from "@denkmitdb/denkmitdb";
-import { readAttributed } from "./read.js";
+import { readAttributed } from "@denkmitdb/node";
 
 const dataDir = mkdtempSync(join(tmpdir(), "denkmit-mcp-smoke-"));
 const serverPath = join(dirname(fileURLToPath(import.meta.url)), "index.js");

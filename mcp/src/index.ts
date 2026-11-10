@@ -15,9 +15,8 @@
  * embedded, `require` fails instead of falling back. See mcp/README.md.
  */
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { agentSocketPath, configFromEnv, socketPath, startMemoryNode } from "./node.js";
+import { agentSocketPath, configFromEnv, createMemoryServer, socketPath, startMemoryNode } from "@denkmitdb/node";
 import { relay, tryConnect } from "./relay.js";
-import { createMemoryServer } from "./tools.js";
 
 async function runEmbedded(): Promise<void> {
     const config = configFromEnv(process.env);

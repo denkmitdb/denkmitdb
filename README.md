@@ -35,7 +35,7 @@ truth.
 ```
 
 ```bash
-npm install -g @denkmitdb/mcp
+npm install -g @denkmitdb/node @denkmitdb/mcp
 printf 'Passphrase (typing is hidden): '; stty -echo; read -r DENKMIT_PASSPHRASE; stty echo; echo
 export DENKMIT_PASSPHRASE
 DENKMIT_ACCESS=namespace-per-writer denkmitd          # keeps running: leave this terminal open

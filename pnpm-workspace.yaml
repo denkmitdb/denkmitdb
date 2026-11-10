@@ -1,4 +1,5 @@
 packages:
+    - "node"
     - "mcp"
 
 # pnpm >= 10 does not run dependency install scripts unless allowed here.

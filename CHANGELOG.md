@@ -2,11 +2,27 @@
 
 ## [4.0.0] — unreleased
 
-To be published as `@denkmitdb/denkmitdb@4.0.0` and `@denkmitdb/mcp@0.3.0`. **Major
+To be published as `@denkmitdb/denkmitdb@4.0.0`, `@denkmitdb/node@0.3.0` and
+`@denkmitdb/mcp@0.3.0`. **Major
 version: the entry and manifest formats change** (entries are bound to their
 database — see "Security & correctness" below). Databases created by 3.0.0 stay
 readable; in a database created by 4.0.0, writes from 3.0.0 nodes are rejected,
 so upgrade every writer before using a new database.
+
+### Packages: the node and the agent client are separate
+
+DenkMitDB is the platform; agent memory is its first application. The packages say so:
+
+| Package | What it is | Commands |
+|---|---|---|
+| `@denkmitdb/denkmitdb` | the library: signed, replicated database with replica-enforced rules | — |
+| `@denkmitdb/node` (new) | the long-lived peer: keys, database, libp2p replication, local API over Unix sockets (MCP), systemd unit | `denkmitd` |
+| `@denkmitdb/mcp` | the agent application: thin client for Claude Code, Codex, Claude Desktop and other MCP clients, plus embedded mode | `denkmit-mcp` |
+
+Install both on a machine that runs agents: `npm install -g @denkmitdb/node @denkmitdb/mcp`.
+The systemd unit moved to `@denkmitdb/node/systemd/`. With one command left,
+`npx -y @denkmitdb/mcp` now starts the client directly
+([#28](https://github.com/denkmitdb/denkmitdb/issues/28)).
 
 ### Public API (breaking; no compatibility aliases)
 
