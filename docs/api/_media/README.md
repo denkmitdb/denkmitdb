@@ -20,9 +20,9 @@ reference.
 | Tool | Purpose |
 |---|---|
 | `memory_set` | Store a JSON value under a key (signed, replicated, size-capped); `encryptFor: [<identity CID>, …]` stores it encrypted |
-| `memory_get` | Read the current value for a key, with its `writer` and `byThisAgent`; encrypted values are decrypted when this node is a recipient |
+| `memory_get` | Read the current value for a key, with its `writer`, `writtenAt` (the signed write time) and `byThisAgent`; encrypted values are decrypted when this node is a recipient |
 | `memory_delete` | Delete a key (signed tombstone; a later set resurrects) |
-| `memory_list` | List entries in write order, optional key prefix + limit (reports `truncated`) |
+| `memory_list` | List entries in write order with `writer` and `writtenAt`, optional key prefix + limit (reports `truncated`) |
 | `memory_provenance` | Who wrote the current record for a key, and when |
 | `memory_status` | Database address, identity, access policy and own namespace, peers, listen addresses |
 
