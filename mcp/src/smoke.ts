@@ -65,16 +65,20 @@ try {
         found: boolean;
         value: { state: string };
         writer: string;
+        writtenAt: string;
         byThisAgent: boolean;
     };
     assert(got.found && got.value.state === "open", "get did not round-trip");
+    const age = Date.now() - Date.parse(got.writtenAt);
+    assert(age >= 0 && age < 120_000, `get must return the signed write time (writtenAt ${got.writtenAt})`);
     assert(got.writer === status.identity.cid && got.byThisAgent, "get should report this agent as the writer");
 
     const list = firstText(
         await client.callTool({ name: "memory_list", arguments: { prefix: "task/" } }),
-    ) as { count: number; entries: Array<{ key: string; byThisAgent: boolean }> };
+    ) as { count: number; entries: Array<{ key: string; byThisAgent: boolean; writtenAt: string }> };
     assert(list.count === 1 && list.entries[0].key === "task/1", "prefix list wrong");
     assert(list.entries[0].byThisAgent, "list should attribute entries to their writer");
+    assert(list.entries[0].writtenAt === got.writtenAt, "list must return the same signed write time as get");
 
     // Value size cap (KNOWN_ISSUES.md #32): over the default 64 KiB is refused, nothing stored.
     const oversized = await client.callTool({
