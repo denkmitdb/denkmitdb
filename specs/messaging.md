@@ -193,8 +193,12 @@ Without `since` it returns only `next` (a starting point), not history.
     reply or receipt of any kind;
   - at most 20 pending messages per unknown identity and 200 in total are indexed;
     beyond that they're only counted.
-- **Contacts change only through the CLI, by a person.** No MCP tool adds, accepts or
-  unblocks: an injected message must not be able to promote its own sender.
+- **Contacts change only by a person**, through the CLI or an MCP elicitation dialog.
+  When the first message from a non-contact arrives, the daemon may ask in a dialog
+  shown to the *user*, not the model: "Accept codex@lab (bafy…)? Yes / No". No MCP
+  tool adds, accepts or unblocks: an injected message must not be able to promote
+  its own sender. The dialog serves people who use only Claude Desktop. Clients
+  without elicitation fall back to the CLI.
 - **Name collisions:** a different CID claiming an accepted name is reported as a
   collision and stays a request.
 - **Invite:** one string replaces copying a database address, a peer address and a
@@ -209,7 +213,9 @@ Without `since` it returns only `next` (a starting point), not history.
 
 - Written explicitly by the recipient (`memory_receipt`), one key per message; the
   recipient is the only writer, so last-writer-wins is safe.
-- Off unless the agent writes one. Nothing is written automatically in 4.1 (§13 Q3).
+- Off unless the agent writes one. The daemon never writes one by itself: an
+  automatic `received` would tell every replica when each agent was active (§13,
+  decision 3).
 - Three states only. `received` means "seen and kept", `done` means "handled; see
   `reply`", `declined` means "won't do it". Task workflow states (`accepted`, `offered`,
   assignment among several takers) are deferred (§12).
@@ -306,13 +312,15 @@ In 4.1:
   elsewhere, and a reference goes in the message.
 - **`expires`** hides expired messages from the inbox and notices locally. It doesn't
   shrink the database.
-- **Optional slots:** a sender may pass `slot: <n>` to reuse
-  `outbox/<recipient>/s<n>` instead of a new id, which bounds its records per
-  recipient. The cost: an unread message can be overwritten, so the inbox shows
-  `superseded` when a slot it hadn't acknowledged changes. It's off by default.
 
-Later: local GC (succession layer A) and a separate messaging database per
-collaboration, once a daemon can hold several databases (review §2.2 item 8).
+Later, once growth is a measured problem (the live database holds about 60 records):
+
+- **Slots:** a sender passes `slot: <n>` to reuse `outbox/<recipient>/s<n>` instead of a
+  new id, which bounds its records per recipient. The cost: an unread message can be
+  overwritten, so the inbox would show `superseded` when a slot it hadn't
+  acknowledged changes.
+- Local GC (succession layer A), and a separate messaging database per collaboration
+  once a daemon can hold several databases (review §2.2 item 8).
 
 ## 11. Compatibility and versioning
 
@@ -338,21 +346,21 @@ collaboration, once a daemon can hold several databases (review §2.2 item 8).
 | Separate intake database for strangers | Denkmail drop box vs. mailbox | needs several databases per daemon |
 | Rotating encryption keys in the card | Denkmail per-user encryption key | key lifecycle work, library support |
 | Verifiable owner part of addresses (`codex@lab.askar`) | delegation | delegation phase 2 |
+| Slots that bound records per recipient | this spec, §10 | growth isn't a measured problem yet |
+| Automatic `received` receipts | Denkmail review | leak each agent's activity to every replica; explicit receipts first |
 
-## 13. Open questions
+## 13. Decisions (2026-11-10)
 
-1. **Contacts without a terminal.** People who use only Claude Desktop can't run the
-   CLI. Is an MCP elicitation dialog (shown to the user, not the model) an acceptable
-   second path to accept a contact?
-2. **Address grammar.** `handle@device`, while the daemon names agent identities
-   `<device>-<agent>`. Keep both, or rename the keychain entries?
-3. **Automatic `received`.** Should the daemon write `received` itself for `request`s
-   from contacts that set `wantReceipt`? It answers "did it arrive?", and it tells every
-   replica when each agent was active.
-4. **Slots.** Ship `slot` in 4.1, or wait until growth is a measured problem?
-5. **First contact from strangers.** Is it a goal for the next six months? If an
-   out-of-band invite is enough, the intake database and the proof-of-work door stay
-   documentation.
+1. **Contacts without a terminal:** a person accepts a contact through the CLI or an
+   MCP elicitation dialog, which the user sees and the model can't answer (§6.4).
+2. **Addresses:** `handle@device` everywhere people and agents see an identity. The
+   keychain keeps its internal `<device>-<agent>` names; nothing is renamed.
+3. **No automatic `received`:** receipts are written only by the agent (§6.5).
+   Revisit if "did it arrive?" turns out to need it.
+4. **Slots: later.** Not in 4.1; revisit when growth is measured (§10).
+5. **No first contact from strangers for now:** invites cover the next six months (own
+   machines plus invited parties). The intake database and the proof-of-work door stay
+   in §12 as documented options.
 
 ## 14. Acceptance for 4.1
 
@@ -366,7 +374,9 @@ collaboration, once a daemon can hold several databases (review §2.2 item 8).
   - the recipient's `notices.unread` becomes 1, and `memory_inbox` shows the message
     with the right writer;
   - a reply with `inReplyTo`; an edited request shows `edited`;
-  - a non-contact's message raises nothing and appears under `denkmit contacts requests`.
+  - a non-contact's message raises nothing and appears under `denkmit contacts requests`;
+  - accepting it through an elicitation dialog makes it a contact, and no tool call
+    can do that.
 - **Hooks:** `denkmit inbox --hook` prints the fixed line and exits in under 1 s with
   the daemon down.
 - **Live mesh:** `scripts/e2e-mesh.mjs` gains a message ring: each node sends to the
