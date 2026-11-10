@@ -31,22 +31,33 @@ Done since 3.0.0 (all in 4.0.0 / MCP 0.3.0, ready to publish):
 
 Next, in order:
 
-1. **npm publish** of 4.0.0 / MCP 0.3.0.
-2. **Agent messaging and change feed (4.1):** a change feed in the library, a
-   daemon journal with cursors, addressed messages as signed records in the
-   sender's own area, daemon-written cards, local contacts and `codex@lab`
-   addresses, a `denkmit` CLI, and turn-boundary hooks for Claude Code and Codex
-   ("pull with a doorbell"). No format change (`specs/messaging.md`, draft;
-   [review 2026-11](docs/review-2026-11.md) §4).
-3. **Delegation** phase 2–3: owner-signed certificates so other parties see the
+1. **npm publish**: `@denkmitdb/denkmitdb` 4.0.0, `@denkmitdb/node` 0.3.0,
+   `@denkmitdb/mcp` 0.3.0.
+2. **Change feed and addressed messages (4.1).** Platform: a change feed in the
+   library; in the node, a journal with cursors, addressed messages as signed
+   records in the sender's own area, cards, local contacts and `handle@device`
+   addresses, and a `denkmit` CLI. Agent binding: MCP tools and turn-boundary hooks
+   for Claude Code and Codex ("pull with a doorbell"). No format change
+   (`specs/messaging.md`, draft; [review 2026-11](docs/review-2026-11.md) §4).
+3. **Platform qualities (4.1):** a node factory exported from the library, so a
+   database runs without hand-wiring ten libp2p packages; a neutral namespace preset
+   for new databases instead of the agent-named `agents/<cid>/` (existing manifests
+   keep theirs); an example that isn't about agents; and `@denkmitdb/node` hosting
+   more than one database.
+4. **MCP 2026-07-28 migration** (after 4.1): `server/discover`, stateless requests,
+   `subscriptions/listen` for list changes, elicitation through `input_required`. We
+   use none of the deprecated features (roots, sampling, logging).
+5. **Delegation** phase 2–3: owner-signed certificates so other parties see the
    owner behind device and agent keys (`specs/delegation.md`, draft). Candidate
    for the certificates' restrictions: the UCAN 1.0 policy language (predicates
    over IPLD with jq-style selectors) once 1.0 is final — see below.
-4. **Discovery and reachability, peer-to-peer only:** peer discovery by database
-   address over a DHT and NAT traversal through libp2p relays. (The HTTP
+6. **Discovery and reachability, peer-to-peer only:** peer discovery by database
+   address over a DHT and NAT traversal through libp2p relays. Relays come first. A DHT
+   must announce a key derived from the database address, never the address itself:
+   reads are ungated, so the address is the read secret (review 2026-11 §2.2 item 10). (The HTTP
    head-rendezvous idea in "Post-v2" below is withdrawn as a central component.)
-5. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
-6. **Policy languages** (policy `version` = language version; decided 2026-11-09):
+7. **Bounded growth:** local GC, then succession (`specs/succession.md`, draft).
+8. **Policy languages** (policy `version` = language version; decided 2026-11-09):
    - Before the first port: `specs/policy-language.md` for DenkMit Logic 1 and
      language-neutral test vectors, built from the community JSON Logic suite
      ([json-logic/compat-tables](https://github.com/json-logic/compat-tables))

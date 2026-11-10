@@ -1,4 +1,4 @@
-# Spec (draft): messaging — change feed, inbox and push for agents
+# Spec (draft): messaging — change feed, addressed messages, and their agent binding
 
 Status: **draft for discussion** (November 2026), targeting 4.1. Nothing here is
 implemented. Sources: the push design of the
@@ -8,6 +8,13 @@ project started (its Merkle tree first appeared there). This draft narrows both 
 purpose; §12 lists what was deferred and why.
 Related: `specs/delegation.md` (owners, §11 daemon sessions), `specs/succession.md`
 (retention), `specs/ordering.md` (signed time), `docs/policies.md`.
+
+**Platform and application.** L1–L3 (§4–§6) are platform mechanisms: the change
+feed belongs to `@denkmitdb/denkmitdb`, the journal, messages, cards and contacts to
+the node (`@denkmitdb/node`), and their record formats (§11) are usable by any
+application — services and devices can send messages too. The MCP tools and the
+hooks (§6.7, §7) are the binding for the first application, AI agents
+(`@denkmitdb/mcp`). Where this spec says "agent", read "identity" for L1–L3.
 
 ## 1. Why
 
@@ -39,7 +46,9 @@ Goals:
 Non-goals (decided, not deferred):
 
 - Live request/response RPC between running agents. That's A2A's job; this is
-  asynchronous handoff for when the other side isn't there.
+  asynchronous handoff for when the other side isn't there. (A2A 1.0 defines no
+  store-and-forward; its push notifications need a webhook the other side can
+  reach.)
 - Delivery guarantees: no exactly-once, no ordering beyond the signed time, no
   queue, no broker, no locks.
 - A global name registry. Under last-writer-wins with writer-chosen clocks,
@@ -54,10 +63,10 @@ Each layer is useful without the next one:
 
 | Layer | Where | What | Useful alone for |
 |---|---|---|---|
-| L1 change feed | library | an event when a record becomes the live winner | any app that reacts to replication |
-| L2 journal | daemon | durable, cursor-addressed history of L1 events | `memory_changes`, "what's new since X" |
-| L3 messages | daemon + convention | outbox keys, card, contacts, inbox index | addressed messages |
-| L4 delivery | clients | notice line, hooks, later wake | getting it in front of the model |
+| L1 change feed | library (platform) | an event when a record becomes the live winner | any app that reacts to replication |
+| L2 journal | node (platform) | durable, cursor-addressed history of L1 events | "what's new since X" for any client |
+| L3 messages | node + record conventions (platform) | outbox keys, card, contacts, inbox index | addressed messages between identities |
+| L4 delivery | agent application | MCP tools, notice field, hooks, later wake | getting it in front of a model |
 
 ## 4. L1 — change feed (library)
 
@@ -209,12 +218,16 @@ Without `since` it returns only `next` (a starting point), not history.
     reply or receipt of any kind;
   - at most 20 pending messages per unknown identity and 200 in total are indexed;
     beyond that they're only counted.
-- **Contacts change only by a person**, through the CLI or an MCP elicitation dialog.
-  When the first message from a non-contact arrives, the daemon may ask in a dialog
-  shown to the *user*, not the model: "Accept codex@lab (bafy…)? Yes / No". No MCP
-  tool adds, accepts or unblocks: an injected message must not be able to promote
-  its own sender. The dialog serves people who use only Claude Desktop. Clients
-  without elicitation fall back to the CLI.
+- **Contacts change only by a person**, through the CLI or an MCP elicitation dialog
+  shown to the *user*, not the model: "Accept codex@lab (bafy…)? Yes / No". A server
+  can't open a dialog by itself: a pending request is put to the user as an
+  elicitation **attached to the next memory tool call** (a server request during the
+  call under MCP 2025-11-25, an `input_required` result under 2026-07-28). At most one
+  dialog per requesting identity; a declined request isn't asked again. No MCP tool
+  adds, accepts or unblocks: an injected message must not be able to promote its own
+  sender. The dialog is meant for people who use only Claude Desktop, but no client's
+  elicitation support is assumed: it is tested per client (§14), and `denkmit
+  contacts accept` is the path wherever a client lacks it.
 - **Name collisions:** a different CID claiming an accepted name is reported as a
   collision and stays a request.
 - **Invite:** one string replaces copying a database address, a peer address and a
@@ -280,6 +293,12 @@ unread inbox messages from contacts, nothing else.
   Commands: `status`, `whoami`, `invite`, `join`, `contacts [requests | accept | block | remove]`,
   `send --to … --subject … --stdin`, `inbox [--hook]`, `changes`, `watch`. Secrets can
   then go through `--stdin` without entering a model's context.
+
+Hook facts (Claude Code docs, checked 2026-11-10): use **command** hooks, not
+`mcp_tool` hooks, which are skipped at launch-time `SessionStart`. Output is capped at
+10,000 characters (ours is one line). `UserPromptSubmit` has a 30 s default timeout
+(our budget is 1 s). Register hooks in `settings.json`, and test the plugin path
+before relying on it.
 
 Not in 4.1: waking an idle session (Claude Code `asyncRewake` / channels,
 `codex queue … --resume`), `memory_wait` long-poll, and starting headless runs on an
@@ -420,12 +439,17 @@ A second implementation is conformant when it agrees on every vector.
   on them. New tools and fields are added; existing ones aren't renamed or removed
   without a deprecation release. After an upgrade, agents refetch the tool list
   (Codex: start a new session, see docs/quickstart.md).
+- **MCP revision:** 4.1 speaks MCP 2025-11-25. Revision 2026-07-28 removes the
+  `initialize` handshake (which the relay replays after a daemon restart), moves
+  `tools/list_changed` to `subscriptions/listen`, and delivers elicitation as an
+  `input_required` result of a tool call. Migration is a separate roadmap item; tool
+  names and result fields don't change with it.
 
 ## 12. Deferred, with reasons
 
 | Item | Source | Why later |
 |---|---|---|
-| Waking idle sessions: Claude Code `asyncRewake` / channels, `codex queue --resume` | review §4 phase 2 | client features are a research preview or untested here; needs L1–L3 first |
+| Waking idle sessions: Claude Code `asyncRewake` / channels, `codex queue --resume` | review §4 phase 2 | client features are a research preview or untested here; Claude Code doesn't register channels when the server negotiates MCP 2026-07-28; needs L1–L3 first |
 | `memory_wait` long-poll | review | holds the agent's turn; hooks cover the need first |
 | Headless run on an event (`claude -p`, `codex exec`) | review phase 3 | remote prompt execution; design it with a sender policy, a read-only sandbox, rate limits and audit, then decide |
 | Task states (`accepted`, `failed`), `offered` and `assign` for broadcast requests, accept-before-execute | Denkmail review, changes 5–6 | the beginning of a workflow engine; wait for unattended runs |
@@ -466,10 +490,12 @@ A second implementation is conformant when it agrees on every vector.
   - a reply with `inReplyTo`; an edited request shows `edited`;
   - a non-contact's message raises nothing and appears under `denkmit contacts requests`;
   - accepting it through an elicitation dialog makes it a contact, and no tool call
-    can do that;
+    can do that; the dialog is raised at most once per requesting identity;
   - `memory_set` / `memory_delete` under `agents/<own cid>/_/` fail with
     `INVALID_ARGUMENT`.
 - **Vectors:** the library and the daemon pass `test/vectors/messaging.json` (§11.5).
+- **Clients:** elicitation is tested in Claude Code, Codex and Claude Desktop; where a
+  client lacks it, the docs point to `denkmit contacts accept`.
 - **Hooks:** `denkmit inbox --hook` prints the fixed line and exits in under 1 s with
   the daemon down.
 - **Live mesh:** `scripts/e2e-mesh.mjs` gains a message ring: each node sends to the
