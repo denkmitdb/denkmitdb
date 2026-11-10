@@ -7,7 +7,9 @@
  * remembers the client's `initialize` request and `notifications/initialized`, and
  * after reconnecting replays them to the daemon itself, swallowing the replayed
  * response, before it lets traffic through again. The agent's MCP client never
- * sees the restart, apart from requests that could not be answered:
+ * sees the restart, apart from requests that could not be answered, and a
+ * `notifications/tools/list_changed` so it refetches tools a newer daemon may have
+ * changed:
  *
  * - requests in flight when the connection dropped get a JSON-RPC error saying the
  *   daemon restarted (the request may or may not have been applied);
@@ -78,6 +80,8 @@ export function relay(first: Socket, path: string, input: Readable, output: Writ
     let ending = false;
     let initialize: string | undefined; // the client's initialize request, verbatim
     let initialized: string | undefined; // its notifications/initialized
+    let initializeId: string | number | undefined; // the client's initialize request id
+    let listChanged = false; // whether the daemon declared tools.listChanged at the first handshake
     let replayCount = 0;
     let replayId: string | undefined; // id of the replayed initialize awaiting its response
     const inFlight = new Map<string | number, NodeJS.Timeout | undefined>(); // request id -> wait timer (queued only)
@@ -96,6 +100,9 @@ export function relay(first: Socket, path: string, input: Readable, output: Writ
             replayId = undefined;
             if (initialized) send(initialized);
             ready = true;
+            // The new daemon may be a newer version with other tools: let the agent
+            // refetch the tool list instead of keeping the schema from its first session.
+            if (listChanged) output.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" }) + "\n");
             for (const queued of queue.splice(0)) {
                 const id = parse(queued)?.id;
                 if (id !== undefined && id !== null) {
@@ -109,6 +116,10 @@ export function relay(first: Socket, path: string, input: Readable, output: Writ
         }
         if (message && (typeof message.id === "string" || typeof message.id === "number") && !("method" in message)) {
             inFlight.delete(message.id); // a response
+            if (message.id === initializeId) {
+                const result = message.result as { capabilities?: { tools?: { listChanged?: boolean } } } | undefined;
+                listChanged = result?.capabilities?.tools?.listChanged === true;
+            }
         }
         output.write(line + "\n");
     });
@@ -162,7 +173,10 @@ export function relay(first: Socket, path: string, input: Readable, output: Writ
         "data",
         lines((line) => {
             const message = parse(line);
-            if (message?.method === "initialize" && initialize === undefined) initialize = line;
+            if (message?.method === "initialize" && initialize === undefined) {
+                initialize = line;
+                initializeId = message.id ?? undefined;
+            }
             if (message?.method === "notifications/initialized" && initialized === undefined) initialized = line;
             if (ready) {
                 if (isRequest(message)) inFlight.set(message.id, undefined);
