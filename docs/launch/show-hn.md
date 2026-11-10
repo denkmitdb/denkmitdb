@@ -27,11 +27,13 @@ What it is: a key-value store on IPFS (Helia) where
   self-certifying key, so `provenance(key)` tells you which key signed the
   current value and when;
 - every replica verifies an entry's signature, its binding to *this* database,
-  and the database's write policy **before** indexing it — a peer can hand you
+  and the database's consensus rules **before** indexing it — a peer can hand you
   anything, and you only keep what the rules allow;
-- the write policy is a json-logic program signed into the database at creation,
-  evaluated identically by every replica on its own writes and on everything it
-  syncs. Presets: creator-only, public, an identity allowlist, and
+- the consensus rules — who may write (access) and which entries are valid
+  (validity) — are small deterministic programs in a closed, versioned subset of
+  JsonLogic, signed into the database at creation and evaluated identically by
+  every replica on its own writes and on everything it syncs. Presets:
+  creator-only, public, an identity allowlist, and
   **namespace-per-writer** — every identity, the creator included, owns exactly
   `agents/<its-key>/…`, so nobody can overwrite or delete anyone else's facts
   (custom rules can also tell puts from deletes);
@@ -72,6 +74,17 @@ the creator acts as a trusted coordinator):
 
 (Paste the full six-act transcript here at submit time.)
 
+It runs today on four machines in four situations — a public server as the
+seed, a second server, a home machine behind NAT, and a laptop behind a
+corporate firewall that allows only HTTPS (the seed also speaks libp2p over
+WebSockets on 443) — with Claude Code, Codex and Claude Desktop agents, each
+signing with its own key. Before launch I ran the same test plan through real
+agent sessions on different machines, using only their memory tools; it found
+three bugs the unit and smoke tests could not (agents losing their tools when
+the daemon restarted, stale tool schemas after an upgrade, agents inventing
+timestamps because the signed write time was not returned), all fixed. A script
+now replays that cross-machine plan against the live nodes in one command.
+
 What it is **not**, honestly:
 
 - A signature proves which key wrote a fact, not that the fact is true, and not
@@ -83,8 +96,9 @@ What it is **not**, honestly:
   (namespace-per-writer makes cross-writer conflicts impossible, which is most
   of why it exists).
 - Peers need to reach each other for sync: direct dial, mDNS on a LAN, or an
-  always-on seed today; discovery by database address over a DHT and libp2p
-  relays are next. A new reader also needs some peer that still holds the blocks.
+  always-on seed today (over TCP or, for HTTPS-only networks, WebSockets on 443);
+  discovery by database address over a DHT and libp2p relays are next. A new
+  reader also needs some peer that still holds the blocks.
 - Reads are not access-controlled: anyone with the database address and a
   reachable peer can replicate it. Encrypt what must stay private.
 - Bulk replication is the slow path: ~10 ms per entry to a fresh peer at 10k
