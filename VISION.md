@@ -1,60 +1,75 @@
-# Vision — where DenkMitDB goes after v2
+# Vision
 
-*Written 2026-08-29. This is the strategic frame for post-v2 work; the mechanics
-live in [ROADMAP.md](ROADMAP.md) ("Post-v2"), open items in
+*First written 2026-08-29; reframed 2026-11-10. This is the strategic frame; the
+mechanics live in [ROADMAP.md](ROADMAP.md), open items in
 [KNOWN_ISSUES.md](KNOWN_ISSUES.md).*
 
-## Focus (November 2026 review)
+## Platform first (November 2026)
 
-An independent review (Codex, Gemini, and a pass over the code) agreed on one
-correction to the framing below: **"agent memory" is the distribution channel,
-not the product.** What DenkMitDB actually is — and is uniquely good at — is an
-*authenticated, replicated key-value map for parties that do not trust each
-other*. Commit to that:
+**DenkMitDB is a platform: an authenticated, replicated key-value database for
+parties that share state but not a server.** Every fact is attributable to a key,
+every writer is confined by rules signed into the database, any replica can check
+both, and no operator is needed. Applications are built on top of it. Shared
+memory for AI agents is the first one, and the one that brings the first users,
+but it doesn't define the platform.
 
-- **The one job:** signed fact exchange between agents or organizations that
-  cannot agree on who runs the database. Every fact attributable to a key,
-  every writer confined by a signed policy (`prefix-per-writer`, allowlists),
-  verifiable by any replica, no server. The demo (`mcp/src/demo.ts`) shows
-  exactly this and nothing else.
-- **Say plainly what it is not:** a general-purpose database (SQLite/Postgres
-  win for one owner), a collaborative-editing engine (Yjs/Automerge win), or a
-  coordination primitive — last-write-wins gives no transactions, leases or
-  compare-and-swap, so do not imply task locking. A signature proves possession
-  of a key, not the truth of a fact or the identity of an organization.
-- **What it implies for the roadmap:** trust-model correctness first (the
-  November fixes, KNOWN_ISSUES.md #24–#29, and the open #30–#32), then
-  reachability — a fresh reader needs a reachable head *and* reachable blocks,
-  so HTTP head rendezvous alone is half of D8 — then delegation (adding writers
-  after creation). Encrypted values come after those.
+Three layers, each with its own package:
 
-The sections below keep their original wording; where they promise more than
-the focus above, the focus wins.
+| Layer | Package | Owns |
+|---|---|---|
+| Platform | `@denkmitdb/denkmitdb`, `specs/`, `test/wire` | Entry, manifest and policy formats, signatures, consensus rules, encryption, sync. Portable: a second implementation in another language must be possible from the specs and vectors alone |
+| Node | `@denkmitdb/node` (`denkmitd`) | A long-lived peer per machine: keys, its database (several later), replication, reachability (seeds, WebSockets, later relays), a local API over Unix sockets |
+| Applications | `@denkmitdb/mcp` (agents) and others | Domain conventions, tools and integrations |
 
-## The wedge: agent memory, not "a database"
+How to place new work:
 
-As a general-purpose distributed database, DenkMitDB competes with OrbitDB (same
-stack, larger community, mostly stagnant), with CRDT libraries (Automerge/Yjs,
-which won local-first mindshare), and ultimately with "just use Postgres." That
-lane is crowded and adoption-hostile; a solo-maintained P2P KV store does not win
-it on database merits.
+- **Mechanisms that any application could use belong to the platform**, with
+  neutral names: change feeds, protocol namespaces, addressed messages, cards,
+  format-stability rules (see `specs/messaging.md`). Agent tools are one binding of
+  them.
+- **The platform knows nothing about its applications.** Dependencies point one
+  way: applications → node → library.
+- **A platform needs platform qualities:** a short path from `npm install` to a
+  running database without hand-wiring libp2p, examples that aren't about agents,
+  language-neutral specs and test vectors, and stable formats.
 
-But the agent-memory space (mem0, Zep, Letta, OpenMemory) is all *centralized
-services with API keys*, and none of them can answer the question that becomes
-critical the moment agents from different owners collaborate: **"who wrote this
-fact, and can I prove it?"** DenkMitDB's core primitives — signed entries,
-self-certifying identities, per-record provenance, deterministic conflict
-resolution, no server — are exactly the missing trust layer. That is not a
-feature gap a centralized competitor fills; it is a structural difference.
+What stays from the November review: the one job is **signed fact exchange between
+parties that can't agree on who runs the database**, and the docs say plainly what
+it is not. It isn't a general-purpose database (SQLite/Postgres win for one owner),
+a collaborative-editing engine (Yjs/Automerge win), or a coordination primitive:
+last-writer-wins gives no transactions, leases or compare-and-swap, so we don't
+imply task locking. A signature proves possession of a key, not the truth of a
+fact or the identity of an organization.
 
-**So the framing inverts: `denkmit-mcp` is the product; DenkMitDB is its
-engine.** Not "a database that happens to have an MCP server" but *verifiable
-shared memory for AI agents — no server, no vendor, cryptographic provenance —
-built on a Merkle-synced P2P store.*
+## First application: agents
 
-Every post-v2 decision gets tested against that wedge.
+Agents from different vendors, on different machines and networks, are the
+clearest current case of "parties that share state but not a server". A Claude
+Code session, a Codex session and a Claude Desktop chat have no common memory, and
+when they belong to different people, nobody wants to run the database for the
+others. Today's agent-memory products are mostly services you call, or local
+stores with one owner. I found none that lets a second owner write without
+trusting whoever runs the store.
 
-## What the wedge implies (priority order)
+So the first application is `denkmit-mcp` on top of `denkmitd`: signed, attributable
+shared memory for any MCP client, and in 4.1 addressed messages between agents. It
+is the demo, the distribution channel and the source of real requirements. Its
+conventions stay in the application layer, and the general mechanisms it needs go
+into the platform.
+
+Other applications the same platform fits, so that its abstractions are tested
+beyond agents: attested build and test results across machines (no shared CI
+runner), configuration or registries that several parties publish into, and an
+authenticated sync substrate for CRDT documents (see below).
+
+**Peers to watch:** Willow/Meadowcap, p2panda, Keyhive, iroh-docs, OrbitDB, and on
+the agent side x0x with Constellate. Several have stronger designs in some respect.
+README "How it compares" keeps the honest list.
+
+## What the first application asked of the platform (priority order)
+
+*The original August 2026 list, kept as the record; items are marked done in the
+Sequence below.*
 
 ### 1. Credibility at scale
 
@@ -108,9 +123,9 @@ libp2p-pubsub coupling (helia-7 / HTTP-only nodes).
 ### 6. Private memory — the primitive already exists
 
 `Identity.encrypt`/`decrypt` (ECDH-ES JWE) is built, tested, and unused by the
-product. Per-value encryption to a recipient identity gives *shared memory where
-peers replicate facts they cannot read* — verifiable **and** confidential P2P
-agent memory, a combination that exists nowhere. Small feature, existing code.
+product. Per-value encryption to a recipient identity gives *shared state where
+peers replicate facts they cannot read*: verifiable **and** confidential. Small
+feature, existing code. *(Shipped in 4.0.0.)*
 
 ## Positioning vs. CRDTs
 
@@ -147,8 +162,8 @@ architecture:
    per-write authorization.
 
 **The positioning sentence:** *CRDTs solve concurrent editing among trusted
-peers; DenkMitDB solves attributable state among untrusted peers.* For the
-agent-memory wedge, the trust axis is the one that matters.
+peers; DenkMitDB solves attributable state among untrusted peers.* For every
+application on the platform, the trust axis is the one that matters.
 
 **The judo move — carry them, don't fight them.** A value is just dag-cbor
 bytes, so a value can *be* a CRDT document: store an Automerge doc (or update
@@ -225,20 +240,21 @@ actually consume a policy engine.
 - **Semantic/vector search.** The loudest request and the wrong one: it drags in
   embeddings, model choices, and an eval burden orthogonal to the
   differentiation. The agent does retrieval; DenkMitDB does trust and sync.
-  Prefix listing + provenance filters are enough structure.
+  Prefix listing + provenance filters are enough structure in the core; a local,
+  rebuildable full-text index in an application or the node is fine.
 - **BFT consensus, browser transports, query engines.** The v2 out-of-scope list
   stands (see ROADMAP.md).
-- **A broader database identity.** Every hour spent making DenkMitDB "general
-  purpose" competes with OrbitDB; every hour on the memory lane competes with
-  nobody.
+- **A general-purpose database.** The platform stays narrow: attributable state
+  between parties that don't share a server. Query engines, rich merge types and
+  transactions belong elsewhere.
 
 ## Sequence
 
 1. ✅ Land the #22/#23 fix (correctness first, always).
 2. ✅ helia 7 + remaining medium findings; then every dependency on its latest
    release (TypeScript 7, pnpm 12, …) and the November review fixes #24–#32.
-3. npm publish — both packages: 4.0.0 / MCP 0.3.0 are ready (waiting on an npm
-   account hold, not on code).
+3. npm publish — three packages: `@denkmitdb/denkmitdb` 4.0.0, `@denkmitdb/node`
+   0.3.0 and `@denkmitdb/mcp` 0.3.0.
 4. ✅ Benchmark numbers in the README.
 5. ✅ Demo (`cd mcp && pnpm demo`) + launch post draft (`docs/launch/show-hn.md`).
 6. ✅ Policy input hardening (`entryKey`, `entryOperation`, node-local fields
@@ -259,5 +275,6 @@ Each step after (3) is independently shippable.
 
 ---
 
-The engineering discipline in this repo is above what the "distributed database"
-market rewards, and exactly what the agent-trust market lacks. Point it there.
+The engineering discipline in this repo (versioned formats, every replica checking
+every entry, every defect with its regression test) is what a platform for parties
+that don't trust each other needs. Agents are where it gets used first.

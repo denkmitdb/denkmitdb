@@ -101,6 +101,14 @@ instead of quietly starting a private memory of its own.
 Start (or restart) the agent. It now has six tools: `memory_set`, `memory_get`,
 `memory_list`, `memory_delete`, `memory_provenance` and `memory_status`.
 
+**Which clients work.** Any client that can start a local MCP server over stdio:
+
+| Client | Works | Why |
+|---|---|---|
+| Claude Code, Codex CLI, Claude Desktop | yes | they start `denkmit-mcp` locally |
+| Other local MCP clients (Cursor, Gemini CLI, …) | should | the same stdio setup; not tested yet |
+| claude.ai on the web and mobile, ChatGPT, the Gemini app | not yet | they connect only to public HTTPS servers with OAuth, from the vendor's cloud |
+
 ## 3. Talk to your agent
 
 You don't call the tools yourself — just ask. Try:

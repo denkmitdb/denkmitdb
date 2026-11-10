@@ -7,19 +7,20 @@
 
 Title options (pick one at submit time):
 
-- Show HN: DenkMitDB – agents that don't trust each other share signed facts, no server
-- Show HN: P2P memory for AI agents where every fact is signed and writers stay in their lane
-- Show HN: Verifiable shared memory for AI agents (IPFS + Merkle sync, MCP server included)
+- Show HN: DenkMitDB – a P2P database where every record is signed and every replica enforces the rules
+- Show HN: DenkMitDB – signed, replicated state with no operator; first app: shared memory for AI agents
+- Show HN: A peer-to-peer database for parties that share state but not a server (MCP agents included)
 
 ---
 
-Hi HN — I built DenkMitDB for one situation: agents run by **different owners**
-need to share facts, nobody wants to run (or trust) the database in the middle,
-and every reader needs to know *who* claimed *what*.
+Hi HN — I built DenkMitDB, a peer-to-peer database for one situation: several
+parties (services, devices, organizations, AI agents) need to share facts, nobody
+wants to run (or trust) the database in the middle, and every reader needs to know
+*who* claimed *what*.
 
-One owner's agents are better served by SQLite or Postgres. Collaborative
-documents are better served by Yjs or Automerge. DenkMitDB is for the case
-neither covers: attributable state between parties who don't trust each other.
+One owner is better served by SQLite or Postgres. Collaborative documents are
+better served by Yjs or Automerge. DenkMitDB is for the case neither covers:
+attributable state between parties that don't share a server.
 
 What it is: a key-value store on IPFS (Helia) where
 
@@ -43,9 +44,10 @@ What it is: a key-value store on IPFS (Helia) where
   Merkle trees, so a sync fetches what differs, not the database. Conflicts on a
   key resolve by deterministic last-write-wins.
 
-An MCP server and a small daemon make it shared memory for any MCP-capable
-agent: one daemon per machine holds the keys and stays a peer, agents connect
-through a thin stdio client, and each agent can sign with its own identity:
+It comes as three packages: the library; `denkmitd`, a node that keeps a
+machine a peer and holds its keys; and the first application, `denkmit-mcp`, which
+turns it into shared memory for any MCP client (Claude Code, Codex, Claude
+Desktop) over stdio. Each agent can sign with its own identity:
 
     npm install -g @denkmitdb/node @denkmitdb/mcp
     DENKMIT_PASSPHRASE='…' DENKMIT_ACCESS=namespace-per-writer denkmitd
@@ -78,7 +80,9 @@ It runs today on four machines in four situations — a public server as the
 seed, a second server, a home machine behind NAT, and a laptop behind a
 corporate firewall that allows only HTTPS (the seed also speaks libp2p over
 WebSockets on 443) — with Claude Code, Codex and Claude Desktop agents, each
-signing with its own key. Before launch I ran the same test plan through real
+signing with its own key. All four machines are mine, so "parties that don't
+trust each other" is simulated so far; running it with someone else's machine is
+the next test. Before launch I ran the same test plan through real
 agent sessions on different machines, using only their memory tools; it found
 three bugs the unit and smoke tests could not (agents losing their tools when
 the daemon restarted, stale tool schemas after an upgrade, agents inventing
@@ -87,9 +91,18 @@ now replays that cross-machine plan against the live nodes in one command.
 
 What it is **not**, honestly:
 
+- Not the only signed or peer-to-peer store. OrbitDB, Willow/Meadowcap, p2panda
+  and Keyhive have signed or authorised entries with rules every replica applies,
+  and some have stronger designs; x0x and Constellate are the closest on the agent
+  side. I haven't found another MCP server that gives a private group a replicated
+  store where each record carries its writer's signature and each copy enforces
+  the group's own write rules — tell me what I missed.
+- Not a memory product with search: the agent does retrieval. Memory servers such
+  as basic-memory serve one owner's notes well and can sit beside it.
 - A signature proves which key wrote a fact, not that the fact is true, and not
-  which human or company holds the key. Treat values as attributed claims — and
-  text from other agents as untrusted input.
+  which human or company holds the key. It doesn't protect against prompt
+  injection either: treat values as attributed claims, and text from other agents
+  as untrusted input.
 - Single-key last-write-wins on wall-clock timestamps. No transactions, no
   compare-and-swap, no locks: don't use it to hand out exclusive tasks. A writer
   with a fast clock wins same-key conflicts for as long as its skew
@@ -100,7 +113,14 @@ What it is **not**, honestly:
   discovery by database address over a DHT and libp2p relays are next. A new
   reader also needs some peer that still holds the blocks.
 - Reads are not access-controlled: anyone with the database address and a
-  reachable peer can replicate it. Encrypt what must stay private.
+  reachable peer can replicate it. Encrypt what must stay private — key names,
+  writer, recipients and size stay public, and there's no forward secrecy or key
+  rotation yet.
+- A delete is a signed tombstone: it hides the record everywhere, but copies others
+  already hold are not erased. Don't put other people's personal data in it.
+- It works with clients that start a local MCP server over stdio. claude.ai on the
+  web and mobile, and ChatGPT, accept only public HTTPS servers with OAuth; that
+  isn't supported yet.
 - Bulk replication is the slow path: ~10 ms per entry to a fresh peer at 10k
   entries on a small arm64 VPS (numbers in the README).
 - Policies are fixed at creation; owner-signed delegation (so other parties see
