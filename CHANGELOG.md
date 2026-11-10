@@ -64,6 +64,12 @@ instead of being ignored: ignoring one would sign a different, permanent manifes
 
 ### Fixed
 
+- **`memory_get` / `memory_list` return `writtenAt`, the signed write time**
+  ([#34](https://github.com/denkmitdb/denkmitdb/issues/34)). Without it agents put
+  their own timestamps into values — and an LLM agent has no reliable clock (one
+  "hello" claimed a time four hours ahead of its signed write). The tool
+  descriptions now say the signed time is returned and times inside a value are
+  only the writer's claim.
 - **Agents keep their memory tools across daemon restarts.** The thin client
   (`denkmit-mcp`) exited when the daemon's socket closed, so every daemon restart
   or update silently took the memory tools away from every running agent until
